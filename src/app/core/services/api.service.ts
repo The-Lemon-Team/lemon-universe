@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  CloudDayNote,
   CodeRepoView,
   CreateFlowPayload,
   Flow,
@@ -12,6 +13,7 @@ import {
   FlowStatus,
   Folder,
   Profile,
+  TimelineBoard,
 } from '../models/flow.models';
 
 /** Thin typed wrapper over the NestJS REST API (contracts = flow.models.ts). */
@@ -112,5 +114,40 @@ export class ApiService {
 
   pushCodeResults(id: string, payload: any): Observable<{ processed: number }> {
     return this.http.post<{ processed: number }>(`${this.base}/code-tasks/repos/${id}/results`, payload);
+  }
+
+  /* TimeLine Boards & Lemon Seasons Bridge Endpoints */
+  getTimelineBoards(): Observable<TimelineBoard[]> {
+    return this.http.get<TimelineBoard[]>(`${this.base}/timelines/boards`);
+  }
+
+  createTimelineBoard(dto: Partial<TimelineBoard>): Observable<TimelineBoard> {
+    return this.http.post<TimelineBoard>(`${this.base}/timelines/boards`, dto);
+  }
+
+  getTimelineNotes(boardId?: string): Observable<CloudDayNote[]> {
+    let params = new HttpParams();
+    if (boardId) params = params.set('boardId', boardId);
+    return this.http.get<CloudDayNote[]>(`${this.base}/timelines/notes`, { params });
+  }
+
+  createTimelineNote(note: CloudDayNote): Observable<CloudDayNote> {
+    return this.http.post<CloudDayNote>(`${this.base}/timelines/notes`, note);
+  }
+
+  ingestSeasonsNote(payload: Record<string, unknown>): Observable<{
+    synced: boolean;
+    queuedInPersonalFeed?: boolean;
+    noteId?: string;
+    feedSlug?: string;
+    streamSlug?: string;
+  }> {
+    return this.http.post<{
+      synced: boolean;
+      queuedInPersonalFeed?: boolean;
+      noteId?: string;
+      feedSlug?: string;
+      streamSlug?: string;
+    }>(`${this.base}/seasons-bridge/ingest`, payload);
   }
 }

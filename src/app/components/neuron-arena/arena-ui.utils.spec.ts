@@ -30,7 +30,7 @@ describe('detectMentionedActors', () => {
       handle: 'lemon_dev',
       flowId: 'flow-actor-lemon-coder',
       name: 'Программист (Lemon Team)',
-      title: 'Fullstack Инженер & Кодер Lemon Party',
+      title: 'Fullstack Инженер & Кодер Lemon Universe',
       avatarIcon: 'lemon-coder',
       accentColor: 'cyan',
       category: 'HUMAN',
@@ -179,6 +179,28 @@ describe('detectMentionedActors', () => {
       isLead: false,
       voicesCount: 11,
     },
+    {
+      id: 'actor-antigravity-agent',
+      handle: 'antigravity_agent',
+      flowId: 'c0000001-0000-4000-8000-000000000003',
+      name: 'Antigravity Agent',
+      title: 'Автономный AI-Архитектор & Кодинг-Агент Lemon Universe',
+      avatarIcon: 'antigravity-agent',
+      accentColor: 'violet',
+      category: 'CYBER',
+      categoryLabel: 'AI Agent',
+      rankLabel: 'Principal Coding Agent',
+      quote: 'Поднимаю PostgreSQL и потоки Core Combinator!',
+      paradoxPhilosophy: 'Чистая архитектура',
+      favoriteDesire: 'Кодинг-сессия',
+      affinities: ['antigravity', 'кодинг'],
+      traits: { charisma: 96, analytical: 100, rebelVersus: 85 },
+      voicePitch: 0.96,
+      voiceRate: 1.04,
+      sampleVoices: { support: 'Синхронизировано!', counter: 'В отдельную ленту!', paradox: 'Синергия!' },
+      isLead: false,
+      voicesCount: 18,
+    },
   ];
 
   it('should detect both Akin and Lemon Coder in "Кодин сессия с Акином + Программист из Lemon Team"', () => {
@@ -247,6 +269,14 @@ describe('detectMentionedActors', () => {
 
     const ids = detected.map((a) => a.id);
     expect(ids).toContain('actor-shinigami');
+  });
+
+  it('should detect Antigravity Agent in "Провели кодинг-сессию с Antigravity Agent"', () => {
+    const text = 'Провели кодинг-сессию с Antigravity Agent';
+    const detected = detectMentionedActors(text, mockActors);
+
+    const ids = detected.map((a) => a.id);
+    expect(ids).toContain('actor-antigravity-agent');
   });
 
   it('should return empty array for text with no mentions', () => {

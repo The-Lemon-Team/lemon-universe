@@ -1,4 +1,9 @@
 import { Injectable, signal } from '@angular/core';
+import { readWithLegacyMigration } from '../core/services/neuron-arena.storage';
+
+const SOUND_MUTED_KEY = 'lemon-universe:sound-muted';
+const LEGACY_SQUAD_SOUND_MUTED_KEY = 'lemon-guild-squad:sound-muted';
+const LEGACY_SOUND_MUTED_KEY = 'lemon-party:sound-muted';
 
 @Injectable({ providedIn: 'root' })
 export class PartySoundService {
@@ -7,7 +12,11 @@ export class PartySoundService {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('lemon-party:sound-muted');
+      const stored = readWithLegacyMigration(
+        SOUND_MUTED_KEY,
+        LEGACY_SQUAD_SOUND_MUTED_KEY,
+        LEGACY_SOUND_MUTED_KEY,
+      );
       if (stored === 'true') {
         this.isMuted.set(true);
       }
@@ -18,7 +27,7 @@ export class PartySoundService {
     const next = !this.isMuted();
     this.isMuted.set(next);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('lemon-party:sound-muted', String(next));
+      localStorage.setItem(SOUND_MUTED_KEY, String(next));
     }
     if (!next) {
       this.playClick();

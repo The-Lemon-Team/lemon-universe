@@ -24,7 +24,7 @@ import { PartySoundService } from './party-sound.service';
                 class="font-label-code-sm text-xs px-3 py-1 rounded-full bg-primary text-on-primary font-bold shadow-xs flex items-center gap-1.5"
               >
                 <span class="material-symbols-rounded text-sm">sports_esports</span>
-                <span>Lemon Party Game Suite v2.0</span>
+                <span>Lemon Universe Game Suite v2.0</span>
               </span>
               <span
                 class="inline-flex items-center gap-1.5 font-label-code-sm text-xs px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold"

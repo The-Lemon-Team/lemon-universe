@@ -540,6 +540,62 @@ export const ACTOR_AVATARS_PART_2: Record<string, string> = {
     <path d="M22 47 Q16 41 19 33 Q24 37 23 45 Z" fill="#e0e7ff" opacity="0.9" />
     <line x1="22" y1="46" x2="25" y2="52" stroke="#a5b4fc" stroke-width="1.2" stroke-linecap="round" />
   `,
+  'antigravity-agent': `
+    <rect width="100" height="100" rx="22" fill="#0f0a2c" />
+    <!-- Антигравитационные орбитальные кольца -->
+    <ellipse cx="50" cy="52" rx="42" ry="15" transform="rotate(-18 50 52)" fill="none" stroke="#38bdf8" stroke-width="1.8" stroke-dasharray="6 3" opacity="0.75" />
+    <ellipse cx="50" cy="52" rx="40" ry="14" transform="rotate(22 50 52)" fill="none" stroke="#a855f7" stroke-width="1.6" opacity="0.65" />
+    <circle cx="18" cy="36" r="2.2" fill="#facc15" />
+    <circle cx="83" cy="30" r="2" fill="#38bdf8" />
+    <circle cx="80" cy="74" r="1.8" fill="#c084fc" />
+    <!-- Кибер-мантия / экзоскелет агента -->
+    <path d="M18 100 C22 73, 78 73, 82 100 Z" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5" />
+    <path d="M35 100 L42 77 L50 86 L58 77 L65 100" fill="#312e81" />
+    <!-- Светящееся ядро Lemon Universe & Core Combinator на груди -->
+    <circle cx="50" cy="88" r="6" fill="#facc15" stroke="#fef08a" stroke-width="1.5" />
+    <polygon points="50,83 53,88 50,93 47,88" fill="#0f0a2c" />
+    <!-- Голова кибер-архитектора с антигравитационным нимбом -->
+    <ellipse cx="50" cy="16" rx="18" ry="4.5" fill="none" stroke="#facc15" stroke-width="2.2" />
+    <rect x="29" y="26" width="42" height="44" rx="16" fill="#1e293b" stroke="#818cf8" stroke-width="2" />
+    <!-- Панорамный нейро-визор -->
+    <rect x="33" y="37" width="34" height="15" rx="7.5" fill="#090d16" stroke="#38bdf8" stroke-width="1.5" />
+    <!-- Глаза-индикаторы ИИ (бирюзово-золотые) -->
+    <circle cx="42" cy="44.5" r="3.8" fill="#38bdf8" />
+    <circle cx="58" cy="44.5" r="3.8" fill="#38bdf8" />
+    <circle cx="42" cy="44.5" r="1.6" fill="#facc15" />
+    <circle cx="58" cy="44.5" r="1.6" fill="#facc15" />
+    <!-- Дружелюбная цифровая улыбка-импульс -->
+    <path d="M40 59 Q45 64 50 59 Q55 64 60 59" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" />
+    <!-- Боковые нейро-антенны -->
+    <rect x="24" y="40" width="4" height="12" rx="2" fill="#a855f7" />
+    <rect x="72" y="40" width="4" height="12" rx="2" fill="#a855f7" />
+    <circle cx="26" cy="37" r="2.2" fill="#facc15" />
+    <circle cx="74" cy="37" r="2.2" fill="#facc15" />
+  `,
+  'actor-antigravity-agent': `
+    <rect width="100" height="100" rx="22" fill="#0f0a2c" />
+    <ellipse cx="50" cy="52" rx="42" ry="15" transform="rotate(-18 50 52)" fill="none" stroke="#38bdf8" stroke-width="1.8" stroke-dasharray="6 3" opacity="0.75" />
+    <ellipse cx="50" cy="52" rx="40" ry="14" transform="rotate(22 50 52)" fill="none" stroke="#a855f7" stroke-width="1.6" opacity="0.65" />
+    <circle cx="18" cy="36" r="2.2" fill="#facc15" />
+    <circle cx="83" cy="30" r="2" fill="#38bdf8" />
+    <circle cx="80" cy="74" r="1.8" fill="#c084fc" />
+    <path d="M18 100 C22 73, 78 73, 82 100 Z" fill="#1e1b4b" stroke="#6366f1" stroke-width="1.5" />
+    <path d="M35 100 L42 77 L50 86 L58 77 L65 100" fill="#312e81" />
+    <circle cx="50" cy="88" r="6" fill="#facc15" stroke="#fef08a" stroke-width="1.5" />
+    <polygon points="50,83 53,88 50,93 47,88" fill="#0f0a2c" />
+    <ellipse cx="50" cy="16" rx="18" ry="4.5" fill="none" stroke="#facc15" stroke-width="2.2" />
+    <rect x="29" y="26" width="42" height="44" rx="16" fill="#1e293b" stroke="#818cf8" stroke-width="2" />
+    <rect x="33" y="37" width="34" height="15" rx="7.5" fill="#090d16" stroke="#38bdf8" stroke-width="1.5" />
+    <circle cx="42" cy="44.5" r="3.8" fill="#38bdf8" />
+    <circle cx="58" cy="44.5" r="3.8" fill="#38bdf8" />
+    <circle cx="42" cy="44.5" r="1.6" fill="#facc15" />
+    <circle cx="58" cy="44.5" r="1.6" fill="#facc15" />
+    <path d="M40 59 Q45 64 50 59 Q55 64 60 59" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" />
+    <rect x="24" y="40" width="4" height="12" rx="2" fill="#a855f7" />
+    <rect x="72" y="40" width="4" height="12" rx="2" fill="#a855f7" />
+    <circle cx="26" cy="37" r="2.2" fill="#facc15" />
+    <circle cx="74" cy="37" r="2.2" fill="#facc15" />
+  `,
 };
 
 export const DEFAULT_ACTOR_AVATAR_SVG = `

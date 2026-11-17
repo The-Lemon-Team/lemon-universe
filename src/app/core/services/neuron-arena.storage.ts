@@ -9,6 +9,27 @@ const STORAGE_KEY_PREFIX = 'lemon-actions:neuron-arena:v6:';
 
 export const arenaStorageKey = (profileId: string): string => `${STORAGE_KEY_PREFIX}${profileId}`;
 
+/**
+ * Reads a localStorage value under `newKey`, migrating once from any of `legacyKeys` if present.
+ */
+export function readWithLegacyMigration(newKey: string, ...legacyKeys: string[]): string | null {
+  try {
+    const current = localStorage.getItem(newKey);
+    if (current !== null) {
+      return current;
+    }
+    for (const legacyKey of legacyKeys) {
+      const legacy = localStorage.getItem(legacyKey);
+      if (legacy !== null) {
+        localStorage.setItem(newKey, legacy);
+        localStorage.removeItem(legacyKey);
+        return legacy;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 export function loadCachedArenaState(profileId: string): ArenaStateStore {
   try {
     const raw = localStorage.getItem(arenaStorageKey(profileId));

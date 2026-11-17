@@ -5,6 +5,8 @@ describe('PartySoundService', () => {
   let service: PartySoundService;
 
   beforeEach(() => {
+    localStorage.removeItem('lemon-universe:sound-muted');
+    localStorage.removeItem('lemon-guild-squad:sound-muted');
     localStorage.removeItem('lemon-party:sound-muted');
     TestBed.configureTestingModule({});
     service = TestBed.inject(PartySoundService);
@@ -15,16 +17,26 @@ describe('PartySoundService', () => {
     expect(service.isMuted()).toBeFalse();
   });
 
+  it('should migrate legacy sound-muted preference on init', () => {
+    localStorage.setItem('lemon-party:sound-muted', 'true');
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const migrated = TestBed.inject(PartySoundService);
+    expect(migrated.isMuted()).toBeTrue();
+    expect(localStorage.getItem('lemon-universe:sound-muted')).toBe('true');
+    expect(localStorage.getItem('lemon-party:sound-muted')).toBeNull();
+  });
+
   it('should toggle sound muting and persist in localStorage', () => {
     const isMutedNow = service.toggleMute();
     expect(isMutedNow).toBeTrue();
     expect(service.isMuted()).toBeTrue();
-    expect(localStorage.getItem('lemon-party:sound-muted')).toBe('true');
+    expect(localStorage.getItem('lemon-universe:sound-muted')).toBe('true');
 
     const isUnmutedNow = service.toggleMute();
     expect(isUnmutedNow).toBeFalse();
     expect(service.isMuted()).toBeFalse();
-    expect(localStorage.getItem('lemon-party:sound-muted')).toBe('false');
+    expect(localStorage.getItem('lemon-universe:sound-muted')).toBe('false');
   });
 
   it('should not throw when triggering sound effects', () => {

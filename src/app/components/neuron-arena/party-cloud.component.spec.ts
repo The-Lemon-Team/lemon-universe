@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { CloudDayNote } from '../../core/models/flow.models';
+import { CloudDayNote, FlowStatus } from '../../core/models/flow.models';
 import { NeuronArenaService } from '../../core/services/neuron-arena.service';
 import { PartyRealtimeService } from '../../core/services/party-realtime.service';
 import { PartyCloudComponent } from './party-cloud.component';
@@ -146,10 +146,10 @@ describe('PartyCloudComponent', () => {
   });
 
   it('should calculate tiered stem heights for candlestick columns', () => {
-    expect(component.getNoteStemHeight(0)).toBe(40);
-    expect(component.getNoteStemHeight(1)).toBe(155);
-    expect(component.getNoteStemHeight(2)).toBe(270);
-    expect(component.getNoteStemHeight(3)).toBe(40); // cycles back to tier 0
+    expect(component.getNoteStemHeight(0)).toBe(85);
+    expect(component.getNoteStemHeight(1)).toBe(190);
+    expect(component.getNoteStemHeight(2)).toBe(295);
+    expect(component.getNoteStemHeight(3)).toBe(85); // cycles back to tier 0
   });
 
   it('should return accent stem classes and glow classes matching theme', () => {
@@ -553,5 +553,131 @@ describe('PartyCloudComponent', () => {
 
     const repliesList = component.getRepliesForNote(targetNote.id);
     expect(repliesList.some((r) => r.id === createdReply!.id)).toBeTrue();
+  });
+
+  it('should support multiple TimeLine Boards including Coding Sessions and creating a new board', () => {
+    const boards = component.timelineBoards();
+    expect(boards.some((b) => b.id === 'board-global-day')).toBeTrue();
+    expect(boards.some((b) => b.id === 'board-coding-sessions')).toBeTrue();
+
+    component.selectTimelineBoard('board-coding-sessions');
+    expect(component.activeBoardId()).toBe('board-coding-sessions');
+    const codingNotes = component.activeDateNotes();
+    expect(codingNotes.some((n) => n.id === 'note-coding-child-session-1')).toBeTrue();
+
+    // Create a custom TimeLine Board via modal
+    component.openCreateBoardModal();
+    expect(component.isCreateBoardModalOpen()).toBeTrue();
+    component.newBoardTitle.set('🔬 Архитектурный TimeLine');
+    component.newBoardDescription.set('Доска архитектурных экспериментов');
+    component.submitCreateBoard();
+
+    expect(component.isCreateBoardModalOpen()).toBeFalse();
+    expect(component.newBoardTitle()).toBe('');
+    expect(component.timelineBoards().some((b) => b.title === '🔬 Архитектурный TimeLine')).toBeTrue();
+  });
+
+  it('should switch to AI Agents player and Antigravity Agent character', () => {
+    component.switchToAntigravityAgent();
+    expect(component.activeProfile()?.playerType).toBe('AGENT');
+    expect(component.activePitchActor()?.id).toBe('actor-antigravity-agent');
+    expect(component.activePitchActor()?.name).toBe('Antigravity Agent');
+  });
+
+  it('should jump from Global TimeLine cross-link preview to child node in Coding Sessions TimeLine', () => {
+    component.selectTimelineBoard('board-global-day');
+    const globalSummary = component.activeDateNotes().find((n) => n.id === 'note-global-coding-summary-1');
+    expect(globalSummary).toBeDefined();
+    expect(globalSummary?.crossRefs?.length).toBeGreaterThan(0);
+
+    const cref = globalSummary!.crossRefs![0];
+    component.openCrossRefTarget(cref);
+
+    expect(component.activeBoardId()).toBe('board-coding-sessions');
+    expect(component.inspectedNote()?.id).toBe('note-coding-child-session-1');
+  });
+
+  it('should spawn a child node in Coding Sessions TimeLine and record summary to Lemon Seasons personal feed', () => {
+    component.selectTimelineBoard('board-global-day');
+    const feedCountBefore = component.personalFeedEntries().length;
+
+    component.toggleSpawnCodingChild();
+    expect(component.spawnChildCodingNode()).toBeTrue();
+    component.newIdeaTitle.set('Запустили Lemon Universe и проверили все тесты');
+    component.childCodingText.set('Детали прогона тестов Angular + PostgreSQL');
+    component.submitNoteOrIdea();
+
+    expect(component.spawnChildCodingNode()).toBeFalse();
+    const globalNote = component.activeDateNotes().find((n) => n.text.includes('Запустили Lemon Universe'));
+    expect(globalNote).toBeDefined();
+    expect(globalNote?.crossRefs?.length).toBe(1);
+    expect(globalNote?.crossRefs?.[0].targetBoardId).toBe('board-coding-sessions');
+
+    // Personal feed summary should receive both the child coding note and the global note
+    expect(component.personalFeedEntries().length).toBeGreaterThanOrEqual(feedCountBefore + 2);
+  });
+
+  it('should toggle Core Combinator FlowSession on active board and open/close personal feed modal', () => {
+    const boardBefore = component.activeBoard()!;
+    expect(boardBefore.flowStatus).toBe(FlowStatus.ACTIVE);
+
+    component.toggleActiveBoardFlow();
+    expect(component.activeBoard()?.flowStatus).toBe(FlowStatus.PAUSED);
+
+    component.toggleActiveBoardFlow();
+    expect(component.activeBoard()?.flowStatus).toBe(FlowStatus.ACTIVE);
+
+    component.openPersonalFeedModal();
+    expect(component.isPersonalFeedModalOpen()).toBeTrue();
+    component.closePersonalFeedModal();
+    expect(component.isPersonalFeedModalOpen()).toBeFalse();
+  });
+
+  it('should expose themed select options for filter layers, character filter, hero and co-author', () => {
+    const layerOpts = component.filterLayerOptions();
+    expect(layerOpts.map((o) => o.value)).toEqual(['ALL', 'THOUGHTS', 'PROPOSALS', 'ACTIONS']);
+
+    component.onLayerFilterChange('THOUGHTS');
+    expect(component.activeLayer()).toBe('THOUGHTS');
+
+    const actorOpts = component.actorFilterOptions();
+    expect(actorOpts[0].value).toBeNull();
+    expect(actorOpts.length).toBe(component.allActors().length + 1);
+
+    const actors = component.allActors();
+    if (actors.length >= 2) {
+      component.onComposerSubActorChange(actors[1].id);
+      expect(component.activeSubActor()?.id).toBe(actors[1].id);
+
+      // Switching main hero to the same actor clears co-author
+      component.onComposerHeroChange(actors[1].id);
+      expect(component.activePitchActor()?.id).toBe(actors[1].id);
+      expect(component.activeSubActor()).toBeNull();
+
+      component.onComposerSubActorChange('__NONE__');
+      expect(component.activeSubActor()).toBeNull();
+    }
+  });
+
+  it('should manage composer popovers for quick presets and party mentions', () => {
+    expect(component.activeComposerPopover()).toBeNull();
+
+    component.toggleComposerPopover('PRESETS');
+    expect(component.activeComposerPopover()).toBe('PRESETS');
+
+    const countBefore = component.activeDateNotes().length;
+    component.selectQuickPresetFromPopover(component.thoughtPresets[0]);
+    expect(component.activeDateNotes().length).toBe(countBefore + 1);
+    expect(component.activeComposerPopover()).toBeNull();
+
+    component.toggleComposerPopover('PARTY');
+    expect(component.activeComposerPopover()).toBe('PARTY');
+
+    const targetHero = component.filteredPartyActors()[0];
+    if (targetHero) {
+      component.mentionPartyHeroFromPopover(targetHero);
+      expect(component.newIdeaTitle()).toContain(`+ ${targetHero.name}`);
+      expect(component.activeComposerPopover()).toBeNull();
+    }
   });
 });

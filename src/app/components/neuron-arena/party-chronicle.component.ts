@@ -346,7 +346,7 @@ export class PartyChronicleComponent {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `lemon-party-persona-dataset-${Date.now()}.jsonl`;
+      a.download = `lemon-universe-persona-dataset-${Date.now()}.jsonl`;
       a.click();
       URL.revokeObjectURL(url);
     }

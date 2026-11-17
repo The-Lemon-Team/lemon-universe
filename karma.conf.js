@@ -17,7 +17,7 @@ module.exports = function (config) {
       suppressAll: true,
     },
     coverageReporter: {
-      dir: require('path').join(__dirname, './coverage/lemon-party'),
+      dir: require('path').join(__dirname, './coverage/lemon-universe'),
       subdir: '.',
       reporters: [{ type: 'html' }, { type: 'text-summary' }],
     },

@@ -10,12 +10,27 @@ export class ProfileService {
   private readonly defaultProfile: Profile = {
     id: '1f3e6a64-721c-4d1d-8d52-6c3f4e30d30b',
     handle: 'default',
-    displayName: 'Мой Дом',
+    displayName: '👤 Мой Дом (Игрок)',
     avatarIcon: 'home',
+    playerType: 'HUMAN',
+    defaultFeedSlug: 'universe-personal-feed',
     createdAt: new Date().toISOString(),
   };
 
-  private readonly profilesSubject = new BehaviorSubject<Profile[]>([this.defaultProfile]);
+  private readonly agentProfile: Profile = {
+    id: 'a7e49c10-9100-4b22-a811-9000a6e17001',
+    handle: 'ai_agents',
+    displayName: '🤖 Игрок-Агент (AI Guild)',
+    avatarIcon: 'smart_toy',
+    playerType: 'AGENT',
+    defaultFeedSlug: 'universe-coding-sessions',
+    createdAt: new Date().toISOString(),
+  };
+
+  private readonly profilesSubject = new BehaviorSubject<Profile[]>([
+    this.defaultProfile,
+    this.agentProfile,
+  ]);
   private readonly activeProfileIdSubject = new BehaviorSubject<string>(this.defaultProfile.id);
   private readonly appModeSubject = new BehaviorSubject<AppMode>('party');
 

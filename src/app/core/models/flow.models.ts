@@ -1,12 +1,15 @@
 import { Observable } from 'rxjs';
 
 export type AppMode = 'party' | 'arena' | 'home' | 'code' | 'core';
+export type PlayerType = 'HUMAN' | 'AGENT' | 'GM';
 
 export interface Profile {
   id: string;
   handle: string;
   displayName: string;
   avatarIcon?: string;
+  playerType?: PlayerType;
+  defaultFeedSlug?: string;
   createdAt: string;
 }
 
@@ -16,6 +19,9 @@ export enum FlowType {
   OBSERVER = 'OBSERVER',
   FSM = 'FSM',
   TIMER = 'TIMER',
+  CIRCUIT_BREAKER = 'CIRCUIT_BREAKER',
+  BATCH = 'BATCH',
+  PROJECTION = 'PROJECTION',
 }
 
 export enum FlowStatus {
@@ -532,6 +538,70 @@ export interface CombineHistoryCard {
 
 export type CloudItemType = 'thought' | 'proposal' | 'action';
 export type NoteVisibility = 'PUBLIC' | 'PRIVATE' | 'GM_ONLY';
+export type TimelineBoardKind = 'GLOBAL_DAY' | 'CODING_SESSIONS' | 'CUSTOM_PROJECT' | 'PARTY_ROOM';
+
+export interface TimelineBoard {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  icon: string;
+  colorTheme: ArenaAccentColor;
+  vibeId?: string;
+  boardKind: TimelineBoardKind;
+  flowId: string;
+  flowType: FlowType;
+  flowStatus: FlowStatus;
+  activeSessionId?: string | null;
+  seasonsStreamSlug: string;
+  seasonsFeedSlug: string;
+  isDefault?: boolean;
+  notesCount?: number;
+}
+
+export interface TimelineNodeCrossRef {
+  id?: string;
+  targetBoardId: string;
+  targetBoardTitle: string;
+  targetBoardIcon: string;
+  targetNoteId: string;
+  targetDateKey: string;
+  targetTime: string;
+  targetActorId?: string;
+  targetActorName: string;
+  targetActorAvatar: string;
+  targetTitle?: string;
+  targetSnippet: string;
+  relationLabel?: string;
+  sessionStatus?: 'ACTIVE' | 'COMPLETED';
+}
+
+export interface SeasonsPersonalFeedEntry {
+  id: string;
+  externalId: string;
+  boardId: string;
+  boardTitle: string;
+  boardIcon: string;
+  feedSlug: string;
+  streamSlug: string;
+  origin: 'NEURON_PARTY' | 'CODING_AGENT';
+  noteType: 'SINGLE' | 'EVENT' | 'DONE' | 'PERIOD';
+  title: string;
+  summary: string;
+  content: string;
+  actorId: string;
+  actorName: string;
+  actorAvatar: string;
+  authorProfileId?: string;
+  authorProfileName?: string;
+  playerType?: PlayerType;
+  dateKey: string;
+  time: string;
+  createdAt: string;
+  tags: string[];
+  crossRefs?: TimelineNodeCrossRef[];
+  syncedToRemote?: boolean;
+}
 
 export interface NoteActorLike {
   actorId: string;
@@ -543,6 +613,7 @@ export interface NoteActorLike {
 
 export interface CloudDayNote {
   id: string;
+  boardId?: string;
   dateKey: string;
   time: string;
   timeMinutes: number;
@@ -586,6 +657,19 @@ export interface CloudDayNote {
   replyToNoteId?: string;
   replyToAuthorName?: string;
   replyToTextSnippet?: string;
+
+  /* Multi-Timeline & Cross-Timeline Child Previews + Core Combinator & Seasons Sync */
+  crossRefs?: TimelineNodeCrossRef[];
+  parentCrossRef?: {
+    sourceBoardId: string;
+    sourceBoardTitle: string;
+    sourceNoteId: string;
+    sourceTime?: string;
+    sourceActorName?: string;
+  };
+  seasonsNoteId?: string;
+  seasonsFeedSlug?: string;
+  activeFlowSessionIds?: string[];
 }
 
 export interface CloudDateTab {

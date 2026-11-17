@@ -30,9 +30,14 @@ import {
   CombineTimeField,
   CloudDayNote,
   CloudItemType,
+  FlowStatus,
+  FlowType,
   NoteVisibility,
   Flow,
   NeuralTrainingSample,
+  TimelineBoard,
+  TimelineBoardKind,
+  TimelineNodeCrossRef,
 } from '../models/flow.models';
 import { ApiService } from './api.service';
 import { SEED_HERO_CLOUD_NOTES } from './hero-notes.seeds';
@@ -65,18 +70,91 @@ import {
   clearCachedArenaState,
   loadCachedArenaState,
   parseArenaFlows,
+  readWithLegacyMigration,
   saveCachedArenaState,
 } from './neuron-arena.storage';
 import { cancelVoicePlayback, startVoicePlayback } from './neuron-arena.voice-player';
 import { ProfileService } from './profile.service';
+import { SeasonsTimelineBridgeService } from './seasons-timeline-bridge.service';
 import { detectMentionedActors } from '../../components/neuron-arena/arena-ui.utils';
 
-const STORAGE_NOTES_KEY = 'lemon-party:cloud-notes-v8';
+const STORAGE_NOTES_KEY = 'lemon-universe:cloud-notes-v8';
+const LEGACY_SQUAD_NOTES_KEY = 'lemon-guild-squad:cloud-notes-v8';
+const LEGACY_STORAGE_NOTES_KEY = 'lemon-party:cloud-notes-v8';
+const STORAGE_BOARDS_KEY = 'lemon-universe:timeline-boards-v1';
+
+const DEFAULT_TIMELINE_BOARDS: TimelineBoard[] = [
+  {
+    id: 'board-global-day',
+    slug: 'global-day',
+    title: '🌍 Глобальный Таймлайн Дня',
+    description:
+      'Главная лента дня всех персонажей Lemon Universe. Сводка автоматически транслируется в личный фид Lemon Seasons (feed-app).',
+    icon: 'public',
+    colorTheme: 'amber',
+    vibeId: 'CHRONO_DAYFLOW',
+    boardKind: 'GLOBAL_DAY',
+    flowId: 'c0000001-0000-4000-8000-000000000001',
+    flowType: FlowType.PROJECTION,
+    flowStatus: FlowStatus.ACTIVE,
+    activeSessionId: '55000001-0000-4000-8000-000000000001',
+    seasonsStreamSlug: 'lemon-universe',
+    seasonsFeedSlug: 'universe-personal-feed',
+    isDefault: true,
+  },
+  {
+    id: 'board-coding-sessions',
+    slug: 'coding-sessions',
+    title: '💻 TimeLine Board: Сессии Кодинга',
+    description:
+      'Специализированный TimeLine для кодинг-сессий с участием Antigravity Agent, Программиста (Lemon Team) и ТимЛида Старлидера. Работает на потоке Core Combinator MUTEX и CodingMemoryAxon.',
+    icon: 'terminal',
+    colorTheme: 'violet',
+    vibeId: 'SYNTHWAVE',
+    boardKind: 'CODING_SESSIONS',
+    flowId: 'c0000001-0000-4000-8000-000000000002',
+    flowType: FlowType.MUTEX,
+    flowStatus: FlowStatus.ACTIVE,
+    activeSessionId: '55000001-0000-4000-8000-000000000002',
+    seasonsStreamSlug: 'lemon-universe',
+    seasonsFeedSlug: 'universe-coding-sessions',
+    isDefault: false,
+  },
+];
+
+function loadStoredBoards(): TimelineBoard[] {
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = readWithLegacyMigration(STORAGE_BOARDS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as TimelineBoard[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const existingIds = new Set(parsed.map((b) => b.id));
+          const missing = DEFAULT_TIMELINE_BOARDS.filter((d) => !existingIds.has(d.id));
+          return [...parsed, ...missing];
+        }
+      }
+    } catch {}
+  }
+  return DEFAULT_TIMELINE_BOARDS;
+}
+
+function saveStoredBoards(boards: TimelineBoard[]): void {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(STORAGE_BOARDS_KEY, JSON.stringify(boards));
+    } catch {}
+  }
+}
 
 function loadStoredNotes(): Record<string, CloudDayNote[]> {
   if (typeof window !== 'undefined') {
     try {
-      const raw = localStorage.getItem(STORAGE_NOTES_KEY);
+      const raw = readWithLegacyMigration(
+        STORAGE_NOTES_KEY,
+        LEGACY_SQUAD_NOTES_KEY,
+        LEGACY_STORAGE_NOTES_KEY,
+      );
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object') {
@@ -110,6 +188,7 @@ function saveStoredNotes(store: Record<string, CloudDayNote[]>): void {
 export class NeuronArenaService {
   private readonly api = inject(ApiService);
   private readonly profileService = inject(ProfileService);
+  private readonly seasonsBridge = inject(SeasonsTimelineBridgeService);
   private readonly http = inject(HttpClient);
 
   private loadPrivateNotesIfPresent(): void {
@@ -155,6 +234,19 @@ export class NeuronArenaService {
 
   readonly allNotes$: Observable<CloudDayNote[]> = this.notesMap$.pipe(
     map((m) => Object.values(m).flat()),
+    shareReplay({ bufferSize: 1, refCount: true }),
+  );
+
+  private readonly boardsSubject = new BehaviorSubject<TimelineBoard[]>(loadStoredBoards());
+  private readonly activeBoardIdSubject = new BehaviorSubject<string>('board-global-day');
+
+  readonly timelineBoards$: Observable<TimelineBoard[]> = this.boardsSubject.asObservable();
+  readonly activeBoardId$: Observable<string> = this.activeBoardIdSubject.asObservable();
+  readonly activeBoard$: Observable<TimelineBoard> = combineLatest([
+    this.timelineBoards$,
+    this.activeBoardId$,
+  ]).pipe(
+    map(([boards, id]) => boards.find((b) => b.id === id) ?? boards[0]),
     shareReplay({ bufferSize: 1, refCount: true }),
   );
 
@@ -233,6 +325,7 @@ export class NeuronArenaService {
 
   constructor() {
     this.loadPrivateNotesIfPresent();
+    this.hydrateTimelinesFromBackend();
     this.profileService.activeProfileId$
       .pipe(distinctUntilChanged())
       .subscribe((profileId) => {
@@ -1029,13 +1122,188 @@ export class NeuronArenaService {
   }
 
   addCloudNote(note: CloudDayNote): CloudDayNote {
+    const boardId = note.boardId || this.activeBoardIdSubject.value || 'board-global-day';
+    const board = this.getBoardById(boardId);
+    const enrichedNote: CloudDayNote = {
+      ...note,
+      boardId,
+      seasonsFeedSlug: note.seasonsFeedSlug || board.seasonsFeedSlug,
+      activeFlowSessionIds:
+        note.activeFlowSessionIds ??
+        (board.flowStatus === FlowStatus.ACTIVE && board.activeSessionId
+          ? [board.activeSessionId]
+          : []),
+    };
+
     const currentMap = { ...this.notesSubject.value };
-    const dateKey = note.dateKey || '2026-11-06';
-    const list = currentMap[dateKey] ? [...currentMap[dateKey], note] : [note];
+    const dateKey = enrichedNote.dateKey || '2026-11-06';
+    const list = currentMap[dateKey] ? [...currentMap[dateKey], enrichedNote] : [enrichedNote];
     currentMap[dateKey] = list;
     this.notesSubject.next(currentMap);
     saveStoredNotes(currentMap);
-    return note;
+
+    // Sync to PostgreSQL API (non-blocking) & Lemon Seasons personal feed via lemon-seasons-neurons
+    this.api
+      .createTimelineNote(enrichedNote)
+      .pipe(catchError(() => of(null)))
+      .subscribe();
+    this.seasonsBridge.recordTimelineNoteToFeed(enrichedNote, board);
+
+    return enrichedNote;
+  }
+
+  getBoardById(boardId: string): TimelineBoard {
+    const boards = this.boardsSubject.value;
+    return boards.find((b) => b.id === boardId) ?? boards[0];
+  }
+
+  getActiveBoard(): TimelineBoard {
+    return this.getBoardById(this.activeBoardIdSubject.value);
+  }
+
+  selectTimelineBoard(boardId: string): void {
+    const boards = this.boardsSubject.value;
+    if (!boards.some((b) => b.id === boardId)) return;
+    this.activeBoardIdSubject.next(boardId);
+  }
+
+  createTimelineBoard(input: {
+    title: string;
+    description?: string;
+    icon?: string;
+    colorTheme?: ArenaAccentColor;
+    vibeId?: string;
+    boardKind?: TimelineBoardKind;
+    flowType?: FlowType;
+    seasonsFeedSlug?: string;
+  }): TimelineBoard {
+    const cleanTitle = input.title.trim() || 'Новый TimeLine Board';
+    const slugBase = cleanTitle
+      .toLowerCase()
+      .replace(/[^a-zа-яё0-9]+/gi, '-')
+      .replace(/^-+|-+$/g, '') || `board-${Date.now()}`;
+    const id = `board-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const flowId = `flow-${id}`;
+    const newBoard: TimelineBoard = {
+      id,
+      slug: `${slugBase}-${Math.random().toString(36).slice(2, 5)}`,
+      title: cleanTitle,
+      description: input.description?.trim() || 'Параллельная TimeLine-лента в Lemon Universe',
+      icon: input.icon || 'timeline',
+      colorTheme: input.colorTheme || 'indigo',
+      vibeId: input.vibeId || 'CHRONO_DAYFLOW',
+      boardKind: input.boardKind || 'CUSTOM_PROJECT',
+      flowId,
+      flowType: input.flowType || FlowType.CONTEXT,
+      flowStatus: FlowStatus.ACTIVE,
+      activeSessionId: `session-${Date.now()}`,
+      seasonsStreamSlug: 'lemon-universe',
+      seasonsFeedSlug: input.seasonsFeedSlug?.trim() || `universe-${slugBase}`,
+      isDefault: false,
+    };
+
+    const next = [...this.boardsSubject.value, newBoard];
+    this.boardsSubject.next(next);
+    saveStoredBoards(next);
+    this.activeBoardIdSubject.next(newBoard.id);
+
+    this.api
+      .createTimelineBoard(newBoard)
+      .pipe(catchError(() => of(null)))
+      .subscribe();
+
+    return newBoard;
+  }
+
+  toggleBoardFlowSession(boardId: string): TimelineBoard {
+    const boards = this.boardsSubject.value;
+    const next = boards.map((b) => {
+      if (b.id !== boardId) return b;
+      const isRunning = b.flowStatus === FlowStatus.ACTIVE;
+      return {
+        ...b,
+        flowStatus: isRunning ? FlowStatus.PAUSED : FlowStatus.ACTIVE,
+        activeSessionId: isRunning ? null : `session-${Date.now()}`,
+      };
+    });
+    this.boardsSubject.next(next);
+    saveStoredBoards(next);
+    return this.getBoardById(boardId);
+  }
+
+  attachCrossLinkToNote(
+    sourceNoteId: string,
+    crossRef: TimelineNodeCrossRef,
+  ): CloudDayNote | null {
+    const currentMap = { ...this.notesSubject.value };
+    let updatedNote: CloudDayNote | null = null;
+
+    for (const dateKey of Object.keys(currentMap)) {
+      const idx = currentMap[dateKey].findIndex((n) => n.id === sourceNoteId);
+      if (idx !== -1) {
+        const note = currentMap[dateKey][idx];
+        const existingRefs = note.crossRefs || [];
+        const deduped = [
+          ...existingRefs.filter((r) => r.targetNoteId !== crossRef.targetNoteId),
+          crossRef,
+        ];
+        updatedNote = { ...note, crossRefs: deduped };
+        currentMap[dateKey] = [
+          ...currentMap[dateKey].slice(0, idx),
+          updatedNote,
+          ...currentMap[dateKey].slice(idx + 1),
+        ];
+        break;
+      }
+    }
+
+    if (updatedNote) {
+      this.notesSubject.next(currentMap);
+      saveStoredNotes(currentMap);
+      this.api
+        .createTimelineNote(updatedNote)
+        .pipe(catchError(() => of(null)))
+        .subscribe();
+      const board = this.getBoardById(updatedNote.boardId || 'board-global-day');
+      this.seasonsBridge.recordTimelineNoteToFeed(updatedNote, board);
+    }
+
+    return updatedNote;
+  }
+
+  private hydrateTimelinesFromBackend(): void {
+    this.api
+      .getTimelineBoards()
+      .pipe(catchError(() => of([] as TimelineBoard[])))
+      .subscribe((boards) => {
+        if (boards && boards.length > 0) {
+          const current = this.boardsSubject.value;
+          const mapById = new Map(current.map((b) => [b.id, b]));
+          for (const b of boards) {
+            mapById.set(b.id, { ...mapById.get(b.id), ...b });
+          }
+          const merged = Array.from(mapById.values());
+          this.boardsSubject.next(merged);
+          saveStoredBoards(merged);
+        }
+      });
+
+    this.api
+      .getTimelineNotes()
+      .pipe(catchError(() => of([] as CloudDayNote[])))
+      .subscribe((remoteNotes) => {
+        if (!remoteNotes || remoteNotes.length === 0) return;
+        const currentMap = { ...this.notesSubject.value };
+        for (const rn of remoteNotes) {
+          const dk = rn.dateKey || '2026-11-06';
+          const dayList = currentMap[dk] || [];
+          if (!dayList.some((existing) => existing.id === rn.id)) {
+            currentMap[dk] = [...dayList, rn];
+          }
+        }
+        this.notesSubject.next(currentMap);
+        saveStoredNotes(currentMap);
+      });
   }
 
   clearNotesForDate(dateKey: string): void {

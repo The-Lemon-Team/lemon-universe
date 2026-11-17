@@ -234,7 +234,7 @@ import { getAccentAvatarClasses } from './arena-ui.utils';
 
         <!-- Right 5 Columns: Detailed Match History Inspector -->
         @if (arena.inspectedDesireCard$ | async; as inspected) {
-          <div class="lg:col-span-5 bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border-2 border-primary/40 flex flex-col gap-space-md sticky top-20">
+          <div class="lg:col-span-5 bg-surface-container-lowest rounded-2xl p-space-md shadow-sm border-2 border-primary/40 flex flex-col gap-space-md sticky top-32">
             <div class="flex items-start justify-between gap-3 pb-3 border-b border-outline-variant/20">
               <div class="flex items-center gap-3">
                 <div

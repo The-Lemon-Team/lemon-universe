@@ -5,7 +5,7 @@ export const partyGameRoutes: Routes = [
   {
     path: '',
     component: PartyGameHomeComponent,
-    title: 'Главное Меню | Lemon Party',
+    title: 'Главное Меню | Lemon Universe',
   },
   {
     path: 'field',
@@ -13,7 +13,7 @@ export const partyGameRoutes: Routes = [
       import('../components/neuron-arena/arena-field.component').then(
         (m) => m.ArenaFieldComponent,
       ),
-    title: 'Игровое Поле & Схватки | Lemon Party',
+    title: 'Игровое Поле & Схватки | Lemon Universe',
   },
   {
     path: 'cloud',
@@ -21,7 +21,7 @@ export const partyGameRoutes: Routes = [
       import('../components/neuron-arena/party-cloud.component').then(
         (m) => m.PartyCloudComponent,
       ),
-    title: 'Хроно-Облако | Lemon Party',
+    title: 'Хроно-Облако & TimeLines | Lemon Universe',
   },
   {
     path: 'cards',
@@ -29,7 +29,7 @@ export const partyGameRoutes: Routes = [
       import('../components/neuron-arena/party-cards.component').then(
         (m) => m.PartyCardsComponent,
       ),
-    title: 'Карточки Желаний | Lemon Party',
+    title: 'Карточки Желаний | Lemon Universe',
   },
   {
     path: 'heroes',
@@ -37,7 +37,7 @@ export const partyGameRoutes: Routes = [
       import('../components/neuron-arena/arena-heroes.component').then(
         (m) => m.ArenaHeroesComponent,
       ),
-    title: 'Персонажи | Lemon Party',
+    title: 'Персонажи | Lemon Universe',
   },
   {
     path: 'chronicle',
@@ -45,7 +45,7 @@ export const partyGameRoutes: Routes = [
       import('../components/neuron-arena/party-chronicle.component').then(
         (m) => m.PartyChronicleComponent,
       ),
-    title: 'Хроника Войсов & AI Датасет | Lemon Party',
+    title: 'Хроника Войсов & AI Датасет | Lemon Universe',
   },
   {
     path: 'roulette',
@@ -53,7 +53,7 @@ export const partyGameRoutes: Routes = [
       import('./party-roulette-page.component').then(
         (m) => m.PartyRoulettePageComponent,
       ),
-    title: 'Колесо Фортуны & Рулетка | Lemon Party',
+    title: 'Колесо Фортуны & Рулетка | Lemon Universe',
   },
   {
     path: 'arena',

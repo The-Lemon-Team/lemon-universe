@@ -1,0 +1,288 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [ltree]
+}
+
+enum FlowType {
+  CONTEXT
+  MUTEX
+  OBSERVER
+  FSM
+  TIMER
+  CIRCUIT_BREAKER
+  BATCH
+  PROJECTION
+}
+
+enum FlowStatus {
+  INACTIVE
+  ACTIVE
+  PAUSED
+  PROCESSING
+}
+
+enum PlayerType {
+  HUMAN
+  AGENT
+  GM
+}
+
+enum TimelineBoardKind {
+  GLOBAL_DAY
+  CODING_SESSIONS
+  CUSTOM_PROJECT
+  PARTY_ROOM
+}
+
+model Profile {
+  id              String     @id @default(uuid()) @db.Uuid
+  handle          String     @unique
+  displayName     String     @map("display_name")
+  avatarIcon      String?    @map("avatar_icon")
+  playerType      PlayerType @default(HUMAN) @map("player_type")
+  defaultFeedSlug String?    @map("default_feed_slug")
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  folders Folder[]
+  flows   Flow[]
+  actors  ArenaActor[]
+  notes   TimelineNote[]
+
+  @@map("profiles")
+}
+
+model Folder {
+  id        String               @id @default(uuid()) @db.Uuid
+  name      String
+  parentId  String?              @map("parent_id") @db.Uuid
+  profileId String?              @map("profile_id") @db.Uuid
+  path      Unsupported("ltree")
+  createdAt DateTime             @default(now()) @map("created_at")
+  updatedAt DateTime             @updatedAt @map("updated_at")
+
+  parent   Folder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children Folder[] @relation("FolderTree")
+  profile  Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  flows    Flow[]
+
+  @@index([parentId])
+  @@index([profileId])
+  @@map("folders")
+}
+
+model Tag {
+  id       String    @id @default(uuid()) @db.Uuid
+  name     String    @unique
+  colorHex String?   @map("color_hex")
+  flows    FlowTag[]
+
+  @@map("tags")
+}
+
+model Flow {
+  id                String     @id @default(uuid()) @db.Uuid
+  name              String
+  description       String?
+  type              FlowType
+  status            FlowStatus @default(INACTIVE)
+  isExclusive       Boolean    @default(false) @map("is_exclusive")
+  folderId          String?    @map("folder_id") @db.Uuid
+  profileId         String?    @map("profile_id") @db.Uuid
+  config            Json?
+  orchestratorRules Json?      @map("orchestrator_rules")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+
+  folder         Folder?          @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  profile        Profile?         @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  tags           FlowTag[]
+  sessions       FlowSession[]
+  events         FlowEvent[]
+  bufferItems    FlowBufferItem[]
+  timelineBoards TimelineBoard[]
+
+  @@index([folderId])
+  @@index([profileId])
+  @@index([type])
+  @@index([status])
+  @@map("flows")
+}
+
+model FlowTag {
+  flowId String @map("flow_id") @db.Uuid
+  tagId  String @map("tag_id") @db.Uuid
+  flow   Flow   @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([flowId, tagId])
+  @@map("flow_tags")
+}
+
+model FlowSession {
+  id        String    @id @default(uuid()) @db.Uuid
+  flowId    String    @map("flow_id") @db.Uuid
+  startedAt DateTime  @default(now()) @map("started_at")
+  endedAt   DateTime? @map("ended_at")
+  closedBy  String?   @map("closed_by")
+  flow      Flow      @relation(fields: [flowId], references: [id], onDelete: Cascade)
+
+  @@index([flowId, endedAt])
+  @@map("flow_sessions")
+}
+
+model FlowEvent {
+  id                   String   @id @default(uuid()) @db.Uuid
+  flowId               String   @map("flow_id") @db.Uuid
+  source               String   @default("external")
+  eventType            String   @map("event_type")
+  payload              Json     @default("{}")
+  activeFlowSessionIds String[] @default([]) @map("active_flow_session_ids")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  flow Flow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+
+  @@index([flowId, createdAt])
+  @@map("flow_events")
+}
+
+model FlowBufferItem {
+  id         String    @id @default(uuid()) @db.Uuid
+  flowId     String    @map("flow_id") @db.Uuid
+  dedupKey   String?   @map("dedup_key")
+  payload    Json      @default("{}")
+  enqueuedAt DateTime  @default(now()) @map("enqueued_at")
+  flushedAt  DateTime? @map("flushed_at")
+
+  flow Flow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+
+  @@index([flowId, flushedAt])
+  @@index([flowId, dedupKey])
+  @@map("flow_buffer_items")
+}
+
+model ArenaActor {
+  id                String   @id
+  handle            String   @unique
+  flowId            String?  @map("flow_id")
+  ownerProfileId    String?  @map("owner_profile_id") @db.Uuid
+  name              String
+  title             String
+  category          String
+  categoryLabel     String   @map("category_label")
+  avatarIcon        String   @map("avatar_icon")
+  accentColor       String   @map("accent_color")
+  rankLabel         String   @map("rank_label")
+  quote             String
+  paradoxPhilosophy String   @map("paradox_philosophy")
+  favoriteDesire    String   @map("favorite_desire")
+  affinities        String[] @default([])
+  traits            Json     @default("{}")
+  sampleVoices      Json     @default("{}") @map("sample_voices")
+  isLead            Boolean  @default(false) @map("is_lead")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  ownerProfile Profile?       @relation(fields: [ownerProfileId], references: [id], onDelete: SetNull)
+  notes        TimelineNote[]
+
+  @@map("arena_actors")
+}
+
+model TimelineBoard {
+  id                String            @id
+  slug              String            @unique
+  title             String
+  description       String?
+  icon              String            @default("cloud")
+  colorTheme        String            @default("amber") @map("color_theme")
+  vibeId            String            @default("CHRONO_DAYFLOW") @map("vibe_id")
+  boardKind         TimelineBoardKind @default(GLOBAL_DAY) @map("board_kind")
+  flowId            String?           @map("flow_id") @db.Uuid
+  seasonsStreamSlug String            @default("lemon-universe") @map("seasons_stream_slug")
+  seasonsFeedSlug   String            @map("seasons_feed_slug")
+  isDefault         Boolean           @default(false) @map("is_default")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  flow          Flow?               @relation(fields: [flowId], references: [id], onDelete: SetNull)
+  notes         TimelineNote[]
+  outgoingLinks TimelineCrossLink[] @relation("OutgoingCrossLinks")
+  incomingLinks TimelineCrossLink[] @relation("IncomingCrossLinks")
+
+  @@index([boardKind])
+  @@map("timeline_boards")
+}
+
+model TimelineNote {
+  id                   String   @id
+  boardId              String   @map("board_id")
+  dateKey              String   @map("date_key")
+  time                 String
+  timeMinutes          Int      @map("time_minutes")
+  type                 String   @default("thought")
+  visibility           String   @default("PUBLIC")
+  actorId              String   @map("actor_id")
+  actorName            String   @map("actor_name")
+  actorAvatar          String   @map("actor_avatar")
+  actorAccent          String   @map("actor_accent")
+  actorTitle           String?  @map("actor_title")
+  subActorId           String?  @map("sub_actor_id")
+  subActorName         String?  @map("sub_actor_name")
+  subActorAvatar       String?  @map("sub_actor_avatar")
+  subActorAccent       String?  @map("sub_actor_accent")
+  authorProfileId      String?  @map("author_profile_id") @db.Uuid
+  authorProfileName    String?  @map("author_profile_name")
+  title                String?
+  text                 String
+  moodEmoji            String?  @map("mood_emoji")
+  tags                 String[] @default([])
+  partyActorIds        String[] @default([]) @map("party_actor_ids")
+  supporters           String[] @default([])
+  votesCount           Int      @default(1) @map("votes_count")
+  likedByActors        Json     @default("[]") @map("liked_by_actors")
+  replyToNoteId        String?  @map("reply_to_note_id")
+  replyToAuthorName    String?  @map("reply_to_author_name")
+  replyToTextSnippet   String?  @map("reply_to_text_snippet")
+  isPinnedToHero       Boolean  @default(false) @map("is_pinned_to_hero")
+  isPinnedToCloud      Boolean  @default(false) @map("is_pinned_to_cloud")
+  seasonsNoteId        String?  @map("seasons_note_id")
+  seasonsExternalId    String?  @map("seasons_external_id")
+  activeFlowSessionIds String[] @default([]) @map("active_flow_session_ids")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  board         TimelineBoard       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  actor         ArenaActor?         @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  authorProfile Profile?            @relation(fields: [authorProfileId], references: [id], onDelete: SetNull)
+  outgoingLinks TimelineCrossLink[] @relation("SourceNoteLinks")
+  incomingLinks TimelineCrossLink[] @relation("TargetNoteLinks")
+
+  @@index([boardId, dateKey, timeMinutes])
+  @@index([actorId])
+  @@map("timeline_notes")
+}
+
+model TimelineCrossLink {
+  id            String   @id
+  sourceBoardId String   @map("source_board_id")
+  sourceNoteId  String   @map("source_note_id")
+  targetBoardId String   @map("target_board_id")
+  targetNoteId  String   @map("target_note_id")
+  relationType  String   @default("CHILD_SESSION") @map("relation_type")
+  relationLabel String?  @map("relation_label")
+  previewCache  Json     @default("{}") @map("preview_cache")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  sourceBoard TimelineBoard @relation("OutgoingCrossLinks", fields: [sourceBoardId], references: [id], onDelete: Cascade)
+  targetBoard TimelineBoard @relation("IncomingCrossLinks", fields: [targetBoardId], references: [id], onDelete: Cascade)
+  sourceNote  TimelineNote  @relation("SourceNoteLinks", fields: [sourceNoteId], references: [id], onDelete: Cascade)
+  targetNote  TimelineNote  @relation("TargetNoteLinks", fields: [targetNoteId], references: [id], onDelete: Cascade)
+
+  @@index([sourceNoteId])
+  @@index([targetNoteId])
+  @@map("timeline_cross_links")
+}

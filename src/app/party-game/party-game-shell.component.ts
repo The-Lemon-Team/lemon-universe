@@ -24,14 +24,16 @@ import { PartySoundService } from './party-sound.service';
     <div class="min-h-screen bg-background text-on-surface flex flex-col">
       <!-- 1. STANDALONE GAME TOPBAR (ОБВЯЗКА ПРИЛОЖЕНИЯ) -->
       <header
-        class="sticky top-0 z-40 w-full bg-surface/98 border-b border-outline-variant/30 shadow-xs"
+        class="sticky top-0 z-40 w-full bg-surface border-b border-outline-variant/40 shadow-sm"
       >
-        <div class="relative w-full px-4 sm:px-6 lg:px-8 xl:px-12 h-16 flex items-center justify-between gap-4">
+        <div
+          class="relative w-full px-4 sm:px-6 lg:px-8 xl:px-12 min-h-16 py-2 flex items-center justify-between gap-2 sm:gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-4"
+        >
           <!-- Game Brand & Portal Link -->
-          <div class="flex items-center gap-3 flex-shrink-0 z-10 min-w-0">
+          <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0 z-10 min-w-0 lg:justify-self-start">
             <a
               routerLink="/party"
-              class="flex items-center gap-2.5 text-on-surface no-underline hover:opacity-90 transition-opacity"
+              class="flex items-center gap-2.5 text-on-surface no-underline hover:opacity-90 transition-opacity min-w-0"
             >
               <div
                 class="w-10 h-10 rounded-2xl bg-primary text-on-primary flex items-center justify-center shadow-xs flex-shrink-0"
@@ -40,17 +42,17 @@ import { PartySoundService } from './party-sound.service';
                   celebration
                 </span>
               </div>
-              <div class="flex flex-col">
+              <div class="flex flex-col min-w-0">
                 <div class="flex items-center gap-1.5">
-                  <span class="font-headline-sm text-base font-black tracking-tight">Lemon Party</span>
+                  <span class="font-headline-sm text-base font-black tracking-tight whitespace-nowrap">Lemon Universe</span>
                   <span
-                    class="font-label-code-sm text-[10px] px-2 py-0.2 rounded-full bg-primary-container text-on-primary-container font-extrabold uppercase"
+                    class="font-label-code-sm text-[10px] px-2 py-0.2 rounded-full bg-primary-container text-on-primary-container font-extrabold uppercase flex-shrink-0"
                   >
                     Game
                   </span>
                 </div>
-                <span class="font-label-code-sm text-[10px] text-on-surface-variant hidden sm:inline">
-                  party.lemon.app · standalone
+                <span class="font-label-code-sm text-[10px] text-on-surface-variant hidden sm:inline truncate">
+                  universe.lemon.app · standalone
                 </span>
               </div>
             </a>
@@ -58,7 +60,7 @@ import { PartySoundService } from './party-sound.service';
             <!-- Return to Lemon Portal button -->
             <a
               routerLink="/core"
-              class="ml-2 hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant font-label-ui text-xs font-semibold transition-colors border border-outline-variant/20 no-underline"
+              class="ml-1 hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant font-label-ui text-xs font-semibold transition-colors border border-outline-variant/20 no-underline flex-shrink-0"
               title="Перейти в консоль управления экосистемой Lemon Actions"
             >
               <span class="material-symbols-rounded text-sm">grid_view</span>
@@ -66,28 +68,28 @@ import { PartySoundService } from './party-sound.service';
             </a>
           </div>
 
-          <!-- Compact Multiroom Dropdown Selector in Topbar (Centered & Stable Position) -->
+          <!-- Compact Multiroom Dropdown Selector in Topbar (Centered Grid Track, Non-Overlapping) -->
           <div
-            class="relative lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:inset-y-0 lg:flex lg:items-center z-20 flex-shrink-0"
+            class="relative min-w-0 flex items-center justify-center z-20 lg:justify-self-center"
           >
             <button
               type="button"
               (click)="toggleRoomMenu()"
-              class="px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 flex items-center gap-2 text-xs font-label-ui transition-colors cursor-pointer shadow-xs"
+              class="max-w-full min-w-0 px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 flex items-center gap-2 text-xs font-label-ui transition-colors cursor-pointer shadow-xs"
               [attr.aria-expanded]="isRoomMenuOpen()"
               aria-haspopup="listbox"
               title="Выбрать игровую комнату"
             >
-              <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span class="material-symbols-rounded text-sm text-primary">meeting_room</span>
-              <span class="font-bold text-on-surface truncate max-w-44 md:max-w-64">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+              <span class="material-symbols-rounded text-sm text-primary flex-shrink-0">meeting_room</span>
+              <span class="font-bold text-on-surface truncate max-w-28 sm:max-w-44 lg:max-w-56 xl:max-w-64">
                 {{ realtime.getActiveRoom().title }}
               </span>
-              <span class="px-1.5 py-0.5 rounded-md bg-surface-container-high text-[10px] text-on-surface-variant font-bold">
+              <span class="px-1.5 py-0.5 rounded-md bg-surface-container-high text-[10px] text-on-surface-variant font-bold flex-shrink-0">
                 {{ realtime.getActiveRoom().participantsCount }}👥
               </span>
               <span
-                class="material-symbols-rounded text-base text-on-surface-variant transition-transform"
+                class="material-symbols-rounded text-base text-on-surface-variant transition-transform flex-shrink-0"
                 [class.rotate-180]="isRoomMenuOpen()"
               >
                 expand_more
@@ -152,7 +154,7 @@ import { PartySoundService } from './party-sound.service';
           </div>
 
           <!-- Controls: Sound FX, Modals, Theme -->
-          <div class="flex items-center gap-2 flex-shrink-0 z-10">
+          <div class="flex items-center gap-2 flex-shrink-0 z-10 lg:justify-self-end">
             <!-- Sound FX Toggle -->
             <button
               type="button"
@@ -217,18 +219,18 @@ import { PartySoundService } from './party-sound.service';
         </div>
 
         <!-- 2. GAME NAVIGATION RIBBON (TAB BAR) -->
-        <div class="border-t border-outline-variant/20 bg-surface-container-lowest/60">
+        <div class="border-t border-outline-variant/25 bg-surface-container-lowest">
           <div class="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
             <nav
               aria-label="Game Navigation"
-              class="flex items-center gap-1 sm:gap-2 overflow-x-auto py-2 no-scrollbar"
+              class="flex items-center gap-1 sm:gap-1.5 overflow-x-auto py-2 no-scrollbar"
             >
               <!-- 1. Главное Меню / Start Screen -->
               <a
                 routerLink="/party"
                 [routerLinkActiveOptions]="{ exact: true }"
                 routerLinkActive="bg-primary text-on-primary shadow-xs font-bold"
-                class="px-3.5 py-1.5 rounded-xl font-label-ui text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors inline-flex items-center gap-1.5 flex-shrink-0 no-underline cursor-pointer"
+                class="px-3 py-1.5 rounded-xl font-label-ui text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors inline-flex items-center gap-1.5 flex-shrink-0 no-underline cursor-pointer"
               >
                 <span class="material-symbols-rounded text-base">home</span>
                 <span>Главное Меню</span>
@@ -238,7 +240,7 @@ import { PartySoundService } from './party-sound.service';
               <a
                 routerLink="/party/field"
                 routerLinkActive="bg-primary text-on-primary shadow-xs font-bold"
-                class="px-3.5 py-1.5 rounded-xl font-label-ui text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors inline-flex items-center gap-1.5 flex-shrink-0 no-underline cursor-pointer"
+                class="px-3 py-1.5 rounded-xl font-label-ui text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors inline-flex items-center gap-1.5 flex-shrink-0 no-underline cursor-pointer"
               >
                 <span class="material-symbols-rounded text-base">swords</span>
                 <span>Игровое Поле & Схватки</span>
@@ -248,7 +250,7 @@ import { PartySoundService } from './party-sound.service';
               <a
                 routerLink="/party/cloud"
                 routerLinkActive="bg-primary text-on-primary shadow-xs font-bold"
-                class="px-3.5 py-1.5 rounded-xl font-label-ui text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors inline-flex items-center gap-1.5 flex-shrink-0 no-underline cursor-pointer"
+                class="px-3 py-1.5 rounded-xl font-label-ui text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors inline-flex items-center gap-1.5 flex-shrink-0 no-underline cursor-pointer"
               >
                 <span class="material-symbols-rounded text-base text-amber-500">cloud</span>
                 <span>Хроно-Облако</span>
@@ -263,7 +265,7 @@ import { PartySoundService } from './party-sound.service';
               <a
                 routerLink="/party/cards"
                 routerLinkActive="bg-primary text-on-primary shadow-xs font-bold"
-                class="px-3.5 py-1.5 rounded-xl font-label-ui text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors inline-flex items-center gap-1.5 flex-shrink-0 no-underline cursor-pointer"
+                class="px-3 py-1.5 rounded-xl font-label-ui text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors inline-flex items-center gap-1.5 flex-shrink-0 no-underline cursor-pointer"
               >
                 <span class="material-symbols-rounded text-base">style</span>
                 <span>Колода Желаний</span>
@@ -278,7 +280,7 @@ import { PartySoundService } from './party-sound.service';
               <a
                 routerLink="/party/heroes"
                 routerLinkActive="bg-primary text-on-primary shadow-xs font-bold"
-                class="px-3.5 py-1.5 rounded-xl font-label-ui text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors inline-flex items-center gap-1.5 flex-shrink-0 no-underline cursor-pointer"
+                class="px-3 py-1.5 rounded-xl font-label-ui text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors inline-flex items-center gap-1.5 flex-shrink-0 no-underline cursor-pointer"
               >
                 <span class="material-symbols-rounded text-base">diversity_3</span>
                 <span>Персонажи (30 героев)</span>
@@ -293,7 +295,7 @@ import { PartySoundService } from './party-sound.service';
               <a
                 routerLink="/party/chronicle"
                 routerLinkActive="bg-primary text-on-primary shadow-xs font-bold"
-                class="px-3.5 py-1.5 rounded-xl font-label-ui text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors inline-flex items-center gap-1.5 flex-shrink-0 no-underline cursor-pointer"
+                class="px-3 py-1.5 rounded-xl font-label-ui text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors inline-flex items-center gap-1.5 flex-shrink-0 no-underline cursor-pointer"
               >
                 <span class="material-symbols-rounded text-base">spatial_audio_off</span>
                 <span>Студия Войсов</span>
@@ -308,7 +310,7 @@ import { PartySoundService } from './party-sound.service';
               <a
                 routerLink="/party/roulette"
                 routerLinkActive="bg-primary text-on-primary shadow-xs font-bold"
-                class="px-3.5 py-1.5 rounded-xl font-label-ui text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors inline-flex items-center gap-1.5 flex-shrink-0 no-underline cursor-pointer"
+                class="px-3 py-1.5 rounded-xl font-label-ui text-xs font-semibold text-on-surface-variant hover:text-on-surface transition-colors inline-flex items-center gap-1.5 flex-shrink-0 no-underline cursor-pointer"
               >
                 <span class="material-symbols-rounded text-base text-rose-500">casino</span>
                 <span>Колесо Фортуны</span>
@@ -353,8 +355,8 @@ import { PartySoundService } from './party-sound.service';
       <footer class="mt-auto border-t border-outline-variant/20 bg-surface-container-lowest py-6">
         <div class="w-full px-4 sm:px-6 lg:px-8 xl:px-12 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-body-sm text-on-surface-variant">
           <div class="flex items-center gap-2">
-            <span class="font-bold text-on-surface">Lemon Party · Game Suite</span>
-            <span>· Отдельное приложение выбора досуга</span>
+            <span class="font-bold text-on-surface">Lemon Universe · Game Suite</span>
+            <span>· Отдельное приложение выбора досуга и TimeLines</span>
           </div>
           <div class="flex items-center gap-4">
             <a routerLink="/party" class="hover:underline text-on-surface">Главное Меню</a>

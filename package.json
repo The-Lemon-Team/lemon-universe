@@ -1,13 +1,16 @@
 {
-  "name": "lemon-party",
-  "version": "0.1.0",
-  "description": "Lemon Party — Neuron Arena & Party Games suite for collective decision making and fun",
+  "name": "lemon-universe",
+  "version": "0.2.0",
+  "description": "Lemon Universe — TimeLines, Neuron Arena & Party Games suite for collective decision making and coding sessions",
   "scripts": {
     "ng": "ng",
     "start": "ng serve --host 0.0.0.0",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "api:start": "node server/index.mjs"
   },
   "private": true,
   "dependencies": {
@@ -19,6 +22,7 @@
     "@angular/platform-browser": "^18.2.0",
     "@angular/platform-browser-dynamic": "^18.2.0",
     "@angular/router": "^18.2.0",
+    "pg": "^8.23.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.14.10"

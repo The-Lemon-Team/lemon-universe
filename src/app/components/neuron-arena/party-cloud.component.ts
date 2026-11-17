@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  HostListener,
   NgZone,
   computed,
   inject,
@@ -20,14 +21,28 @@ import {
   CloudDateTab,
   CloudDayNote,
   CloudItemType,
+  FlowStatus,
+  FlowType,
   NoteActorLike,
+  Profile,
+  SeasonsPersonalFeedEntry,
+  TimelineBoard,
+  TimelineBoardKind,
+  TimelineNodeCrossRef,
 } from '../../core/models/flow.models';
 import { NeuronArenaService } from '../../core/services/neuron-arena.service';
+import { readWithLegacyMigration } from '../../core/services/neuron-arena.storage';
 import { SEED_HERO_CLOUD_NOTES } from '../../core/services/hero-notes.seeds';
 import { PartyRealtimeService } from '../../core/services/party-realtime.service';
+import { ProfileService } from '../../core/services/profile.service';
+import { SeasonsTimelineBridgeService } from '../../core/services/seasons-timeline-bridge.service';
 import { PartySoundService } from '../../party-game/party-sound.service';
 import { ActorAvatarComponent } from './actor-avatar.component';
 import { ArenaHeroNotesModalComponent } from './arena-hero-notes-modal.component';
+import {
+  CloudSelectOption,
+  CloudThemedSelectComponent,
+} from './cloud-themed-select.component';
 import {
   detectMentionedActors,
   getAccentAvatarClasses,
@@ -127,7 +142,12 @@ export const CLOUD_DAY_VIBES: CloudDayVibe[] = [
   },
 ];
 
-const STORAGE_NOTES_KEY = 'lemon-party:cloud-notes-v8';
+const STORAGE_NOTES_KEY = 'lemon-universe:cloud-notes-v8';
+const LEGACY_SQUAD_NOTES_KEY = 'lemon-guild-squad:cloud-notes-v8';
+const LEGACY_STORAGE_NOTES_KEY = 'lemon-party:cloud-notes-v8';
+const STORAGE_DAY_VIBE_KEY = 'lemon-universe:day-vibe';
+const LEGACY_SQUAD_DAY_VIBE_KEY = 'lemon-guild-squad:day-vibe';
+const LEGACY_STORAGE_DAY_VIBE_KEY = 'lemon-party:day-vibe';
 
 const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
 
@@ -146,6 +166,7 @@ const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
     ActorAvatarComponent,
     ModalOverlayDirective,
     ArenaHeroNotesModalComponent,
+    CloudThemedSelectComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
@@ -212,12 +233,38 @@ const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
         </div>
 
         <div class="flex items-center gap-2 flex-wrap">
-          <div
-            class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-label-code-sm text-emerald-700 dark:text-emerald-300 font-bold"
-          >
-            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>Лобби Активно ({{ realtime.latencyMs() }}ms)</span>
+          <!-- Active Player Switcher (Human vs AI Agents Guild) -->
+          <div class="flex items-center gap-1 bg-surface-container-low p-1 rounded-2xl border border-outline-variant/30">
+            @for (profile of allProfiles(); track profile.id) {
+              <button
+                type="button"
+                (click)="selectPlayerProfile(profile)"
+                class="px-2.5 py-1 rounded-xl font-label-ui text-[11px] font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
+                [class]="
+                  activeProfile()?.id === profile.id
+                    ? profile.playerType === 'AGENT'
+                      ? 'bg-violet-600 text-white shadow-xs'
+                      : 'bg-primary text-on-primary shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                "
+                [title]="'Переключить активного игрока: ' + profile.displayName"
+              >
+                <span class="material-symbols-rounded text-xs">{{ profile.avatarIcon || 'person' }}</span>
+                <span>{{ profile.displayName }}</span>
+              </button>
+            }
           </div>
+
+          <!-- Lemon Seasons Personal Feed Summary Trigger -->
+          <button
+            type="button"
+            (click)="openPersonalFeedModal()"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-800 dark:text-emerald-200 border border-emerald-500/35 font-label-ui text-xs font-bold transition-colors cursor-pointer"
+            title="Открыть сводку в личный feed Lemon Seasons (feed-app)"
+          >
+            <span>🌿</span>
+            <span>Feed-сводка ({{ personalFeedEntries().length }})</span>
+          </button>
 
           <button
             type="button"
@@ -230,27 +277,113 @@ const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
         </div>
       </nav>
 
-      <!-- 2. DATE SELECTOR & CLOUD CONTROLS STRIP (CLEAN & SPACIOUS) -->
+      <!-- 1.5 MULTI-TIMELINE BOARDS & CORE COMBINATOR FLOWS BAR -->
       <section
-        class="bg-surface-container-lowest rounded-3xl p-4 sm:p-5 shadow-xs border border-outline-variant/30 flex flex-col gap-4"
+        class="bg-surface-container-lowest rounded-3xl p-3.5 sm:p-4 shadow-xs border border-outline-variant/30 flex flex-col gap-3"
       >
-        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <!-- Date Tabs Attached to Date -->
-          <div class="flex items-center gap-2 overflow-x-auto py-1">
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+          <div class="flex items-center gap-2 overflow-x-auto py-0.5">
             <span class="font-label-ui text-xs font-bold text-on-surface-variant uppercase tracking-wider mr-1 flex-shrink-0 flex items-center gap-1">
-              <span class="material-symbols-rounded text-base text-primary">calendar_today</span>
-              День:
+              <span class="material-symbols-rounded text-base text-primary">view_timeline</span>
+              <span>TimeLine Boards:</span>
+            </span>
+
+            @for (board of timelineBoards(); track board.id) {
+              <button
+                type="button"
+                (click)="selectTimelineBoard(board.id)"
+                class="px-3.5 py-2 rounded-2xl font-label-ui text-xs font-bold transition-all flex items-center gap-2 border flex-shrink-0 cursor-pointer"
+                [class]="
+                  activeBoardId() === board.id
+                    ? board.boardKind === 'CODING_SESSIONS'
+                      ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
+                      : 'bg-primary text-on-primary border-primary shadow-sm'
+                    : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline-variant/30 hover:bg-surface-container-high'
+                "
+              >
+                <span class="material-symbols-rounded text-base">{{ board.icon }}</span>
+                <span>{{ board.title }}</span>
+                <span
+                  class="text-[10px] px-1.5 py-0.2 rounded-full font-label-code-sm"
+                  [class]="
+                    activeBoardId() === board.id
+                      ? 'bg-white/20 text-white'
+                      : 'bg-surface-container-highest text-outline font-semibold'
+                  "
+                >
+                  {{ getBoardNotesCount(board.id) }}
+                </span>
+              </button>
+            }
+
+            <button
+              type="button"
+              (click)="openCreateBoardModal()"
+              class="px-3 py-2 rounded-2xl border border-dashed border-primary/50 bg-primary/5 hover:bg-primary/15 text-primary font-label-ui text-xs font-bold inline-flex items-center gap-1 flex-shrink-0 transition-colors cursor-pointer"
+            >
+              <span class="material-symbols-rounded text-base">add</span>
+              <span>+ Новый TimeLine Board</span>
+            </button>
+          </div>
+
+          <!-- Core Combinator Flow & Lemon Seasons Feed Badges -->
+          @if (activeBoard(); as board) {
+            <div class="flex items-center gap-2 flex-wrap text-[11px] font-label-code-sm">
+              <button
+                type="button"
+                (click)="toggleActiveBoardFlow()"
+                class="px-2.5 py-1 rounded-xl border inline-flex items-center gap-1.5 font-bold cursor-pointer transition-colors"
+                [class]="
+                  board.flowStatus === 'ACTIVE'
+                    ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-500/35 hover:bg-emerald-500/25'
+                    : 'bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-500/35 hover:bg-amber-500/25'
+                "
+                title="Управление потоком Core Combinator (FlowSession) для этого TimeLine"
+              >
+                <span class="w-2 h-2 rounded-full" [class]="board.flowStatus === 'ACTIVE' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'"></span>
+                <span>Core Combinator: {{ board.flowType }} · {{ board.flowStatus }}</span>
+              </button>
+
+              <span class="px-2.5 py-1 rounded-xl bg-surface-container-high text-on-surface-variant border border-outline-variant/30 inline-flex items-center gap-1">
+                <span>🌿</span>
+                <span>Feed: {{ board.seasonsFeedSlug }}</span>
+              </span>
+
+              <button
+                type="button"
+                (click)="switchToAntigravityAgent()"
+                class="px-2.5 py-1 rounded-xl bg-violet-500/15 hover:bg-violet-500/25 text-violet-800 dark:text-violet-200 border border-violet-500/35 font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                title="Переключиться на игрока AI Guild и персонажа Antigravity Agent"
+              >
+                <span>🤖</span>
+                <span>Antigravity Agent</span>
+              </button>
+            </div>
+          }
+        </div>
+      </section>
+
+      <!-- 2. DATE SELECTOR & COMPACT THEMED FILTERS BAR -->
+      <section
+        class="relative z-20 bg-surface-container-lowest rounded-3xl p-3 sm:p-4 shadow-xs border border-outline-variant/30 flex flex-col gap-3"
+      >
+        <div class="flex items-center justify-between gap-2.5 flex-wrap">
+          <!-- Date Tabs Attached to Date -->
+          <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-none">
+            <span class="font-label-ui text-[11px] font-bold text-on-surface-variant uppercase tracking-wider mr-0.5 flex-shrink-0 flex items-center gap-1">
+              <span class="material-symbols-rounded text-sm text-primary">calendar_today</span>
+              <span class="hidden sm:inline">День:</span>
             </span>
 
             @for (tab of dateTabs(); track tab.dateKey) {
               <button
                 type="button"
                 (click)="selectDate(tab.dateKey)"
-                class="px-3.5 py-2 rounded-2xl font-label-ui text-xs font-bold transition-colors flex items-center gap-2 border flex-shrink-0 cursor-pointer"
+                class="px-3 py-1.5 rounded-2xl font-label-ui text-xs font-bold transition-colors flex items-center gap-1.5 border flex-shrink-0 cursor-pointer"
                 [class]="
                   selectedDateKey() === tab.dateKey
-                    ? 'bg-primary text-on-primary border-primary shadow-sm'
-                    : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline-variant/30 hover:bg-surface-container-high'
+                    ? 'bg-primary text-on-primary border-primary shadow-xs'
+                    : 'bg-surface-container-low/80 text-on-surface-variant hover:text-on-surface border-outline-variant/30 hover:bg-surface-container'
                 "
               >
                 <span>{{ tab.label }}</span>
@@ -262,162 +395,90 @@ const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
                       : 'bg-surface-container-highest text-outline font-semibold'
                   "
                 >
-                  {{ tab.notesCount }} мыслей
+                  {{ tab.notesCount }}
                 </span>
               </button>
             }
           </div>
 
-          <!-- View Mode Toggle: Interactive Cloud Canvas vs Daily Feed -->
-          <div class="flex items-center gap-1.5 bg-surface-container-low p-1.5 rounded-2xl border border-outline-variant/30 self-start lg:self-center">
-            <button
-              type="button"
-              (click)="viewMode.set('CLOUD_TIMELINE')"
-              class="px-3.5 py-1.5 rounded-xl font-label-ui text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-              [class]="
-                isCloudView()
-                  ? 'bg-primary text-on-primary shadow-xs'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              "
-            >
-              <span class="material-symbols-rounded text-base">cloud</span>
-              <span>☁️ Мультяшное Облако</span>
-            </button>
+          <!-- Compact Themed Select Filters & View Switcher -->
+          <div class="flex items-center gap-2 flex-wrap">
+            <!-- Record Type Filter Select -->
+            <app-cloud-themed-select
+              [options]="filterLayerOptions()"
+              [value]="activeLayer()"
+              [clearValue]="defaultFilterLayer"
+              [highlightActive]="true"
+              prefixLabel="Фильтр:"
+              panelWidthClass="w-60"
+              ariaLabel="Фильтр записей по типу"
+              (valueChange)="onLayerFilterChange($event)"
+            />
 
-            <button
-              type="button"
-              (click)="viewMode.set('DAY_FEED')"
-              class="px-3.5 py-1.5 rounded-xl font-label-ui text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-              [class]="
-                isFeedView()
-                  ? 'bg-primary text-on-primary shadow-xs'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              "
-            >
-              <span class="material-symbols-rounded text-base">format_list_bulleted</span>
-              <span>📋 Хроника Дня</span>
-            </button>
-          </div>
-        </div>
+            <!-- Character Filter Select -->
+            <app-cloud-themed-select
+              [options]="actorFilterOptions()"
+              [value]="selectedActorFilter()"
+              [clearable]="true"
+              [clearValue]="null"
+              [highlightActive]="true"
+              [searchable]="true"
+              searchPlaceholder="Найти героя..."
+              prefixLabel="Герой:"
+              panelWidthClass="w-72"
+              ariaLabel="Фильтр по герою в облаке"
+              (valueChange)="selectActorFilter($event)"
+            />
 
-        <!-- Filter Action Types & Subtitle -->
-        <div class="flex items-center justify-between gap-3 pt-3 border-t border-outline-variant/20 flex-wrap">
-          <div class="flex items-center gap-1.5 flex-wrap">
-            <span class="font-label-ui text-xs font-bold text-on-surface-variant uppercase tracking-wider mr-1">
-              Фильтр записей:
+            <!-- Subtle Visible Count Pill -->
+            <span
+              class="hidden xl:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-2xl bg-surface-container-low/70 border border-outline-variant/25 text-[11px] font-label-code-sm text-on-surface-variant"
+              [title]="visibleNotes().length + ' записей отображается · Кликните по таймлайну внизу для выбора часа'"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-primary/70"></span>
+              <span>{{ visibleNotes().length }} зап.</span>
             </span>
-            <button
-              type="button"
-              (click)="activeLayer.set('ALL')"
-              class="px-3 py-1 rounded-xl font-label-ui text-xs font-semibold transition-colors border cursor-pointer"
-              [class]="
-                activeLayer() === 'ALL'
-                  ? 'bg-primary-container text-on-primary-container border-primary font-bold shadow-xs'
-                  : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline-variant/25'
-              "
-            >
-              Все ({{ activeDateNotes().length }})
-            </button>
 
-            <button
-              type="button"
-              (click)="activeLayer.set('THOUGHTS')"
-              class="px-3 py-1 rounded-xl font-label-ui text-xs font-semibold transition-colors border cursor-pointer"
-              [class]="
-                activeLayer() === 'THOUGHTS'
-                  ? 'bg-amber-400/20 text-amber-900 dark:text-amber-200 border-amber-400 font-bold shadow-xs'
-                  : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline-variant/25'
-              "
-            >
-              💭 Мысли ({{ noteCountsByType().thought }})
-            </button>
+            <!-- View Mode Toggle: Interactive Cloud Canvas vs Daily Feed -->
+            <div class="flex items-center gap-1 bg-surface-container-low/80 p-1 rounded-2xl border border-outline-variant/30">
+              <button
+                type="button"
+                (click)="viewMode.set('CLOUD_TIMELINE')"
+                class="px-3 py-1 rounded-xl font-label-ui text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                [class]="
+                  isCloudView()
+                    ? 'bg-primary text-on-primary shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                "
+                title="Мультяшное Облако"
+              >
+                <span class="material-symbols-rounded text-sm">cloud</span>
+                <span>Облако</span>
+              </button>
 
-            <button
-              type="button"
-              (click)="activeLayer.set('PROPOSALS')"
-              class="px-3 py-1 rounded-xl font-label-ui text-xs font-semibold transition-colors border cursor-pointer"
-              [class]="
-                activeLayer() === 'PROPOSALS'
-                  ? 'bg-emerald-500/20 text-emerald-900 dark:text-emerald-200 border-emerald-500 font-bold shadow-xs'
-                  : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline-variant/25'
-              "
-            >
-              💡 Предложения ({{ noteCountsByType().proposal }})
-            </button>
-
-            <button
-              type="button"
-              (click)="activeLayer.set('ACTIONS')"
-              class="px-3 py-1 rounded-xl font-label-ui text-xs font-semibold transition-colors border cursor-pointer"
-              [class]="
-                activeLayer() === 'ACTIONS'
-                  ? 'bg-indigo-500/20 text-indigo-900 dark:text-indigo-200 border-indigo-500 font-bold shadow-xs'
-                  : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline-variant/25'
-              "
-            >
-              ⚡ Экшены ({{ noteCountsByType().action }})
-            </button>
+              <button
+                type="button"
+                (click)="viewMode.set('DAY_FEED')"
+                class="px-3 py-1 rounded-xl font-label-ui text-xs font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                [class]="
+                  isFeedView()
+                    ? 'bg-primary text-on-primary shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                "
+                title="Хроника Дня"
+              >
+                <span class="material-symbols-rounded text-sm">format_list_bulleted</span>
+                <span>Хроника</span>
+              </button>
+            </div>
           </div>
-
-          <div class="text-[11px] font-label-code-sm text-on-surface-variant flex items-center gap-2">
-            <span>{{ visibleNotes().length }} записей отображается</span>
-            <span class="text-outline">·</span>
-            <span>Кликните по таймлайну внизу для выбора часа</span>
-          </div>
-        </div>
-
-        <!-- CHARACTER FOCUS STRIP: QUICK SELECT HERO OR OPEN PERSONAL 3-TIER WORKSPACE -->
-        <div class="flex items-center gap-2 pt-2.5 border-t border-outline-variant/15 overflow-x-auto py-1">
-          <span class="font-label-ui text-xs font-bold text-on-surface-variant uppercase tracking-wider flex-shrink-0 flex items-center gap-1">
-            <span class="material-symbols-rounded text-sm text-primary">person_search</span>
-            <span>Герой в облаке:</span>
-          </span>
-
-          <button
-            type="button"
-            (click)="selectActorFilter(null)"
-            class="px-3 py-1 rounded-xl text-xs font-label-ui font-bold border transition-colors flex-shrink-0 cursor-pointer"
-            [class]="
-              selectedActorFilter() === null
-                ? 'bg-primary text-on-primary border-primary shadow-xs'
-                : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline-variant/30'
-            "
-          >
-            Все герои ({{ allActors().length }})
-          </button>
-
-          @for (actor of allActors(); track actor.id) {
-            <button
-              type="button"
-              (click)="selectActorFilter(actor.id)"
-              class="px-2.5 py-1 rounded-xl text-xs font-label-ui font-semibold border transition-colors inline-flex items-center gap-1.5 flex-shrink-0 cursor-pointer"
-              [class]="
-                selectedActorFilter() === actor.id
-                  ? 'bg-primary text-on-primary border-primary shadow-xs font-bold'
-                  : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline-variant/30 hover:bg-surface-container'
-              "
-            >
-              <app-actor-avatar [avatar]="actor.avatarIcon" containerClass="w-4 h-4 rounded-full flex-shrink-0" />
-              <span>{{ actor.name }}</span>
-              @if (actorNotesCountMap()[actor.id]; as aCount) {
-                @if (aCount > 0) {
-                  <span
-                    class="text-[9px] px-1.5 py-0.2 rounded-full font-mono"
-                    [class]="selectedActorFilter() === actor.id ? 'bg-on-primary/25 text-on-primary' : 'bg-surface-container-highest text-primary font-bold'"
-                  >
-                    {{ aCount }}
-                  </span>
-                }
-              }
-            </button>
-          }
         </div>
 
         <!-- FOCUSED CHARACTER CLOUD WORKSPACE CALLOUT BANNER -->
         @if (filteredActor(); as fActor) {
-          <div class="p-3 rounded-2xl bg-primary-container/20 border border-primary/30 flex items-center justify-between gap-3 flex-wrap">
-            <div class="flex items-center gap-3 min-w-0">
-              <app-actor-avatar [avatar]="fActor.avatarIcon" containerClass="w-10 h-10 rounded-2xl shadow-xs ring-2 ring-primary/40 flex-shrink-0" />
+          <div class="p-2.5 sm:p-3 rounded-2xl bg-primary-container/20 border border-primary/30 flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <app-actor-avatar [avatar]="fActor.avatarIcon" containerClass="w-9 h-9 rounded-2xl shadow-xs ring-2 ring-primary/40 flex-shrink-0" />
               <div class="min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
                   <h3 class="font-headline-sm text-sm font-bold text-on-surface truncate">
@@ -428,7 +489,7 @@ const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
                   </span>
                 </div>
                 <p class="font-body-sm text-[11px] text-on-surface-variant truncate">
-                  Показаны мысли героя. Вы можете открыть персональный Workspace героя с 3 уровнями (Public, Private, Архаичный лор).
+                  Показаны мысли героя. Откройте персональный Workspace (Public, Private, Архаичный лор).
                 </p>
               </div>
             </div>
@@ -437,11 +498,11 @@ const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
               <button
                 type="button"
                 (click)="openCharacterWorkspace(fActor)"
-                class="px-3.5 py-1.5 rounded-xl bg-primary text-on-primary font-label-ui text-xs font-bold shadow-xs hover:opacity-95 transition-opacity inline-flex items-center gap-1.5 cursor-pointer"
+                class="px-3 py-1.5 rounded-xl bg-primary text-on-primary font-label-ui text-xs font-bold shadow-xs hover:opacity-95 transition-opacity inline-flex items-center gap-1.5 cursor-pointer"
                 title="Открыть персональный Workspace героя (3 уровня: Public, Private, Архаичный лор)"
               >
                 <span class="material-symbols-rounded text-sm">cloud</span>
-                <span>☁️ Открыть Workspace героя</span>
+                <span>Workspace героя</span>
               </button>
 
               <button
@@ -451,7 +512,7 @@ const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
                 title="Сбросить фильтр и показать всех персонажей"
               >
                 <span class="material-symbols-rounded text-sm">close</span>
-                <span>Все</span>
+                <span>Сбросить</span>
               </button>
             </div>
           </div>
@@ -522,7 +583,7 @@ const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
             </div>
 
             <!-- CENTRAL IN-CLOUD TIMELINE SKY (CANDLESTICK STEM CHART WITH ATMOSPHERIC DAY SECTORS) -->
-            <div class="cloud-sky-canvas relative z-10 flex-1 my-4 min-h-[520px] flex flex-col justify-end min-w-[920px] px-8 pb-3 pt-4 rounded-3xl overflow-hidden border border-outline-variant/20 shadow-inner isolate">
+            <div class="cloud-sky-canvas relative z-10 flex-1 my-4 min-h-[560px] flex flex-col justify-end min-w-[920px] px-8 pb-4 pt-4 rounded-3xl overflow-hidden border border-outline-variant/20 shadow-inner isolate">
               <!-- 1. DYNAMIC SKY GRADIENT & TIME-OF-DAY ATMOSPHERIC SECTORS -->
               <div class="absolute inset-0 pointer-events-none -z-10" [class]="currentVibe().skyGradient">
                 <!-- Ambient sky lighting wash -->
@@ -581,7 +642,7 @@ const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
               @for (cluster of groupedTimelineNotes(); track cluster.id; let idx = $index) {
                 @if (getClusterActiveNote(cluster); as note) {
                   <div
-                    class="absolute bottom-11 -translate-x-1/2 flex flex-col items-center group z-10 hover:z-30 pointer-events-none"
+                    class="absolute bottom-14 -translate-x-1/2 flex flex-col items-center group z-10 hover:z-30 pointer-events-none"
                     [style.left.%]="getTimelinePercent(cluster.timeMinutes)"
                   >
                     <!-- 1. THOUGHT / PROPOSAL BUBBLE (FLOATING IN THE AIR WITH CARD STACK) -->
@@ -683,6 +744,44 @@ const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
                         <p class="text-xs font-body-sm text-on-surface leading-snug line-clamp-3 italic min-h-[2.5rem]">
                           «{{ note.text }}»
                         </p>
+
+                        <!-- Cross-Timeline Child Node Preview Card (Link to Parallel TimeLine Board) -->
+                        @if (note.crossRefs && note.crossRefs.length > 0) {
+                          @for (cref of note.crossRefs; track cref.targetNoteId) {
+                            <div
+                              (click)="openCrossRefTarget(cref, $event)"
+                              class="mt-1.5 p-2 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/35 transition-colors cursor-pointer flex flex-col gap-1"
+                              [title]="'Перейти в соседнюю ленту: ' + cref.targetBoardTitle"
+                            >
+                              <div class="flex items-center justify-between gap-1 text-[9px] font-label-code-sm">
+                                <span class="font-bold text-violet-700 dark:text-violet-300 truncate flex items-center gap-1">
+                                  <span class="material-symbols-rounded text-[11px]">{{ cref.targetBoardIcon || 'terminal' }}</span>
+                                  <span>{{ cref.relationLabel || cref.targetBoardTitle }}</span>
+                                </span>
+                                <span class="font-mono text-outline flex-shrink-0">{{ cref.targetTime }}</span>
+                              </div>
+                              <div class="flex items-center gap-1.5 min-w-0">
+                                <app-actor-avatar [avatar]="cref.targetActorAvatar" containerClass="w-4 h-4 rounded-md flex-shrink-0" />
+                                <span class="text-[10px] font-bold text-on-surface truncate">{{ cref.targetActorName }}</span>
+                              </div>
+                              <p class="text-[10px] text-on-surface-variant line-clamp-2 leading-tight">
+                                {{ cref.targetSnippet }}
+                              </p>
+                            </div>
+                          }
+                        }
+
+                        <!-- Parent Cross-Ref Backlink Badge -->
+                        @if (note.parentCrossRef; as pRef) {
+                          <div
+                            (click)="jumpToCrossBoardNote(pRef.sourceBoardId, pRef.sourceNoteId, $event)"
+                            class="mt-1 px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-[9px] font-label-code-sm text-amber-800 dark:text-amber-200 flex items-center justify-between gap-1 cursor-pointer"
+                            title="Вернуться к родительской записи в соседней ленте"
+                          >
+                            <span class="truncate">🔗 Из ленты: {{ pRef.sourceBoardTitle }}</span>
+                            <span class="font-mono flex-shrink-0">↗</span>
+                          </div>
+                        }
 
                         <!-- Bubble Footer with Personalized Likes, Stack Indicators & Delete -->
                         <div class="flex items-center justify-between gap-1 mt-2 pt-1.5 border-t border-outline-variant/20 flex-wrap">
@@ -978,6 +1077,31 @@ const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
                             «{{ note.text }}»
                           </p>
 
+                          <!-- Cross-Timeline Child Node Preview in Day Feed -->
+                          @if (note.crossRefs && note.crossRefs.length > 0) {
+                            @for (cref of note.crossRefs; track cref.targetNoteId) {
+                              <div
+                                (click)="openCrossRefTarget(cref, $event)"
+                                class="p-2 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/35 transition-colors cursor-pointer flex flex-col gap-1"
+                              >
+                                <div class="flex items-center justify-between gap-1 text-[10px] font-label-code-sm">
+                                  <span class="font-bold text-violet-700 dark:text-violet-300 truncate flex items-center gap-1">
+                                    <span class="material-symbols-rounded text-xs">{{ cref.targetBoardIcon || 'terminal' }}</span>
+                                    <span>{{ cref.targetBoardTitle }}</span>
+                                  </span>
+                                  <span class="font-mono text-outline">{{ cref.targetTime }}</span>
+                                </div>
+                                <div class="flex items-center gap-1.5">
+                                  <app-actor-avatar [avatar]="cref.targetActorAvatar" containerClass="w-4 h-4 rounded-md flex-shrink-0" />
+                                  <span class="text-[11px] font-bold text-on-surface truncate">{{ cref.targetActorName }}</span>
+                                </div>
+                                <p class="text-[11px] text-on-surface-variant line-clamp-2">
+                                  {{ cref.targetSnippet }}
+                                </p>
+                              </div>
+                            }
+                          }
+
                           @if (note.subActorName) {
                             <div class="flex items-center gap-1 text-[10px] font-label-code-sm text-amber-800 dark:text-amber-200">
                               <span>🎭</span>
@@ -1091,263 +1215,320 @@ const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
         </div>
       }
 
-      <!-- 5. MULTI-CHARACTER ROLEPLAY ACTION BAR (OPTIMIZED, SLEEK & COMPACT) -->
+      <!-- 5. CALM, COMPACT ROLEPLAY ACTION DOCK (LOW EYE-STRAIN) -->
       <section
         id="cloud-composer"
-        class="sticky bottom-4 z-30 p-3 sm:p-3.5 rounded-2xl bg-surface-container-lowest/98 border border-primary/30 shadow-lg flex flex-col gap-2 isolate"
-        style="contain: layout style;"
+        class="sticky bottom-3 z-30 w-full max-w-5xl mx-auto p-2.5 sm:p-3 rounded-2xl bg-surface-container-lowest/95 backdrop-blur-md border border-outline-variant/30 focus-within:border-primary/40 shadow-lg flex flex-col gap-2 transition-colors"
       >
-        <!-- Row 1: Hero Selector Chips & Mode Switcher -->
-        <div class="flex items-center justify-between gap-3 flex-wrap">
-          <!-- Character Chips Strip -->
-          <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 flex-1 scrollbar-none">
-            <span class="inline-flex items-center gap-1 text-[11px] font-label-ui font-semibold text-on-surface-variant flex-shrink-0 mr-0.5">
-              <span class="material-symbols-rounded text-sm text-primary">theater_comedy</span>
-              <span>Герой:</span>
-            </span>
+        @if (activeComposerPopover() !== null) {
+          <div
+            class="fixed inset-0 z-40"
+            (click)="closeComposerPopover()"
+            aria-hidden="true"
+          ></div>
+        }
 
-            @for (actor of quickActors(); track actor.id) {
+        <!-- Row 1: Calm Meta Controls (Hero, Co-author, Type, Time & Quick Tools) -->
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <!-- Left: Hero Select, Co-author Select, Type Switch -->
+          <div class="flex items-center gap-1.5 flex-wrap min-w-0">
+            <app-cloud-themed-select
+              [options]="composerHeroOptions()"
+              [value]="activePitchActor()?.id ?? null"
+              [searchable]="true"
+              searchPlaceholder="Найти героя..."
+              placement="up"
+              [compact]="true"
+              panelWidthClass="w-72"
+              ariaLabel="Выбор активного героя"
+              footerActionLabel="Вся галерея героев..."
+              footerActionIcon="groups"
+              (valueChange)="onComposerHeroChange($event)"
+              (footerAction)="openCharacterPickerForMain()"
+            />
+
+            <app-cloud-themed-select
+              [options]="composerSubActorOptions()"
+              [value]="activeSubActor()?.id ?? null"
+              [searchable]="true"
+              searchPlaceholder="Найти соавтора..."
+              placement="up"
+              [compact]="true"
+              [clearable]="true"
+              [clearValue]="null"
+              [highlightActive]="true"
+              placeholder="+ Соавтор"
+              placeholderIcon="theater_comedy"
+              panelWidthClass="w-72"
+              ariaLabel="Выбор субперсонажа (соавтора)"
+              footerActionLabel="Выбрать из галереи..."
+              footerActionIcon="groups"
+              (valueChange)="onComposerSubActorChange($event)"
+              (footerAction)="openCharacterPickerForSub()"
+            />
+
+            <!-- Action Type Segmented Pill (Muted, Eye-Friendly) -->
+            <div class="inline-flex items-center gap-0.5 bg-surface-container-low/75 p-0.5 rounded-xl border border-outline-variant/20">
               <button
                 type="button"
-                (click)="selectPitchActor(actor)"
-                class="px-2.5 py-1 rounded-xl border flex items-center gap-1.5 transition-colors flex-shrink-0 cursor-pointer"
+                (click)="selectedActionType.set('thought')"
+                class="px-2 py-1 rounded-lg text-[11px] font-label-ui transition-colors flex items-center gap-1 cursor-pointer border"
                 [class]="
-                  activePitchActor()?.id === actor.id
-                    ? 'border-primary bg-primary-container text-on-primary-container font-bold shadow-xs ring-1 ring-primary/40'
-                    : 'border-outline-variant/30 bg-surface-container-low text-on-surface hover:bg-surface-container-high'
+                  selectedActionType() === 'thought'
+                    ? 'bg-surface-container-lowest text-on-surface font-bold border-outline-variant/30 shadow-2xs'
+                    : 'text-on-surface-variant hover:text-on-surface font-medium border-transparent'
                 "
               >
-                <app-actor-avatar [avatar]="actor.avatarIcon" containerClass="w-5 h-5 rounded-md flex-shrink-0" />
-                <span class="text-xs font-label-ui whitespace-nowrap">{{ actor.name }}</span>
+                <span>💭</span>
+                <span>Мысль</span>
+              </button>
+
+              <button
+                type="button"
+                (click)="selectedActionType.set('proposal')"
+                class="px-2 py-1 rounded-lg text-[11px] font-label-ui transition-colors flex items-center gap-1 cursor-pointer border"
+                [class]="
+                  selectedActionType() === 'proposal'
+                    ? 'bg-surface-container-lowest text-on-surface font-bold border-outline-variant/30 shadow-2xs'
+                    : 'text-on-surface-variant hover:text-on-surface font-medium border-transparent'
+                "
+              >
+                <span>💡</span>
+                <span>Идея</span>
+              </button>
+
+              <button
+                type="button"
+                (click)="selectedActionType.set('action')"
+                class="px-2 py-1 rounded-lg text-[11px] font-label-ui transition-colors flex items-center gap-1 cursor-pointer border"
+                [class]="
+                  selectedActionType() === 'action'
+                    ? 'bg-surface-container-lowest text-on-surface font-bold border-outline-variant/30 shadow-2xs'
+                    : 'text-on-surface-variant hover:text-on-surface font-medium border-transparent'
+                "
+              >
+                <span>⚡</span>
+                <span>Экшен</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Right: Time, Quick Presets Popover, Party Mentions Popover, Coding Link -->
+          <div class="flex items-center gap-1.5 flex-wrap ml-auto">
+            <!-- Compact Time Chip -->
+            <div
+              class="flex items-center gap-1 bg-surface-container-low/70 hover:bg-surface-container px-2 py-1 rounded-xl border border-outline-variant/25 transition-colors flex-shrink-0"
+              title="Время записи в таймлайне"
+            >
+              <span class="material-symbols-rounded text-xs text-on-surface-variant">schedule</span>
+              <input
+                type="time"
+                [(ngModel)]="newNoteTime"
+                class="bg-transparent text-[11px] font-mono font-semibold text-on-surface focus:outline-none w-12 cursor-pointer"
+              />
+            </div>
+
+            <!-- Quick Presets Upward Popover -->
+            <div class="relative">
+              <button
+                type="button"
+                (click)="toggleComposerPopover('PRESETS', $event)"
+                class="px-2.5 py-1 rounded-xl border text-[11px] font-label-ui font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                [class]="
+                  activeComposerPopover() === 'PRESETS'
+                    ? 'bg-primary-container/25 border-primary/40 text-on-surface'
+                    : 'bg-surface-container-low/70 hover:bg-surface-container border-outline-variant/25 text-on-surface-variant hover:text-on-surface'
+                "
+                title="Быстрые шаблоны мыслей"
+                [attr.aria-expanded]="activeComposerPopover() === 'PRESETS'"
+              >
+                <span class="material-symbols-rounded text-xs text-primary">bolt</span>
+                <span>Быстро</span>
+              </button>
+
+              @if (activeComposerPopover() === 'PRESETS') {
+                <div
+                  (click)="$event.stopPropagation()"
+                  class="absolute bottom-full right-0 mb-2 w-64 max-w-[calc(100vw-2rem)] rounded-2xl bg-surface-container-lowest border border-outline-variant/40 shadow-xl p-1.5 z-50 flex flex-col gap-0.5"
+                >
+                  <div class="px-2.5 py-1 text-[10px] font-label-code-sm font-bold uppercase tracking-wider text-on-surface-variant border-b border-outline-variant/15 mb-0.5">
+                    Быстрая отправка
+                  </div>
+                  @for (preset of thoughtPresets; track preset.title) {
+                    <button
+                      type="button"
+                      (click)="selectQuickPresetFromPopover(preset)"
+                      class="w-full px-2.5 py-1.5 rounded-xl hover:bg-surface-container-low text-left flex items-center justify-between gap-2 transition-colors cursor-pointer"
+                    >
+                      <span class="text-xs font-label-ui font-medium text-on-surface flex items-center gap-2 truncate">
+                        <span>{{ preset.icon }}</span>
+                        <span class="truncate">{{ preset.title }}</span>
+                      </span>
+                      <span class="text-[10px] font-label-code-sm text-on-surface-variant px-1.5 py-0.2 rounded-md bg-surface-container-high/70 flex-shrink-0">
+                        {{ preset.category }}
+                      </span>
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+
+            <!-- Party Mention Upward Popover -->
+            <div class="relative">
+              <button
+                type="button"
+                (click)="toggleComposerPopover('PARTY', $event)"
+                class="px-2.5 py-1 rounded-xl border text-[11px] font-label-ui font-semibold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                [class]="
+                  activeComposerPopover() === 'PARTY'
+                    ? 'bg-primary-container/25 border-primary/40 text-on-surface'
+                    : 'bg-surface-container-low/70 hover:bg-surface-container border-outline-variant/25 text-on-surface-variant hover:text-on-surface'
+                "
+                title="Упомянуть героя (+ В пати)"
+                [attr.aria-expanded]="activeComposerPopover() === 'PARTY'"
+              >
+                <span class="material-symbols-rounded text-xs text-primary">group_add</span>
+                <span>+ В пати</span>
+              </button>
+
+              @if (activeComposerPopover() === 'PARTY') {
+                <div
+                  (click)="$event.stopPropagation()"
+                  class="absolute bottom-full right-0 mb-2 w-72 max-w-[calc(100vw-2rem)] rounded-2xl bg-surface-container-lowest border border-outline-variant/40 shadow-xl p-1.5 z-50 flex flex-col gap-1"
+                >
+                  <div class="px-1 pt-0.5 pb-1 border-b border-outline-variant/15">
+                    <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-surface-container-low border border-outline-variant/25">
+                      <span class="material-symbols-rounded text-xs text-on-surface-variant">search</span>
+                      <input
+                        type="text"
+                        [ngModel]="partySearchQuery()"
+                        (ngModelChange)="partySearchQuery.set($event)"
+                        placeholder="Добавить героя в сообщение..."
+                        class="w-full bg-transparent text-xs text-on-surface placeholder:text-on-surface-variant/70 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div class="flex flex-col gap-0.5 max-h-56 overflow-y-auto pr-0.5">
+                    @for (hero of filteredPartyActors(); track hero.id) {
+                      <button
+                        type="button"
+                        (click)="mentionPartyHeroFromPopover(hero)"
+                        class="w-full px-2.5 py-1.5 rounded-xl hover:bg-surface-container-low text-left flex items-center justify-between gap-2 transition-colors cursor-pointer"
+                      >
+                        <div class="flex items-center gap-2 min-w-0">
+                          <app-actor-avatar [avatar]="hero.avatarIcon" containerClass="w-6 h-6 rounded-lg flex-shrink-0" />
+                          <span class="text-xs font-label-ui font-medium text-on-surface truncate">{{ hero.name }}</span>
+                        </div>
+                        <span class="text-[10px] font-label-code-sm text-primary font-bold flex-shrink-0">+ Пати</span>
+                      </button>
+                    } @empty {
+                      <div class="py-3 text-center text-xs text-on-surface-variant italic">
+                        Герои не найдены
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+
+            <!-- Optional Cross-Link Child Node Toggle -->
+            @if (activeBoardId() !== 'board-coding-sessions') {
+              <button
+                type="button"
+                (click)="toggleSpawnCodingChild()"
+                class="px-2 py-1 rounded-xl border text-[11px] font-label-ui font-semibold inline-flex items-center gap-1 flex-shrink-0 transition-colors cursor-pointer"
+                [class]="
+                  spawnChildCodingNode()
+                    ? 'bg-violet-500/20 text-violet-800 dark:text-violet-200 border-violet-500/40'
+                    : 'bg-surface-container-low/70 hover:bg-surface-container text-on-surface-variant hover:text-on-surface border-outline-variant/25'
+                "
+                title="Одновременно создать дочерний узел в TimeLine Сессий Кодинга с превью"
+              >
+                <span class="material-symbols-rounded text-xs">link</span>
+                <span class="hidden sm:inline">Coding</span>
               </button>
             }
-
-            <button
-              type="button"
-              (click)="openCharacterPickerForMain()"
-              class="px-2.5 py-1 rounded-xl border border-dashed border-outline-variant/50 bg-surface-container-low hover:bg-surface-container-high text-on-surface text-xs font-semibold flex items-center gap-1 flex-shrink-0 transition-colors cursor-pointer"
-            >
-              <span class="material-symbols-rounded text-sm text-primary">groups</span>
-              <span>Все 30...</span>
-            </button>
-          </div>
-
-          <!-- Action Type Segmented Selector -->
-          <div class="flex items-center gap-0.5 bg-surface-container-low p-0.5 rounded-xl border border-outline-variant/30 flex-shrink-0">
-            <button
-              type="button"
-              (click)="selectedActionType.set('thought')"
-              class="px-2.5 py-1 rounded-lg text-xs font-bold font-label-ui transition-colors flex items-center gap-1 cursor-pointer"
-              [class]="
-                selectedActionType() === 'thought'
-                  ? 'bg-amber-400/25 text-amber-900 dark:text-amber-200 border border-amber-400/40 shadow-2xs'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              "
-            >
-              <span>💭</span>
-              <span>Мысль</span>
-            </button>
-
-            <button
-              type="button"
-              (click)="selectedActionType.set('proposal')"
-              class="px-2.5 py-1 rounded-lg text-xs font-bold font-label-ui transition-colors flex items-center gap-1 cursor-pointer"
-              [class]="
-                selectedActionType() === 'proposal'
-                  ? 'bg-emerald-500/25 text-emerald-900 dark:text-emerald-200 border border-emerald-500/40 shadow-2xs'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              "
-            >
-              <span>💡</span>
-              <span>Идея</span>
-            </button>
-
-            <button
-              type="button"
-              (click)="selectedActionType.set('action')"
-              class="px-2.5 py-1 rounded-lg text-xs font-bold font-label-ui transition-colors flex items-center gap-1 cursor-pointer"
-              [class]="
-                selectedActionType() === 'action'
-                  ? 'bg-indigo-500/25 text-indigo-900 dark:text-indigo-200 border border-indigo-500/40 shadow-2xs'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              "
-            >
-              <span>⚡</span>
-              <span>Экшен</span>
-            </button>
           </div>
         </div>
 
-        <!-- Row 1.5: Sub-character (Субперсонаж / Соавтор) Selector Bar -->
-        <div class="flex items-center gap-2 flex-wrap pt-1 border-t border-outline-variant/15 text-xs font-label-ui">
-          <span class="inline-flex items-center gap-1 text-[11px] font-bold text-on-surface flex-shrink-0">
-            <span class="material-symbols-rounded text-sm text-amber-500">theater_comedy</span>
-            <span>Субперсонаж:</span>
-          </span>
-
-          @if (activeSubActor(); as sub) {
-            <div class="inline-flex items-center gap-1.5 pl-2 pr-1.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-900 dark:text-amber-200 font-label-code-sm text-xs font-bold shadow-2xs">
-              <app-actor-avatar [avatar]="sub.avatarIcon" containerClass="w-4 h-4 rounded-full flex-shrink-0" />
-              <span>{{ sub.name }}</span>
-              <button
-                type="button"
-                (click)="clearSubActor()"
-                class="w-4 h-4 rounded-full hover:bg-amber-500/30 inline-flex items-center justify-center text-[10px] font-bold text-amber-800 dark:text-amber-200 ml-0.5 cursor-pointer"
-                title="Убрать субперсонажа"
-              >
-                ✕
-              </button>
-            </div>
-          } @else {
-            <div class="flex items-center gap-1 overflow-x-auto scrollbar-none flex-wrap">
-              @for (quickHero of quickActors(); track quickHero.id) {
-                @if (quickHero.id !== activePitchActor()?.id) {
-                  <button
-                    type="button"
-                    (click)="setSubActor(quickHero)"
-                    class="px-2 py-0.5 rounded-full bg-surface-container-low hover:bg-amber-500/20 hover:text-amber-900 dark:hover:text-amber-200 border border-outline-variant/25 text-on-surface-variant text-[10px] font-label-code-sm font-semibold transition-colors flex-shrink-0 cursor-pointer inline-flex items-center gap-1"
-                    title="Указать {{ quickHero.name }} субперсонажем"
-                  >
-                    <app-actor-avatar [avatar]="quickHero.avatarIcon" containerClass="w-3.5 h-3.5 rounded-full flex-shrink-0" />
-                    <span>+ {{ quickHero.name }}</span>
-                  </button>
-                }
-              }
-              <button
-                type="button"
-                (click)="openCharacterPickerForSub()"
-                class="px-2 py-0.5 rounded-full border border-dashed border-outline-variant/40 hover:border-amber-500 text-[10px] font-label-code-sm text-outline hover:text-on-surface cursor-pointer"
-                title="Выбрать субперсонажа из полного каталога"
-              >
-                Все 30...
-              </button>
-            </div>
-          }
-        </div>
-
-        <!-- Live Replying-To Banner -->
+        <!-- Contextual Inline Banners (Shown Only When Active) -->
         @if (replyingToNote(); as rep) {
-          <div class="flex items-center justify-between px-3 py-1.5 rounded-xl bg-primary/15 border border-primary/35 text-xs font-label-ui animate-fade-in">
+          <div class="flex items-center justify-between px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/25 text-xs font-label-ui animate-fade-in">
             <div class="flex items-center gap-2 truncate">
               <span class="material-symbols-rounded text-sm text-primary">reply</span>
-              <span class="font-bold text-primary">Ответ на мысль</span>
-              <div class="inline-flex items-center gap-1 font-bold text-on-surface">
+              <span class="font-bold text-primary">Ответ</span>
+              <div class="inline-flex items-center gap-1 font-semibold text-on-surface">
                 <app-actor-avatar [avatar]="rep.actorAvatar" containerClass="w-4 h-4 rounded-full flex-shrink-0" />
                 <span>{{ rep.actorName }}</span>
               </div>
-              <span class="text-outline truncate italic max-w-[200px] sm:max-w-md">«{{ rep.text }}»</span>
+              <span class="text-on-surface-variant truncate italic max-w-[200px] sm:max-w-md">«{{ rep.text }}»</span>
             </div>
             <button
               type="button"
               (click)="cancelReply()"
-              class="text-[11px] font-bold text-outline hover:text-on-surface px-1.5 py-0.5 rounded hover:bg-surface-container transition-colors cursor-pointer flex-shrink-0 ml-2"
+              class="text-on-surface-variant hover:text-on-surface p-0.5 rounded hover:bg-surface-container transition-colors cursor-pointer flex-shrink-0 ml-2 inline-flex"
               title="Отменить ответ"
             >
-              ✕
+              <span class="material-symbols-rounded text-sm">close</span>
             </button>
           </div>
         }
 
-        <!-- Row 2: Time, Input & Submit -->
-        <div class="flex items-center gap-2">
-          <!-- Time Picker Box -->
-          <div class="flex items-center gap-1 bg-surface-container-low hover:bg-surface-container px-2.5 py-1.5 rounded-xl border border-outline-variant/40 transition-colors flex-shrink-0">
-            <span class="material-symbols-rounded text-sm text-primary">schedule</span>
+        @if (spawnChildCodingNode()) {
+          <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-violet-500/10 border border-violet-500/25 text-xs">
+            <span class="material-symbols-rounded text-sm text-violet-600 dark:text-violet-300">terminal</span>
+            <span class="font-semibold text-violet-800 dark:text-violet-200 whitespace-nowrap">Coding TimeLine:</span>
             <input
-              type="time"
-              [(ngModel)]="newNoteTime"
-              class="bg-transparent text-xs font-mono font-bold text-on-surface focus:outline-none w-14 cursor-pointer"
+              type="text"
+              [(ngModel)]="childCodingText"
+              placeholder="Детали кодинг-сессии (необязательно)..."
+              class="flex-1 bg-surface-container-lowest/80 px-2.5 py-1 rounded-lg border border-violet-500/25 text-xs text-on-surface focus:outline-none"
             />
           </div>
+        }
 
-          <!-- Text Input -->
-          <input
-            type="text"
-            [(ngModel)]="newIdeaTitle"
-            (keyup.enter)="submitNoteOrIdea()"
-            [placeholder]="inputPlaceholder()"
-            class="flex-1 px-3.5 py-2 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface focus:outline-none focus:border-primary focus:bg-surface-container-lowest placeholder:text-outline transition-colors"
-          />
-
-          <!-- Submit Button -->
-          <button
-            type="button"
-            (click)="submitNoteOrIdea()"
-            class="px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-label-ui text-xs font-bold shadow-xs active:scale-97 transition-transform flex-shrink-0 inline-flex items-center gap-1.5 cursor-pointer"
-          >
-            <span class="material-symbols-rounded text-base">cloud_upload</span>
-            <span>В облако ✨</span>
-          </button>
-        </div>
-
-        <!-- Live Detected Party Characters Banner -->
         @if (detectedPartyActors().length > 0) {
-          <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] font-label-ui text-amber-900 dark:text-amber-200 animate-fade-in flex-wrap">
+          <div class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/25 text-[11px] font-label-ui text-amber-900 dark:text-amber-200 animate-fade-in flex-wrap">
             <span class="material-symbols-rounded text-sm text-amber-600 dark:text-amber-400">group_add</span>
-            <span class="font-bold">Распознаны в тексте:</span>
+            <span class="font-semibold">В тексте:</span>
             <div class="flex items-center gap-1 flex-wrap">
               @for (hero of detectedPartyActors(); track hero.id) {
                 <button
                   type="button"
                   (click)="setSubActor(hero)"
-                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-lowest text-on-surface font-label-code-sm text-[10px] font-bold shadow-2xs border transition-colors cursor-pointer hover:border-amber-500"
-                  [class]="activeSubActor()?.id === hero.id ? 'border-amber-500 ring-1 ring-amber-500 bg-amber-500/20 text-amber-900 dark:text-amber-200' : 'border-amber-500/30'"
-                  title="Нажмите, чтобы сделать субперсонажем"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-lowest/90 text-on-surface font-label-code-sm text-[10px] font-semibold border transition-colors cursor-pointer hover:border-amber-500"
+                  [class]="activeSubActor()?.id === hero.id ? 'border-amber-500 ring-1 ring-amber-500/60 bg-amber-500/15' : 'border-amber-500/25'"
+                  title="Нажмите, чтобы сделать соавтором"
                 >
                   <app-actor-avatar [avatar]="hero.avatarIcon" containerClass="w-3.5 h-3.5 rounded-full" />
                   <span>{{ hero.name }}</span>
-                  @if (activeSubActor()?.id === hero.id) {
-                    <span class="text-[9px] text-amber-600 font-bold">✓ субперсонаж</span>
-                  } @else {
-                    <span class="text-[9px] text-outline">+ субперсонаж</span>
-                  }
+                  <span class="text-[9px] text-on-surface-variant">
+                    {{ activeSubActor()?.id === hero.id ? '✓' : '+' }}
+                  </span>
                 </button>
               }
             </div>
-            <span class="text-[10px] text-amber-700 dark:text-amber-300 opacity-80 ml-auto">автоматически отобразится в ленте обоих персонажей ✨</span>
           </div>
         }
 
-        <!-- Row 3: Clean Quick Presets & Quick Party Mentions -->
-        <div class="flex items-center gap-2 overflow-x-auto py-0.5 scrollbar-none flex-wrap sm:flex-nowrap">
-          <div class="flex items-center gap-1.5 flex-shrink-0">
-            <span class="inline-flex items-center gap-1 text-[10px] font-label-code-sm text-outline font-extrabold uppercase mr-1 flex-shrink-0">
-              <span class="material-symbols-rounded text-xs text-primary">bolt</span>
-              <span>Быстро:</span>
-            </span>
-            @for (preset of thoughtPresets; track preset.title) {
-              <button
-                type="button"
-                (click)="pitchPreset(preset)"
-                class="px-2.5 py-0.5 rounded-full bg-surface-container-low hover:bg-primary-container hover:text-on-primary-container hover:border-primary/40 border border-outline-variant/25 text-on-surface-variant text-[11px] font-label-code-sm font-semibold transition-colors flex-shrink-0 cursor-pointer"
-              >
-                {{ preset.icon }} {{ preset.title }}
-              </button>
-            }
-          </div>
+        <!-- Row 2: Calm Spacious Input & Primary Submit -->
+        <div class="flex items-center gap-2">
+          <input
+            type="text"
+            [(ngModel)]="newIdeaTitle"
+            (keyup.enter)="submitNoteOrIdea()"
+            [placeholder]="inputPlaceholder()"
+            class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl bg-surface-container-low/55 hover:bg-surface-container-low/80 focus:bg-surface-container-lowest border border-outline-variant/25 focus:border-primary/45 text-[13px] text-on-surface focus:outline-none placeholder:text-on-surface-variant/70 transition-colors"
+          />
 
-          <div class="h-3 w-px bg-outline-variant/30 hidden sm:block flex-shrink-0"></div>
-
-          <!-- Quick + Hero Mentions -->
-          <div class="flex items-center gap-1 overflow-x-auto scrollbar-none flex-shrink-0">
-            <span class="inline-flex items-center gap-0.5 text-[10px] font-label-code-sm text-amber-600 dark:text-amber-400 font-extrabold uppercase mr-0.5 flex-shrink-0">
-              <span class="material-symbols-rounded text-xs">person_add</span>
-              <span>+ В пати:</span>
-            </span>
-            @for (quickHero of quickActors(); track quickHero.id) {
-              @if (quickHero.id !== activePitchActor()?.id) {
-                <button
-                  type="button"
-                  (click)="appendActorMention(quickHero)"
-                  class="px-2 py-0.5 rounded-full bg-surface-container-low hover:bg-amber-500/20 hover:text-amber-900 dark:hover:text-amber-200 border border-outline-variant/25 text-on-surface-variant text-[10px] font-label-code-sm font-semibold transition-colors flex-shrink-0 cursor-pointer inline-flex items-center gap-1"
-                  [title]="'Добавить + ' + quickHero.name + ' в сообщение'"
-                >
-                  <app-actor-avatar [avatar]="quickHero.avatarIcon" containerClass="w-3 h-3 rounded-full flex-shrink-0" />
-                  <span>+ {{ quickHero.name.split(' ')[0] }}</span>
-                </button>
-              }
-            }
-          </div>
+          <button
+            type="button"
+            (click)="submitNoteOrIdea()"
+            class="px-4 py-2.5 rounded-xl bg-primary hover:brightness-105 text-on-primary font-label-ui text-xs font-bold shadow-xs active:scale-[0.98] transition-all flex-shrink-0 inline-flex items-center gap-1.5 cursor-pointer"
+          >
+            <span class="material-symbols-rounded text-base">cloud_upload</span>
+            <span>В облако</span>
+          </button>
         </div>
       </section>
 
@@ -1684,6 +1865,40 @@ const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
               </p>
             </div>
 
+            <!-- Cross-Timeline Links Preview in Inspect Modal -->
+            <div class="flex flex-col gap-2 p-3 rounded-2xl bg-violet-500/10 border border-violet-500/30">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-bold font-label-ui text-violet-800 dark:text-violet-200 flex items-center gap-1.5">
+                  <span class="material-symbols-rounded text-sm">account_tree</span>
+                  <span>Ссылки на параллельные TimeLine ленты ({{ (note.crossRefs || []).length }}):</span>
+                </span>
+                <button
+                  type="button"
+                  (click)="openCrossLinkModal(note)"
+                  class="px-2.5 py-1 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
+                >
+                  <span class="material-symbols-rounded text-xs">add_link</span>
+                  <span>Привязать узел</span>
+                </button>
+              </div>
+              @for (cref of (note.crossRefs || []); track cref.targetNoteId) {
+                <div
+                  (click)="openCrossRefTarget(cref, $event)"
+                  class="p-2.5 rounded-xl bg-surface-container-lowest border border-violet-500/35 hover:border-violet-500 cursor-pointer flex flex-col gap-1 transition-colors"
+                >
+                  <div class="flex items-center justify-between text-[11px] font-bold text-violet-700 dark:text-violet-300">
+                    <span>{{ cref.targetBoardTitle }}</span>
+                    <span class="font-mono text-outline">{{ cref.targetDateKey }} · {{ cref.targetTime }} ➔</span>
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <app-actor-avatar [avatar]="cref.targetActorAvatar" containerClass="w-5 h-5 rounded-md flex-shrink-0" />
+                    <span class="text-xs font-bold text-on-surface">{{ cref.targetActorName }}</span>
+                  </div>
+                  <p class="text-xs text-on-surface-variant italic">{{ cref.targetSnippet }}</p>
+                </div>
+              }
+            </div>
+
             <!-- Sub-character (Co-participant) Strip -->
             @if (note.subActorName) {
               <div class="flex items-center gap-2 p-2.5 rounded-xl bg-amber-500/15 dark:bg-amber-400/15 border border-amber-500/40 text-xs font-label-ui text-amber-900 dark:text-amber-200">
@@ -1981,6 +2196,308 @@ const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
         </div>
       }
 
+      <!-- 10. MODAL: CREATE NEW TIMELINE BOARD (MEETS STRICT MODAL RULES) -->
+      @if (isCreateBoardModalOpen()) {
+        <div
+          appModalOverlay
+          [appModalOverlayDismissable]="true"
+          (overlayClose)="closeCreateBoardModal()"
+          aria-labelledby="create-board-modal-title"
+          role="dialog"
+          aria-modal="true"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+        >
+          <div
+            (click)="$event.stopPropagation()"
+            class="w-full max-w-lg rounded-3xl bg-surface-container-lowest p-6 shadow-2xl border border-outline-variant/30 flex flex-col gap-4 text-on-surface"
+          >
+            <div class="flex items-center justify-between border-b border-outline-variant/20 pb-3">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-rounded text-primary text-2xl">view_timeline</span>
+                <h2 id="create-board-modal-title" class="font-headline-sm text-base font-bold text-on-surface">
+                  Создать Новый TimeLine Board
+                </h2>
+              </div>
+              <button
+                type="button"
+                (click)="closeCreateBoardModal()"
+                class="p-1.5 rounded-xl text-outline hover:text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer"
+                aria-label="Закрыть"
+              >
+                <span class="material-symbols-rounded text-xl">close</span>
+              </button>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <label for="board-title-input" class="font-label-ui text-xs font-bold text-on-surface-variant">
+                Название TimeLine-доски:
+              </label>
+              <input
+                id="board-title-input"
+                type="text"
+                [(ngModel)]="newBoardTitle"
+                placeholder="Напр. 🛠️ Архитектурные Решения / 🎮 Стрим Вечера"
+                class="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface"
+              />
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="flex flex-col gap-1.5">
+                <label for="board-kind-select" class="font-label-ui text-xs font-bold text-on-surface-variant">
+                  Тип TimeLine Board:
+                </label>
+                <select
+                  id="board-kind-select"
+                  [(ngModel)]="newBoardKind"
+                  class="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs font-semibold text-on-surface"
+                >
+                  <option value="CODING_SESSIONS">💻 Сессии Кодинга</option>
+                  <option value="CUSTOM_PROJECT">🚀 Проектный TimeLine</option>
+                  <option value="PARTY_ROOM">🎉 Игровая Комната</option>
+                  <option value="GLOBAL_DAY">🌍 Глобальный День</option>
+                </select>
+              </div>
+
+              <div class="flex flex-col gap-1.5">
+                <label for="board-flow-select" class="font-label-ui text-xs font-bold text-on-surface-variant">
+                  Поток Core Combinator:
+                </label>
+                <select
+                  id="board-flow-select"
+                  [(ngModel)]="newBoardFlowType"
+                  class="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs font-semibold text-on-surface"
+                >
+                  <option value="CONTEXT">CONTEXT (Контекстная лента)</option>
+                  <option value="MUTEX">MUTEX (Эксклюзивная сессия)</option>
+                  <option value="PROJECTION">PROJECTION (Сводная проекция)</option>
+                  <option value="OBSERVER">OBSERVER (Наблюдатель событий)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <label for="board-feed-input" class="font-label-ui text-xs font-bold text-on-surface-variant">
+                Фид в Lemon Seasons (feed-app):
+              </label>
+              <input
+                id="board-feed-input"
+                type="text"
+                [(ngModel)]="newBoardFeedSlug"
+                placeholder="Напр. universe-personal-feed или universe-coding-sessions"
+                class="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs font-mono text-on-surface"
+              />
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <label for="board-desc-input" class="font-label-ui text-xs font-bold text-on-surface-variant">
+                Описание:
+              </label>
+              <textarea
+                id="board-desc-input"
+                [(ngModel)]="newBoardDescription"
+                rows="2"
+                placeholder="Опишите, какие события и персонажи ведут эту ленту..."
+                class="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface resize-none"
+              ></textarea>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-3 border-t border-outline-variant/20">
+              <button
+                type="button"
+                (click)="closeCreateBoardModal()"
+                class="px-4 py-2 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-ui text-xs font-bold cursor-pointer"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                (click)="submitCreateBoard()"
+                class="px-4 py-2 rounded-xl bg-primary text-on-primary font-label-ui text-xs font-bold shadow-xs hover:opacity-95 cursor-pointer"
+              >
+                ✨ Создать TimeLine Board
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- 11. MODAL: LEMON SEASONS PERSONAL FEED SUMMARY (feed-app INTEGRATION) -->
+      @if (isPersonalFeedModalOpen()) {
+        <div
+          appModalOverlay
+          [appModalOverlayDismissable]="true"
+          (overlayClose)="closePersonalFeedModal()"
+          aria-labelledby="personal-feed-modal-title"
+          role="dialog"
+          aria-modal="true"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+        >
+          <div
+            (click)="$event.stopPropagation()"
+            class="w-full max-w-2xl rounded-3xl bg-surface-container-lowest p-6 shadow-2xl border border-outline-variant/30 flex flex-col gap-4 text-on-surface max-h-[88vh] overflow-hidden"
+          >
+            <div class="flex items-center justify-between border-b border-outline-variant/20 pb-3">
+              <div class="flex items-center gap-2.5">
+                <span class="text-2xl">🌿</span>
+                <div>
+                  <h2 id="personal-feed-modal-title" class="font-headline-sm text-base font-bold text-on-surface">
+                    Личная Сводка Feed (Lemon Seasons · feed-app)
+                  </h2>
+                  <p class="text-[11px] font-body-sm text-on-surface-variant">
+                    Синхронизация через пакет <code class="font-mono text-primary">lemon-seasons-neurons</code> (CharacterDialogueAxon &amp; CodingMemoryAxon)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                (click)="closePersonalFeedModal()"
+                class="p-1.5 rounded-xl text-outline hover:text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer"
+                aria-label="Закрыть"
+              >
+                <span class="material-symbols-rounded text-xl">close</span>
+              </button>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs">
+              <span class="font-bold text-emerald-800 dark:text-emerald-200">
+                Поток Lemon Seasons: <code class="font-mono">lemon-universe</code> · Личный Feed: <code class="font-mono">universe-personal-feed</code>
+              </span>
+              <span class="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold">
+                {{ personalFeedEntries().length }} записей
+              </span>
+            </div>
+
+            <div class="flex-1 overflow-y-auto flex flex-col gap-2.5 pr-1">
+              @for (entry of personalFeedEntries(); track entry.id) {
+                <div class="p-3.5 rounded-2xl bg-surface-container-low border border-outline-variant/30 flex flex-col gap-2">
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <app-actor-avatar [avatar]="entry.actorAvatar" containerClass="w-7 h-7 rounded-xl flex-shrink-0" />
+                      <div class="flex flex-col min-w-0">
+                        <span class="text-xs font-bold text-on-surface truncate">{{ entry.title }}</span>
+                        <span class="text-[10px] font-mono text-outline">
+                          {{ entry.boardTitle }} · {{ entry.dateKey }} {{ entry.time }}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <span
+                        class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold"
+                        [class]="entry.origin === 'CODING_AGENT' ? 'bg-violet-500/15 text-violet-700 dark:text-violet-300' : 'bg-amber-500/15 text-amber-800 dark:text-amber-300'"
+                      >
+                        {{ entry.origin }}
+                      </span>
+                      <span class="px-2 py-0.5 rounded-full bg-surface-container-highest text-[10px] font-mono text-on-surface-variant">
+                        {{ entry.feedSlug }}
+                      </span>
+                    </div>
+                  </div>
+                  <p class="text-xs text-on-surface leading-relaxed">{{ entry.content }}</p>
+                  @if (entry.crossRefs && entry.crossRefs.length > 0) {
+                    <div class="flex flex-wrap gap-1.5 pt-1">
+                      @for (cref of entry.crossRefs; track cref.targetNoteId) {
+                        <button
+                          type="button"
+                          (click)="jumpToCrossBoardNote(cref.targetBoardId, cref.targetNoteId, $event); closePersonalFeedModal()"
+                          class="px-2.5 py-1 rounded-xl bg-violet-500/15 hover:bg-violet-500/25 text-violet-800 dark:text-violet-200 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>🔗 {{ cref.targetBoardTitle }} ({{ cref.targetTime }})</span>
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-3 border-t border-outline-variant/20">
+              <button
+                type="button"
+                (click)="closePersonalFeedModal()"
+                class="px-4 py-2 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-ui text-xs font-bold cursor-pointer"
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- 12. MODAL: LINK PARALLEL TIMELINE NODE (CROSS-TIMELINE REFERENCE) -->
+      @if (crossLinkSourceNote(); as srcNote) {
+        <div
+          appModalOverlay
+          [appModalOverlayDismissable]="true"
+          (overlayClose)="closeCrossLinkModal()"
+          aria-labelledby="cross-link-modal-title"
+          role="dialog"
+          aria-modal="true"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+        >
+          <div
+            (click)="$event.stopPropagation()"
+            class="w-full max-w-xl rounded-3xl bg-surface-container-lowest p-6 shadow-2xl border border-outline-variant/30 flex flex-col gap-4 text-on-surface max-h-[85vh] overflow-hidden"
+          >
+            <div class="flex items-center justify-between border-b border-outline-variant/20 pb-3">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-rounded text-violet-600 text-2xl">add_link</span>
+                <h2 id="cross-link-modal-title" class="font-headline-sm text-base font-bold text-on-surface">
+                  Привязать дочерний узел из соседнего TimeLine
+                </h2>
+              </div>
+              <button
+                type="button"
+                (click)="closeCrossLinkModal()"
+                class="p-1.5 rounded-xl text-outline hover:text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer"
+                aria-label="Закрыть"
+              >
+                <span class="material-symbols-rounded text-xl">close</span>
+              </button>
+            </div>
+
+            <p class="text-xs text-on-surface-variant">
+              Выберите узел из параллельной TimeLine-ленты, чтобы прикрепить карточку-превью к сообщению «{{ srcNote.text.slice(0, 60) }}...»:
+            </p>
+
+            <div class="flex-1 overflow-y-auto flex flex-col gap-2 pr-1">
+              @for (candidate of getParallelBoardCandidateNotes(srcNote); track candidate.id) {
+                <button
+                  type="button"
+                  (click)="attachCandidateCrossLink(srcNote, candidate)"
+                  class="p-3 rounded-2xl bg-surface-container-low hover:bg-violet-500/10 border border-outline-variant/30 hover:border-violet-500/40 text-left flex flex-col gap-1.5 transition-colors cursor-pointer"
+                >
+                  <div class="flex items-center justify-between gap-2 text-[10px] font-mono">
+                    <span class="font-bold text-violet-700 dark:text-violet-300">
+                      {{ getBoardTitle(candidate.boardId || 'board-global-day') }}
+                    </span>
+                    <span class="text-outline">{{ candidate.dateKey }} · {{ candidate.time }}</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <app-actor-avatar [avatar]="candidate.actorAvatar" containerClass="w-5 h-5 rounded-md flex-shrink-0" />
+                    <span class="text-xs font-bold text-on-surface">{{ candidate.actorName }}</span>
+                  </div>
+                  <p class="text-xs text-on-surface-variant line-clamp-2">{{ candidate.text }}</p>
+                </button>
+              } @empty {
+                <div class="p-6 text-center text-xs text-outline italic">
+                  Нет доступных узлов в других TimeLine-досках. Создайте запись в «Сессиях Кодинга» или в другом борде.
+                </div>
+              }
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-3 border-t border-outline-variant/20">
+              <button
+                type="button"
+                (click)="closeCrossLinkModal()"
+                class="px-4 py-2 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-ui text-xs font-bold cursor-pointer"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
       <!-- HERO NOTES & CHARACTER CLOUD WORKSPACE MODAL -->
       <app-arena-hero-notes-modal
         [actor]="selectedActorForWorkspace()"
@@ -1993,6 +2510,8 @@ const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
 export class PartyCloudComponent {
   protected readonly arena = inject(NeuronArenaService);
   protected readonly realtime = inject(PartyRealtimeService);
+  protected readonly profileService = inject(ProfileService);
+  protected readonly seasonsBridge = inject(SeasonsTimelineBridgeService);
   protected readonly sound = inject(PartySoundService);
   protected readonly route = inject(ActivatedRoute);
   protected readonly router = inject(Router);
@@ -2000,6 +2519,29 @@ export class PartyCloudComponent {
   private readonly destroyRef = inject(DestroyRef);
   protected readonly getAccentAvatarClasses = getAccentAvatarClasses;
   protected readonly getAccentPillClasses = getAccentPillClasses;
+
+  // Multi-TimeLine Boards, Player Profiles & Lemon Seasons Personal Feed
+  readonly timelineBoards = signal<TimelineBoard[]>([]);
+  readonly activeBoardId = signal<string>('board-global-day');
+  readonly activeBoard = computed<TimelineBoard | null>(() => {
+    const id = this.activeBoardId();
+    return this.timelineBoards().find((b) => b.id === id) ?? this.timelineBoards()[0] ?? null;
+  });
+  readonly allProfiles = signal<Profile[]>([]);
+  readonly activeProfile = signal<Profile | null>(null);
+  readonly personalFeedEntries = signal<SeasonsPersonalFeedEntry[]>([]);
+
+  readonly isCreateBoardModalOpen = signal<boolean>(false);
+  readonly newBoardTitle = signal<string>('');
+  readonly newBoardDescription = signal<string>('');
+  readonly newBoardKind = signal<TimelineBoardKind>('CUSTOM_PROJECT');
+  readonly newBoardFlowType = signal<FlowType>(FlowType.CONTEXT);
+  readonly newBoardFeedSlug = signal<string>('');
+
+  readonly isPersonalFeedModalOpen = signal<boolean>(false);
+  readonly crossLinkSourceNote = signal<CloudDayNote | null>(null);
+  readonly spawnChildCodingNode = signal<boolean>(false);
+  readonly childCodingText = signal<string>('');
 
   // Day Vibes system
   readonly vibes = CLOUD_DAY_VIBES;
@@ -2012,6 +2554,7 @@ export class PartyCloudComponent {
   });
 
   readonly viewMode = signal<CloudViewMode>('CLOUD_TIMELINE');
+  readonly defaultFilterLayer: CloudFilterLayer = 'ALL';
   readonly activeLayer = signal<CloudFilterLayer>('ALL');
 
   // Selected Date Key (Defaults to Today 2026-11-06)
@@ -2056,6 +2599,20 @@ export class PartyCloudComponent {
   // Character Focus in Cloud & Personal Workspace
   readonly selectedActorFilter = signal<string | null>(null);
   readonly selectedActorForWorkspace = signal<ArenaActorCard | null>(null);
+
+  // Composer Popovers (Presets & Party Mentions)
+  readonly activeComposerPopover = signal<'PRESETS' | 'PARTY' | null>(null);
+  readonly partySearchQuery = signal<string>('');
+
+  readonly filteredPartyActors = computed<ArenaActorCard[]>(() => {
+    const activeId = this.activePitchActor()?.id;
+    const q = this.partySearchQuery().trim().toLowerCase();
+    return this.allActors().filter((a) => {
+      if (a.id === activeId) return false;
+      if (!q) return true;
+      return a.name.toLowerCase().includes(q) || a.title.toLowerCase().includes(q);
+    });
+  });
 
   readonly filteredActor = computed<ArenaActorCard | null>(() => {
     const id = this.selectedActorFilter();
@@ -2158,27 +2715,30 @@ export class PartyCloudComponent {
 
   readonly dateTabs = computed<CloudDateTab[]>(() => {
     const store = this.notesStore();
+    const boardId = this.activeBoardId();
+    const countForBoard = (key: string) =>
+      (store[key] ?? []).filter((n) => (n.boardId || 'board-global-day') === boardId).length;
     return [
       {
         dateKey: '2026-11-05',
         label: 'Вчера',
         subLabel: '5 Ноября',
         isToday: false,
-        notesCount: (store['2026-11-05'] ?? []).length,
+        notesCount: countForBoard('2026-11-05'),
       },
       {
         dateKey: '2026-11-06',
         label: 'Сегодня (Пт)',
         subLabel: '6 Ноября',
         isToday: true,
-        notesCount: (store['2026-11-06'] ?? []).length,
+        notesCount: countForBoard('2026-11-06'),
       },
       {
         dateKey: '2026-11-07',
         label: 'Завтра (Сб)',
         subLabel: '7 Ноября',
         isToday: false,
-        notesCount: (store['2026-11-07'] ?? []).length,
+        notesCount: countForBoard('2026-11-07'),
       },
     ];
   });
@@ -2186,7 +2746,8 @@ export class PartyCloudComponent {
   readonly activeDateNotes = computed<CloudDayNote[]>(() => {
     const store = this.notesStore();
     const key = this.selectedDateKey();
-    const notes = store[key] ?? [];
+    const boardId = this.activeBoardId();
+    const notes = (store[key] ?? []).filter((n) => (n.boardId || 'board-global-day') === boardId);
     return [...notes].sort((a, b) => a.timeMinutes - b.timeMinutes);
   });
 
@@ -2216,6 +2777,96 @@ export class PartyCloudComponent {
       }
     }
     return map;
+  });
+
+  readonly filterLayerOptions = computed<CloudSelectOption<CloudFilterLayer>[]>(() => {
+    const counts = this.noteCountsByType();
+    return [
+      {
+        value: 'ALL',
+        label: 'Все записи',
+        materialIcon: 'filter_list',
+        badge: this.activeDateNotes().length,
+        tone: 'default',
+      },
+      {
+        value: 'THOUGHTS',
+        label: 'Мысли',
+        emoji: '💭',
+        badge: counts.thought,
+        tone: 'amber',
+      },
+      {
+        value: 'PROPOSALS',
+        label: 'Предложения',
+        emoji: '💡',
+        badge: counts.proposal,
+        tone: 'emerald',
+      },
+      {
+        value: 'ACTIONS',
+        label: 'Экшены',
+        emoji: '⚡',
+        badge: counts.action,
+        tone: 'indigo',
+      },
+    ];
+  });
+
+  readonly actorFilterOptions = computed<CloudSelectOption<string | null>[]>(() => {
+    const actors = this.allActors();
+    const counts = this.actorNotesCountMap();
+    return [
+      {
+        value: null,
+        label: 'Все герои',
+        materialIcon: 'groups',
+        badge: actors.length,
+        tone: 'default',
+      },
+      ...actors.map((actor) => ({
+        value: actor.id,
+        label: actor.name,
+        subtitle: actor.title,
+        avatarIcon: actor.avatarIcon,
+        badge: counts[actor.id] > 0 ? counts[actor.id] : undefined,
+      })),
+    ];
+  });
+
+  readonly composerHeroOptions = computed<CloudSelectOption<string>[]>(() => {
+    return this.allActors().map((actor) => ({
+      value: actor.id,
+      label: actor.name,
+      subtitle: actor.title,
+      avatarIcon: actor.avatarIcon,
+    }));
+  });
+
+  readonly composerSubActorOptions = computed<CloudSelectOption<string | null>[]>(() => {
+    const activeId = this.activePitchActor()?.id;
+    const actorOpts: CloudSelectOption<string | null>[] = this.allActors()
+      .filter((actor) => actor.id !== activeId)
+      .map((actor) => ({
+        value: actor.id,
+        label: actor.name,
+        subtitle: actor.title,
+        avatarIcon: actor.avatarIcon,
+      }));
+
+    if (this.activeSubActor()) {
+      return [
+        {
+          value: '__NONE__',
+          label: 'Убрать соавтора',
+          materialIcon: 'person_off',
+          tone: 'default',
+        },
+        ...actorOpts,
+      ];
+    }
+
+    return actorOpts;
   });
 
   readonly activeDateFormatted = computed<string>(() => {
@@ -2341,6 +2992,28 @@ export class PartyCloudComponent {
       this.notesStore.set(map);
     });
 
+    this.arena.timelineBoards$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((boards) => {
+      this.timelineBoards.set(boards);
+    });
+
+    this.arena.activeBoardId$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((id) => {
+      this.activeBoardId.set(id);
+    });
+
+    this.profileService.profiles$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((profiles) => {
+      this.allProfiles.set(profiles);
+    });
+
+    this.profileService.activeProfile$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((profile) => {
+      this.activeProfile.set(profile);
+    });
+
+    this.seasonsBridge.personalFeedEntries$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((entries) => {
+        this.personalFeedEntries.set(entries);
+      });
+
     combineLatest([this.arena.actors$, this.route.queryParams])
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(([actors, params]) => {
@@ -2409,9 +3082,9 @@ export class PartyCloudComponent {
     return this.visibleNotes().filter((_, idx) => idx % 2 === 1);
   }
 
-  // Altitude stem height for trading candlestick chart (staggered across 3 tiers)
+  // Altitude stem height for trading candlestick chart (staggered across 3 tiers with clean bottom clearance)
   getNoteStemHeight(index: number): number {
-    return (index % 3) * 115 + 40;
+    return (index % 3) * 105 + 85;
   }
 
   getAccentStemClasses(accent: ArenaAccentColor): string {
@@ -2592,9 +3265,77 @@ export class PartyCloudComponent {
     const replyToNoteId = rep?.id;
     const replyToAuthorName = rep?.actorName;
     const replyToTextSnippet = rep ? (rep.text.length > 55 ? rep.text.slice(0, 52) + '...' : rep.text) : undefined;
+    const currentBoardId = this.activeBoardId();
+    const currentProfile = this.activeProfile();
+
+    let crossRefs: TimelineNodeCrossRef[] | undefined;
+    if (this.spawnChildCodingNode() && currentBoardId !== 'board-coding-sessions') {
+      const codingBoard = this.arena.getBoardById('board-coding-sessions');
+      const agentActor =
+        this.allActors().find((a) => a.id === 'actor-antigravity-agent') || actor;
+      const childText =
+        this.childCodingText().trim() ||
+        `Детали кодинг-сессии: ${text} (привязано из глобального таймлайна)`;
+      const childId = `note-coding-${Date.now()}`;
+      const childNote: CloudDayNote = {
+        id: childId,
+        boardId: codingBoard.id,
+        dateKey,
+        time,
+        timeMinutes,
+        type: 'action',
+        actorId: agentActor?.id || 'actor-antigravity-agent',
+        actorName: agentActor?.name || 'Antigravity Agent',
+        actorAvatar: agentActor?.avatarIcon || 'antigravity-agent',
+        actorAccent: agentActor?.accentColor || 'violet',
+        actorTitle: agentActor?.title || '',
+        subActorId: actor && actor.id !== agentActor?.id ? actor.id : undefined,
+        subActorName: actor && actor.id !== agentActor?.id ? actor.name : undefined,
+        subActorAvatar: actor && actor.id !== agentActor?.id ? actor.avatarIcon : undefined,
+        subActorAccent: actor && actor.id !== agentActor?.id ? actor.accentColor : undefined,
+        title: `Кодинг-сессия: ${text.slice(0, 48)}`,
+        text: childText,
+        tags: ['coding-session', 'cross-timeline', 'antigravity-agent'],
+        supporters: [agentActor?.id || 'actor-antigravity-agent'],
+        votesCount: 1,
+        moodEmoji: '⚡',
+        createdAt: new Date().toISOString(),
+        visibility: 'PUBLIC',
+        authorProfileId: 'a7e49c10-9100-4b22-a811-9000a6e17001',
+        authorProfileName: '🤖 Игрок-Агент (AI Guild)',
+        parentCrossRef: {
+          sourceBoardId: currentBoardId,
+          sourceBoardTitle: this.getBoardTitle(currentBoardId),
+          sourceNoteId: `note-${Date.now()}`,
+          sourceTime: time,
+          sourceActorName: actor?.name || 'Участник',
+        },
+      };
+      this.arena.addCloudNote(childNote);
+
+      crossRefs = [
+        {
+          id: `crosslink-${Date.now()}`,
+          targetBoardId: codingBoard.id,
+          targetBoardTitle: codingBoard.title,
+          targetBoardIcon: codingBoard.icon,
+          targetNoteId: childNote.id,
+          targetDateKey: dateKey,
+          targetTime: time,
+          targetActorId: childNote.actorId,
+          targetActorName: childNote.actorName,
+          targetActorAvatar: childNote.actorAvatar,
+          targetTitle: childNote.title,
+          targetSnippet: childNote.text.slice(0, 140),
+          relationLabel: 'Дочерний узел · Сессия Кодинга',
+          sessionStatus: codingBoard.flowStatus === 'ACTIVE' ? 'ACTIVE' : 'COMPLETED',
+        },
+      ];
+    }
 
     const newNote: CloudDayNote = {
       id: `note-${Date.now()}`,
+      boardId: currentBoardId,
       dateKey,
       time,
       timeMinutes,
@@ -2616,9 +3357,13 @@ export class PartyCloudComponent {
       votesCount: supporters.size,
       moodEmoji: type === 'thought' ? '💭' : type === 'proposal' ? '💡' : '⚡',
       createdAt: new Date().toISOString(),
+      visibility: 'PUBLIC',
+      authorProfileId: currentProfile?.id,
+      authorProfileName: currentProfile?.displayName,
       partyActorIds: partyActorIds.length > 0 ? partyActorIds : undefined,
       partyActorNames: partyActorNames.length > 0 ? partyActorNames : undefined,
       likedByActors: likedByActors.length > 0 ? likedByActors : undefined,
+      crossRefs,
     };
 
     this.notesStore.update((store) => {
@@ -2633,6 +3378,8 @@ export class PartyCloudComponent {
     this.newIdeaTitle.set('');
     this.activeSubActor.set(null);
     this.replyingToNote.set(null);
+    this.spawnChildCodingNode.set(false);
+    this.childCodingText.set('');
     this.sound.playWin();
 
     const partyMentionStr = partyActorNames.length > 0 ? ` (в пати: ${partyActorNames.join(', ')})` : '';
@@ -2932,6 +3679,64 @@ export class PartyCloudComponent {
     this.sound.playClick();
   }
 
+  onLayerFilterChange(layer: CloudFilterLayer): void {
+    this.activeLayer.set(layer);
+    this.sound.playClick();
+  }
+
+  onComposerHeroChange(actorId: string | null): void {
+    if (!actorId) return;
+    const actor = this.allActors().find((a) => a.id === actorId);
+    if (!actor) return;
+    this.activePitchActor.set(actor);
+    this.hostActorName.set(actor.name);
+    if (this.activeSubActor()?.id === actor.id) {
+      this.activeSubActor.set(null);
+    }
+    this.sound.playTick(1.1);
+  }
+
+  onComposerSubActorChange(actorId: string | null): void {
+    if (!actorId || actorId === '__NONE__') {
+      this.clearSubActor();
+      return;
+    }
+    const actor = this.allActors().find((a) => a.id === actorId) ?? null;
+    this.setSubActor(actor);
+  }
+
+  @HostListener('document:keydown.escape')
+  onDocumentEscape(): void {
+    if (this.activeComposerPopover() !== null) {
+      this.closeComposerPopover();
+    }
+  }
+
+  toggleComposerPopover(kind: 'PRESETS' | 'PARTY', event?: MouseEvent): void {
+    event?.stopPropagation();
+    const next = this.activeComposerPopover() === kind ? null : kind;
+    this.activeComposerPopover.set(next);
+    if (next === 'PARTY') {
+      this.partySearchQuery.set('');
+    }
+    this.sound.playClick();
+  }
+
+  closeComposerPopover(): void {
+    this.activeComposerPopover.set(null);
+    this.partySearchQuery.set('');
+  }
+
+  selectQuickPresetFromPopover(preset: IdeaPitchPreset): void {
+    this.pitchPreset(preset);
+    this.closeComposerPopover();
+  }
+
+  mentionPartyHeroFromPopover(hero: ArenaActorCard): void {
+    this.appendActorMention(hero);
+    this.closeComposerPopover();
+  }
+
   openCharacterWorkspace(actor: ArenaActorCard): void {
     this.selectedActorForWorkspace.set(actor);
     this.sound.playClick();
@@ -3169,7 +3974,7 @@ export class PartyCloudComponent {
     this.selectedVibeId.set(vibeId);
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('lemon-party:day-vibe', vibeId);
+        localStorage.setItem(STORAGE_DAY_VIBE_KEY, vibeId);
       } catch {}
     }
     this.isVibePickerOpen.set(false);
@@ -3185,10 +3990,196 @@ export class PartyCloudComponent {
     this.isVibePickerOpen.set(false);
   }
 
+  /* ================== MULTI-TIMELINE, AGENT PLAYER & CROSS-LINK METHODS ================== */
+
+  selectPlayerProfile(profile: Profile): void {
+    this.profileService.selectProfile(profile.id);
+    if (profile.playerType === 'AGENT') {
+      const agentActor = this.allActors().find((a) => a.id === 'actor-antigravity-agent');
+      if (agentActor) {
+        this.activePitchActor.set(agentActor);
+      }
+    }
+    this.sound.playTick();
+  }
+
+  switchToAntigravityAgent(): void {
+    const agentProfile = this.allProfiles().find((p) => p.playerType === 'AGENT');
+    if (agentProfile) {
+      this.profileService.selectProfile(agentProfile.id);
+    }
+    const agentActor = this.allActors().find((a) => a.id === 'actor-antigravity-agent');
+    if (agentActor) {
+      this.activePitchActor.set(agentActor);
+      this.hostActorName.set(agentActor.name);
+    }
+    this.sound.playWin();
+  }
+
+  selectTimelineBoard(boardId: string): void {
+    this.arena.selectTimelineBoard(boardId);
+    const board = this.arena.getBoardById(boardId);
+    if (board.vibeId && CLOUD_DAY_VIBES.some((v) => v.id === board.vibeId)) {
+      this.selectedVibeId.set(board.vibeId as CloudDayVibeId);
+    }
+    this.sound.playClick();
+  }
+
+  getBoardNotesCount(boardId: string): number {
+    const store = this.notesStore();
+    const key = this.selectedDateKey();
+    return (store[key] ?? []).filter((n) => (n.boardId || 'board-global-day') === boardId).length;
+  }
+
+  getBoardTitle(boardId: string): string {
+    return this.timelineBoards().find((b) => b.id === boardId)?.title || boardId;
+  }
+
+  toggleActiveBoardFlow(): void {
+    const board = this.activeBoard();
+    if (!board) return;
+    this.arena.toggleBoardFlowSession(board.id);
+    this.sound.playTick(1.1);
+  }
+
+  openCreateBoardModal(): void {
+    this.newBoardTitle.set('');
+    this.newBoardDescription.set('');
+    this.newBoardKind.set('CUSTOM_PROJECT');
+    this.newBoardFlowType.set(FlowType.CONTEXT);
+    this.newBoardFeedSlug.set('');
+    this.isCreateBoardModalOpen.set(true);
+  }
+
+  closeCreateBoardModal(): void {
+    this.newBoardTitle.set('');
+    this.newBoardDescription.set('');
+    this.newBoardFeedSlug.set('');
+    this.isCreateBoardModalOpen.set(false);
+  }
+
+  submitCreateBoard(): void {
+    const title = this.newBoardTitle().trim();
+    if (!title) return;
+    const kind = this.newBoardKind();
+    const icon =
+      kind === 'CODING_SESSIONS'
+        ? 'terminal'
+        : kind === 'GLOBAL_DAY'
+          ? 'public'
+          : kind === 'PARTY_ROOM'
+            ? 'celebration'
+            : 'rocket_launch';
+    const vibeId = kind === 'CODING_SESSIONS' ? 'SYNTHWAVE' : 'CHRONO_DAYFLOW';
+    const created = this.arena.createTimelineBoard({
+      title,
+      description: this.newBoardDescription(),
+      icon,
+      colorTheme: kind === 'CODING_SESSIONS' ? 'violet' : 'amber',
+      vibeId,
+      boardKind: kind,
+      flowType: this.newBoardFlowType(),
+      seasonsFeedSlug: this.newBoardFeedSlug() || undefined,
+    });
+    this.selectedVibeId.set(vibeId as CloudDayVibeId);
+    this.closeCreateBoardModal();
+    this.sound.playWin();
+    this.realtime.broadcastEvent({
+      type: 'CARD_PLAYED',
+      actorName: this.activePitchActor()?.name || 'Игрок',
+      actorIcon: this.activePitchActor()?.avatarIcon || 'person',
+      roomTitle: created.title,
+      message: `создал новый TimeLine Board «${created.title}» на потоке Core Combinator ${created.flowType}!`,
+    });
+  }
+
+  openPersonalFeedModal(): void {
+    this.isPersonalFeedModalOpen.set(true);
+    this.sound.playClick();
+  }
+
+  closePersonalFeedModal(): void {
+    this.isPersonalFeedModalOpen.set(false);
+  }
+
+  toggleSpawnCodingChild(): void {
+    this.spawnChildCodingNode.update((v) => !v);
+    this.sound.playTick();
+  }
+
+  openCrossRefTarget(cref: TimelineNodeCrossRef, event?: Event): void {
+    this.jumpToCrossBoardNote(cref.targetBoardId, cref.targetNoteId, event, cref.targetDateKey);
+  }
+
+  jumpToCrossBoardNote(
+    boardId: string,
+    noteId: string,
+    event?: Event,
+    dateKey?: string,
+  ): void {
+    if (event) event.stopPropagation();
+    this.selectTimelineBoard(boardId);
+    if (dateKey) {
+      this.selectedDateKey.set(dateKey);
+    }
+    const allNotesInStore = Object.values(this.notesStore()).flat();
+    const target = allNotesInStore.find((n) => n.id === noteId);
+    if (target) {
+      this.selectedDateKey.set(target.dateKey);
+      this.inspectNote(target);
+    }
+  }
+
+  openCrossLinkModal(note: CloudDayNote): void {
+    this.crossLinkSourceNote.set(note);
+  }
+
+  closeCrossLinkModal(): void {
+    this.crossLinkSourceNote.set(null);
+  }
+
+  getParallelBoardCandidateNotes(sourceNote: CloudDayNote): CloudDayNote[] {
+    const srcBoardId = sourceNote.boardId || 'board-global-day';
+    return Object.values(this.notesStore())
+      .flat()
+      .filter((n) => (n.boardId || 'board-global-day') !== srcBoardId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  attachCandidateCrossLink(sourceNote: CloudDayNote, targetNote: CloudDayNote): void {
+    const targetBoard = this.arena.getBoardById(targetNote.boardId || 'board-global-day');
+    const crossRef: TimelineNodeCrossRef = {
+      id: `crosslink-${sourceNote.id}-${targetNote.id}`,
+      targetBoardId: targetBoard.id,
+      targetBoardTitle: targetBoard.title,
+      targetBoardIcon: targetBoard.icon,
+      targetNoteId: targetNote.id,
+      targetDateKey: targetNote.dateKey,
+      targetTime: targetNote.time,
+      targetActorId: targetNote.actorId,
+      targetActorName: targetNote.actorName,
+      targetActorAvatar: targetNote.actorAvatar,
+      targetTitle: targetNote.title,
+      targetSnippet: targetNote.text.slice(0, 140),
+      relationLabel: `Дочерний узел · ${targetBoard.title}`,
+      sessionStatus: targetBoard.flowStatus === 'ACTIVE' ? 'ACTIVE' : 'COMPLETED',
+    };
+    const updated = this.arena.attachCrossLinkToNote(sourceNote.id, crossRef);
+    if (updated && this.inspectedNote()?.id === sourceNote.id) {
+      this.inspectedNote.set(updated);
+    }
+    this.closeCrossLinkModal();
+    this.sound.playWin();
+  }
+
   private loadInitialVibe(): CloudDayVibeId {
     if (typeof window !== 'undefined') {
       try {
-        const stored = localStorage.getItem('lemon-party:day-vibe') as CloudDayVibeId;
+        const stored = readWithLegacyMigration(
+          STORAGE_DAY_VIBE_KEY,
+          LEGACY_SQUAD_DAY_VIBE_KEY,
+          LEGACY_STORAGE_DAY_VIBE_KEY,
+        ) as CloudDayVibeId;
         if (stored && CLOUD_DAY_VIBES.some((v) => v.id === stored)) {
           return stored;
         }
@@ -3207,7 +4198,11 @@ export class PartyCloudComponent {
   private loadInitialNotes(): Record<string, CloudDayNote[]> {
     if (typeof window !== 'undefined') {
       try {
-        const raw = localStorage.getItem(STORAGE_NOTES_KEY);
+        const raw = readWithLegacyMigration(
+          STORAGE_NOTES_KEY,
+          LEGACY_SQUAD_NOTES_KEY,
+          LEGACY_STORAGE_NOTES_KEY,
+        );
         if (raw) {
           const parsed = JSON.parse(raw);
           if (parsed && typeof parsed === 'object') {

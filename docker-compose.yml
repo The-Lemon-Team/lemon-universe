@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: lemon-universe-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lemon}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+      POSTGRES_DB: ${POSTGRES_DB:-lemon_universe_db}
+    ports:
+      - "${LEMON_UNIVERSE_DB_PORT:-5435}:5432"
+    volumes:
+      - lemon_universe_pgdata:/var/lib/postgresql/data
+      - ./docker/init-db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lemon} -d ${POSTGRES_DB:-lemon_universe_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  lemon_universe_pgdata:

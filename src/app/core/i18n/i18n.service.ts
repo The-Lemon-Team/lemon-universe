@@ -90,7 +90,7 @@ export class I18nService {
 
   translateFlowType(type: FlowType): string {
     const dict = this.dictionaries[this.currentLocale];
-    return dict.flowTypes[type] ?? type;
+    return (dict.flowTypes as Record<string, string>)[type] ?? type;
   }
 
   translateFlowStatus(status: FlowStatus): string {

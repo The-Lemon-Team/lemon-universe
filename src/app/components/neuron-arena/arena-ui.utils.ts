@@ -139,6 +139,17 @@ const ACTOR_ALIASES: Record<string, string[]> = {
     'вечный начинатель',
     'начать заново',
   ],
+  'actor-antigravity-agent': [
+    'antigravity',
+    'antigravity agent',
+    'antigravity_agent',
+    'антигравити',
+    'антигравигации',
+    'кодинг-агент',
+    'кодинг агент',
+    'агент антигравити',
+    'ии-агент',
+  ],
 };
 
 const STOP_WORDS = new Set(['из', 'для', 'под', 'над', 'тим', 'the']);
