@@ -214,6 +214,44 @@ export class ApiService {
     );
   }
 
+  listProjectariumLinks(actorProfileId?: string | null, standSlug?: string): Observable<any[]> {
+    let params = new HttpParams();
+    if (standSlug) params = params.set('standSlug', standSlug);
+    return this.http.get<any[]>(`${this.base}/timelines/projectarium/links`, {
+      params,
+      headers: this.profileHeaders(actorProfileId),
+    });
+  }
+
+  createProjectariumLink(
+    dto: {
+      standSlug: string;
+      boardIds: string[];
+      scopes?: ('chronicle:read' | 'chronicle:write')[];
+      label?: string;
+      projectariumUrl?: string;
+    },
+    actorProfileId?: string | null,
+  ): Observable<any> {
+    return this.http.post<any>(`${this.base}/timelines/projectarium/links`, dto, {
+      headers: this.profileHeaders(actorProfileId),
+    });
+  }
+
+  rotateProjectariumLink(linkId: string, actorProfileId?: string | null): Observable<any> {
+    return this.http.post<any>(
+      `${this.base}/timelines/projectarium/links/${linkId}/rotate`,
+      {},
+      { headers: this.profileHeaders(actorProfileId) },
+    );
+  }
+
+  revokeProjectariumLink(linkId: string, actorProfileId?: string | null): Observable<any> {
+    return this.http.delete<any>(`${this.base}/timelines/projectarium/links/${linkId}`, {
+      headers: this.profileHeaders(actorProfileId),
+    });
+  }
+
   getTimelineNotes(
     opts?: string | { boardId?: string; dateKey?: string; actorId?: string; search?: string; profileId?: string | null },
   ): Observable<CloudDayNote[]> {

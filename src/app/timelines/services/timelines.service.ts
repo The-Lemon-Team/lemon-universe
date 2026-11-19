@@ -2,11 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import {
   BehaviorSubject,
   Observable,
-  catchError,
   combineLatest,
   distinctUntilChanged,
   map,
-  of,
   shareReplay,
 } from 'rxjs';
 import {
@@ -26,9 +24,7 @@ import {
   TimelineNodeCrossRef,
 } from '../../core/models/flow.models';
 import { ApiService } from '../../core/services/api.service';
-import { SEED_HERO_CLOUD_NOTES } from '../../core/services/hero-notes.seeds';
 import { NeuronArenaService } from '../../core/services/neuron-arena.service';
-import { readWithLegacyMigration } from '../../core/services/neuron-arena.storage';
 import { ProfileService } from '../../core/services/profile.service';
 import { SeasonsTimelineBridgeService } from '../../core/services/seasons-timeline-bridge.service';
 import {
@@ -39,205 +35,7 @@ import {
   validateCrossLinkAccess,
 } from '../timelines.privacy';
 
-const STORAGE_BOARDS_KEY = 'lemon-universe:timelines-boards-v2';
-const LEGACY_BOARDS_KEY = 'lemon-universe:timeline-boards-v1';
-const STORAGE_NOTES_KEY = 'lemon-universe:cloud-notes-v8';
-
-const HUMAN_DEFAULT_ID = '1f3e6a64-721c-4d1d-8d52-6c3f4e30d30b';
 const AGENT_DEFAULT_ID = 'a7e49c10-9100-4b22-a811-9000a6e17001';
-
-const DEFAULT_BOARDS: TimelineBoard[] = [
-  {
-    id: 'board-global-day',
-    slug: 'global-day',
-    title: '🌍 Глобальный Таймлайн Дня',
-    description:
-      'Главная публичная лента дня персонажей Lemon Universe. Поддерживает кросс-ссылки от участников и агентов в публичном контуре.',
-    icon: 'public',
-    colorTheme: 'amber',
-    vibeId: 'CHRONO_DAYFLOW',
-    boardKind: 'GLOBAL_DAY',
-    boardMode: 'PARTY_CLOUD',
-    privacy: 'PUBLIC',
-    ownerProfileId: HUMAN_DEFAULT_ID,
-    defaultActorId: 'actor-alexey',
-    flowId: 'c0000001-0000-4000-8000-000000000001',
-    flowType: FlowType.PROJECTION,
-    flowStatus: FlowStatus.ACTIVE,
-    activeSessionId: '55000001-0000-4000-8000-000000000001',
-    seasonsStreamSlug: 'lemon-universe',
-    seasonsFeedSlug: 'universe-personal-feed',
-    isDefault: true,
-    members: [
-      {
-        id: 'm0000001-0000-4000-8000-000000000001',
-        boardId: 'board-global-day',
-        profileId: HUMAN_DEFAULT_ID,
-        role: 'OWNER',
-        canPost: true,
-        canCrossLink: true,
-        profileDisplayName: '👤 Мой Дом (Игрок)',
-        profileHandle: 'default',
-        profilePlayerType: 'HUMAN',
-      },
-      {
-        id: 'm0000001-0000-4000-8000-000000000002',
-        boardId: 'board-global-day',
-        profileId: AGENT_DEFAULT_ID,
-        role: 'AGENT',
-        canPost: true,
-        canCrossLink: true,
-        profileDisplayName: '🤖 Игрок-Агент (AI Guild)',
-        profileHandle: 'ai_agents',
-        profilePlayerType: 'AGENT',
-      },
-    ],
-  },
-  {
-    id: 'board-coding-sessions',
-    slug: 'coding-sessions',
-    title: '💻 TimeLine Board: Сессии Кодинга',
-    description:
-      'Сводка кодинг-сессий от лица Antigravity Agent и команды разработки. Синхронизируется через lemon-seasons-neurons.',
-    icon: 'terminal',
-    colorTheme: 'violet',
-    vibeId: 'SYNTHWAVE',
-    boardKind: 'CODING_SESSIONS',
-    boardMode: 'AGENT_SUMMARY',
-    privacy: 'PUBLIC',
-    ownerProfileId: AGENT_DEFAULT_ID,
-    defaultActorId: 'actor-antigravity-agent',
-    flowId: 'c0000001-0000-4000-8000-000000000002',
-    flowType: FlowType.MUTEX,
-    flowStatus: FlowStatus.ACTIVE,
-    activeSessionId: '55000001-0000-4000-8000-000000000002',
-    seasonsStreamSlug: 'lemon-universe',
-    seasonsFeedSlug: 'universe-coding-sessions',
-    isDefault: false,
-    members: [
-      {
-        id: 'm0000001-0000-4000-8000-000000000003',
-        boardId: 'board-coding-sessions',
-        profileId: AGENT_DEFAULT_ID,
-        role: 'OWNER',
-        canPost: true,
-        canCrossLink: true,
-        profileDisplayName: '🤖 Игрок-Агент (AI Guild)',
-        profileHandle: 'ai_agents',
-        profilePlayerType: 'AGENT',
-      },
-      {
-        id: 'm0000001-0000-4000-8000-000000000004',
-        boardId: 'board-coding-sessions',
-        profileId: HUMAN_DEFAULT_ID,
-        role: 'EDITOR',
-        canPost: true,
-        canCrossLink: true,
-        profileDisplayName: '👤 Мой Дом (Игрок)',
-        profileHandle: 'default',
-        profilePlayerType: 'HUMAN',
-      },
-    ],
-  },
-  {
-    id: 'board-personal-diary',
-    slug: 'personal-diary',
-    title: '📓 Личный Дневник (Private)',
-    description:
-      'Приватный дневник мыслей, медиа и итогов дня от имени персонажа. Доступен владельцу и приглашённым участникам.',
-    icon: 'menu_book',
-    colorTheme: 'emerald',
-    vibeId: 'NATURE_ZEN',
-    boardKind: 'CUSTOM_PROJECT',
-    boardMode: 'DIARY',
-    privacy: 'PRIVATE',
-    ownerProfileId: HUMAN_DEFAULT_ID,
-    defaultActorId: 'actor-alexey',
-    flowId: 'c0000001-0000-4000-8000-000000000009',
-    flowType: FlowType.CONTEXT,
-    flowStatus: FlowStatus.ACTIVE,
-    seasonsStreamSlug: 'lemon-universe',
-    seasonsFeedSlug: 'universe-personal-diary',
-    isDefault: false,
-    members: [
-      {
-        id: 'm0000001-0000-4000-8000-000000000005',
-        boardId: 'board-personal-diary',
-        profileId: HUMAN_DEFAULT_ID,
-        role: 'OWNER',
-        canPost: true,
-        canCrossLink: true,
-        profileDisplayName: '👤 Мой Дом (Игрок)',
-        profileHandle: 'default',
-        profilePlayerType: 'HUMAN',
-      },
-    ],
-  },
-];
-
-function loadLocalBoards(): TimelineBoard[] {
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = readWithLegacyMigration(STORAGE_BOARDS_KEY, LEGACY_BOARDS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as TimelineBoard[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const map = new Map<string, TimelineBoard>();
-          for (const d of DEFAULT_BOARDS) map.set(d.id, d);
-          for (const b of parsed) {
-            const existing = map.get(b.id);
-            map.set(b.id, {
-              ...existing,
-              ...b,
-              privacy: b.privacy || existing?.privacy || 'PUBLIC',
-              boardMode: b.boardMode || existing?.boardMode || 'TIMELINE',
-              members: b.members && b.members.length > 0 ? b.members : existing?.members || [],
-            });
-          }
-          return Array.from(map.values());
-        }
-      }
-    } catch {}
-  }
-  return DEFAULT_BOARDS;
-}
-
-function saveLocalBoards(boards: TimelineBoard[]): void {
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem(STORAGE_BOARDS_KEY, JSON.stringify(boards));
-    } catch {}
-  }
-}
-
-function loadLocalNotes(): CloudDayNote[] {
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = readWithLegacyMigration(STORAGE_NOTES_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Record<string, CloudDayNote[]>;
-        if (parsed && typeof parsed === 'object') {
-          return Object.values(parsed).flat();
-        }
-      }
-    } catch {}
-  }
-  return Object.values(SEED_HERO_CLOUD_NOTES).flat();
-}
-
-function saveLocalNotes(notes: CloudDayNote[]): void {
-  if (typeof window !== 'undefined') {
-    try {
-      const byDate: Record<string, CloudDayNote[]> = {};
-      for (const n of notes) {
-        const dk = n.dateKey || '2026-11-06';
-        if (!byDate[dk]) byDate[dk] = [];
-        byDate[dk].push(n);
-      }
-      localStorage.setItem(STORAGE_NOTES_KEY, JSON.stringify(byDate));
-    } catch {}
-  }
-}
 
 @Injectable({ providedIn: 'root' })
 export class TimelinesService {
@@ -246,10 +44,11 @@ export class TimelinesService {
   private readonly arena = inject(NeuronArenaService);
   private readonly seasonsBridge = inject(SeasonsTimelineBridgeService);
 
-  private readonly boardsSubject = new BehaviorSubject<TimelineBoard[]>(loadLocalBoards());
-  private readonly notesSubject = new BehaviorSubject<CloudDayNote[]>(loadLocalNotes());
+  private readonly boardsSubject = new BehaviorSubject<TimelineBoard[]>([]);
+  private readonly notesSubject = new BehaviorSubject<CloudDayNote[]>([]);
   private readonly activeBoardIdSubject = new BehaviorSubject<string>('board-global-day');
   private readonly statusMessageSubject = new BehaviorSubject<string | null>(null);
+  private pendingBoardIdOrSlug: string | null = null;
 
   readonly allBoards$: Observable<TimelineBoard[]> = this.boardsSubject.asObservable();
   readonly allNotes$: Observable<CloudDayNote[]> = this.notesSubject.asObservable();
@@ -289,50 +88,54 @@ export class TimelinesService {
     this.statusMessageSubject.next(msg);
   }
 
+  private formatApiError(err: unknown, fallback: string): string {
+    const anyErr = err as { error?: { message?: string | string[] }; message?: string } | null;
+    const msg = anyErr?.error?.message;
+    if (Array.isArray(msg) && msg.length > 0) return msg.join('; ');
+    if (typeof msg === 'string' && msg.trim()) return msg;
+    if (typeof anyErr?.message === 'string' && anyErr.message.trim()) return anyErr.message;
+    return fallback;
+  }
+
   refreshFromBackend(profileId = this.profileService.currentProfileId): void {
-    this.api
-      .getTimelineBoards(profileId)
-      .pipe(catchError(() => of(null)))
-      .subscribe((remoteBoards) => {
-        if (remoteBoards && remoteBoards.length > 0) {
-          const mapById = new Map<string, TimelineBoard>();
-          // Keep locally created private boards only if accessible, prefer backend truth for remote IDs
-          for (const lb of this.boardsSubject.value) {
-            if (!remoteBoards.some((rb) => rb.id === lb.id)) {
-              mapById.set(lb.id, lb);
-            }
-          }
-          for (const rb of remoteBoards) {
-            mapById.set(rb.id, rb);
-          }
-          const merged = Array.from(mapById.values());
-          this.boardsSubject.next(merged);
-          saveLocalBoards(merged);
+    this.api.getTimelineBoards(profileId).subscribe({
+      next: (remoteBoards) => {
+        const boards = Array.isArray(remoteBoards) ? remoteBoards : [];
+        this.boardsSubject.next(boards);
 
-          const active = this.activeBoardIdSubject.value;
-          const visible = merged.filter((b) => !b.isArchived && canViewBoard(b, profileId));
-          if (visible.length > 0 && !visible.some((b) => b.id === active)) {
-            this.activeBoardIdSubject.next(visible[0].id);
+        const visible = boards.filter((b) => !b.isArchived && canViewBoard(b, profileId));
+        if (this.pendingBoardIdOrSlug) {
+          const pending = visible.find(
+            (b) => b.id === this.pendingBoardIdOrSlug || b.slug === this.pendingBoardIdOrSlug,
+          );
+          if (pending) {
+            this.activeBoardIdSubject.next(pending.id);
+            return;
           }
         }
-      });
 
-    this.api
-      .getTimelineNotes({ profileId })
-      .pipe(catchError(() => of(null)))
-      .subscribe((remoteNotes) => {
-        if (remoteNotes && remoteNotes.length > 0) {
-          const mapById = new Map<string, CloudDayNote>();
-          for (const ln of this.notesSubject.value) mapById.set(ln.id, ln);
-          for (const rn of remoteNotes) mapById.set(rn.id, rn);
-          const merged = Array.from(mapById.values());
-          this.notesSubject.next(merged);
-          saveLocalNotes(merged);
+        const active = this.activeBoardIdSubject.value;
+        if (visible.length > 0 && !visible.some((b) => b.id === active)) {
+          this.activeBoardIdSubject.next(visible[0].id);
         }
-      });
+      },
+      error: (err) => {
+        this.setStatus(this.formatApiError(err, 'Не удалось загрузить доски TimeLines с сервера.'));
+      },
+    });
+
+    this.api.getTimelineNotes({ profileId }).subscribe({
+      next: (remoteNotes) => {
+        this.notesSubject.next(Array.isArray(remoteNotes) ? remoteNotes : []);
+      },
+      error: (err) => {
+        this.setStatus(this.formatApiError(err, 'Не удалось загрузить заметки TimeLines с сервера.'));
+      },
+    });
   }
 
   selectBoard(boardIdOrSlug: string): void {
+    this.pendingBoardIdOrSlug = boardIdOrSlug;
     const found = this.boardsSubject.value.find(
       (b) => b.id === boardIdOrSlug || b.slug === boardIdOrSlug,
     );
@@ -416,9 +219,11 @@ export class TimelinesService {
       isDefault: false,
     };
 
-    const next = [...this.boardsSubject.value, newBoard];
+    const prevBoards = this.boardsSubject.value;
+    const prevActiveId = this.activeBoardIdSubject.value;
+    const next = [...prevBoards, newBoard];
     this.boardsSubject.next(next);
-    saveLocalBoards(next);
+    this.pendingBoardIdOrSlug = newBoard.id;
     this.activeBoardIdSubject.next(newBoard.id);
 
     this.api
@@ -426,13 +231,22 @@ export class TimelinesService {
         { ...newBoard, memberProfileIds: input.memberProfileIds },
         ownerProfileId,
       )
-      .pipe(catchError(() => of(null)))
-      .subscribe((saved) => {
-        if (saved) {
+      .subscribe({
+        next: (saved) => {
           const updated = this.boardsSubject.value.map((b) => (b.id === newBoard.id ? saved : b));
           this.boardsSubject.next(updated);
-          saveLocalBoards(updated);
-        }
+          if (this.activeBoardIdSubject.value === newBoard.id) {
+            this.pendingBoardIdOrSlug = saved.id;
+            this.activeBoardIdSubject.next(saved.id);
+          }
+        },
+        error: (err) => {
+          this.boardsSubject.next(this.boardsSubject.value.filter((b) => b.id !== newBoard.id));
+          if (this.activeBoardIdSubject.value === newBoard.id) {
+            this.activeBoardIdSubject.next(prevActiveId);
+          }
+          this.setStatus(this.formatApiError(err, 'Не удалось создать доску на сервере.'));
+        },
       });
 
     return newBoard;
@@ -450,22 +264,22 @@ export class TimelinesService {
     },
   ): void {
     const profileId = this.profileService.currentProfileId;
-    const next = this.boardsSubject.value.map((b) =>
+    const prevBoards = this.boardsSubject.value;
+    const next = prevBoards.map((b) =>
       b.id === boardId ? { ...b, ...patch, defaultActorId: patch.defaultActorId ?? b.defaultActorId } : b,
     );
     this.boardsSubject.next(next);
-    saveLocalBoards(next);
 
-    this.api
-      .updateTimelineBoard(boardId, patch, profileId)
-      .pipe(catchError(() => of(null)))
-      .subscribe((saved) => {
-        if (saved) {
-          const synced = this.boardsSubject.value.map((b) => (b.id === boardId ? saved : b));
-          this.boardsSubject.next(synced);
-          saveLocalBoards(synced);
-        }
-      });
+    this.api.updateTimelineBoard(boardId, patch, profileId).subscribe({
+      next: (saved) => {
+        const synced = this.boardsSubject.value.map((b) => (b.id === boardId ? saved : b));
+        this.boardsSubject.next(synced);
+      },
+      error: (err) => {
+        this.boardsSubject.next(prevBoards);
+        this.setStatus(this.formatApiError(err, 'Не удалось обновить настройки доски на сервере.'));
+      },
+    });
   }
 
   upsertMember(
@@ -473,7 +287,8 @@ export class TimelinesService {
     dto: { profileId: string; role: BoardMemberRole; canPost: boolean; canCrossLink: boolean },
   ): void {
     const callerId = this.profileService.currentProfileId;
-    const next = this.boardsSubject.value.map((b) => {
+    const prevBoards = this.boardsSubject.value;
+    const next = prevBoards.map((b) => {
       if (b.id !== boardId) return b;
       const existing = b.members || [];
       const idx = existing.findIndex((m) => m.profileId === dto.profileId);
@@ -492,44 +307,43 @@ export class TimelinesService {
       return { ...b, members };
     });
     this.boardsSubject.next(next);
-    saveLocalBoards(next);
 
-    this.api
-      .upsertBoardMember(boardId, dto, callerId)
-      .pipe(catchError(() => of(null)))
-      .subscribe((members) => {
-        if (members) {
-          const synced = this.boardsSubject.value.map((b) =>
-            b.id === boardId ? { ...b, members } : b,
-          );
-          this.boardsSubject.next(synced);
-          saveLocalBoards(synced);
-        }
-      });
+    this.api.upsertBoardMember(boardId, dto, callerId).subscribe({
+      next: (members) => {
+        const synced = this.boardsSubject.value.map((b) =>
+          b.id === boardId ? { ...b, members } : b,
+        );
+        this.boardsSubject.next(synced);
+      },
+      error: (err) => {
+        this.boardsSubject.next(prevBoards);
+        this.setStatus(this.formatApiError(err, 'Не удалось обновить участника доски на сервере.'));
+      },
+    });
   }
 
   removeMember(boardId: string, targetProfileId: string): void {
     const callerId = this.profileService.currentProfileId;
-    const next = this.boardsSubject.value.map((b) =>
+    const prevBoards = this.boardsSubject.value;
+    const next = prevBoards.map((b) =>
       b.id === boardId
         ? { ...b, members: (b.members || []).filter((m) => m.profileId !== targetProfileId) }
         : b,
     );
     this.boardsSubject.next(next);
-    saveLocalBoards(next);
 
-    this.api
-      .removeBoardMember(boardId, targetProfileId, callerId)
-      .pipe(catchError(() => of(null)))
-      .subscribe((members) => {
-        if (members) {
-          const synced = this.boardsSubject.value.map((b) =>
-            b.id === boardId ? { ...b, members } : b,
-          );
-          this.boardsSubject.next(synced);
-          saveLocalBoards(synced);
-        }
-      });
+    this.api.removeBoardMember(boardId, targetProfileId, callerId).subscribe({
+      next: (members) => {
+        const synced = this.boardsSubject.value.map((b) =>
+          b.id === boardId ? { ...b, members } : b,
+        );
+        this.boardsSubject.next(synced);
+      },
+      error: (err) => {
+        this.boardsSubject.next(prevBoards);
+        this.setStatus(this.formatApiError(err, 'Не удалось удалить участника доски на сервере.'));
+      },
+    });
   }
 
   addNote(input: {
@@ -586,34 +400,29 @@ export class TimelinesService {
       sharedWithGroup: Boolean(input.sharedWithGroup),
     };
 
-    const next = [newNote, ...this.notesSubject.value];
+    const prevNotes = this.notesSubject.value;
+    const next = [newNote, ...prevNotes];
     this.notesSubject.next(next);
-    saveLocalNotes(next);
 
-    // Записываем локально сразу без дублирующего remote ingest — backend `POST /timelines/notes` сам вызовет `SeasonsBridgeService`.
+    // Записываем в UI-ленту сразу без дублирующего remote ingest — backend `POST /timelines/notes` сам вызовет `SeasonsBridgeService`.
     this.seasonsBridge.recordTimelineNoteToFeed(newNote, input.board, { skipRemoteIngest: true });
 
-    this.api
-      .createTimelineNote(newNote, profileId)
-      .pipe(catchError(() => of(null)))
-      .subscribe((saved) => {
-        if (saved) {
-          const synced = this.notesSubject.value.map((n) =>
-            n.id === newNote.id ? { ...n, ...saved } : n,
-          );
-          this.notesSubject.next(synced);
-          saveLocalNotes(synced);
-          this.seasonsBridge.markNoteSynced(
-            newNote.id,
-            Boolean(saved.seasonsSynced ?? saved.seasonsNoteId),
-          );
-        } else {
-          // Offline fallback: если API недоступен, отправляем через seasons-bridge напрямую.
-          this.seasonsBridge.recordTimelineNoteToFeed(newNote, input.board, {
-            skipRemoteIngest: false,
-          });
-        }
-      });
+    this.api.createTimelineNote(newNote, profileId).subscribe({
+      next: (saved) => {
+        const synced = this.notesSubject.value.map((n) =>
+          n.id === newNote.id ? { ...n, ...saved } : n,
+        );
+        this.notesSubject.next(synced);
+        this.seasonsBridge.markNoteSynced(
+          newNote.id,
+          Boolean(saved.seasonsSynced ?? saved.seasonsNoteId),
+        );
+      },
+      error: (err) => {
+        this.notesSubject.next(this.notesSubject.value.filter((n) => n.id !== newNote.id));
+        this.setStatus(this.formatApiError(err, 'Не удалось сохранить запись на сервере.'));
+      },
+    });
 
     return newNote;
   }
@@ -630,7 +439,8 @@ export class TimelinesService {
     },
   ): void {
     const profileId = this.profileService.currentProfileId;
-    const optimistic = this.notesSubject.value.map((n) =>
+    const prevNotes = this.notesSubject.value;
+    const optimistic = prevNotes.map((n) =>
       n.id === noteId
         ? {
             ...n,
@@ -644,39 +454,32 @@ export class TimelinesService {
         : n,
     );
     this.notesSubject.next(optimistic);
-    saveLocalNotes(optimistic);
 
-    this.api
-      .updateTimelineNote(noteId, dto, profileId)
-      .pipe(catchError(() => of(null)))
-      .subscribe((saved) => {
-        if (saved) {
-          const synced = this.notesSubject.value.map((n) =>
-            n.id === noteId ? { ...n, ...saved } : n,
-          );
-          this.notesSubject.next(synced);
-          saveLocalNotes(synced);
-          const board = this.boardsSubject.value.find((b) => b.id === saved.boardId);
-          if (board) {
-            this.seasonsBridge.recordTimelineNoteToFeed(saved, board, {
-              skipRemoteIngest: true,
-              syncedToRemote: Boolean(saved.seasonsSynced ?? saved.seasonsNoteId),
-            });
-          }
+    this.api.updateTimelineNote(noteId, dto, profileId).subscribe({
+      next: (saved) => {
+        const synced = this.notesSubject.value.map((n) =>
+          n.id === noteId ? { ...n, ...saved } : n,
+        );
+        this.notesSubject.next(synced);
+        const board = this.boardsSubject.value.find((b) => b.id === saved.boardId);
+        if (board) {
+          this.seasonsBridge.recordTimelineNoteToFeed(saved, board, {
+            skipRemoteIngest: true,
+            syncedToRemote: Boolean(saved.seasonsSynced ?? saved.seasonsNoteId),
+          });
         }
-      });
+      },
+      error: (err) => {
+        this.notesSubject.next(prevNotes);
+        this.setStatus(this.formatApiError(err, 'Не удалось обновить запись на сервере.'));
+      },
+    });
   }
 
   retrySyncSeasons(noteId: string): void {
     const profileId = this.profileService.currentProfileId;
-    this.api
-      .syncNoteToSeasons(noteId, profileId)
-      .pipe(catchError(() => of(null)))
-      .subscribe((res) => {
-        if (!res) {
-          this.setStatus('Не удалось связаться с backend для синхронизации Seasons.');
-          return;
-        }
+    this.api.syncNoteToSeasons(noteId, profileId).subscribe({
+      next: (res) => {
         const updated = this.notesSubject.value.map((n) =>
           n.id === noteId
             ? {
@@ -691,59 +494,66 @@ export class TimelinesService {
             : n,
         );
         this.notesSubject.next(updated);
-        saveLocalNotes(updated);
         this.seasonsBridge.markNoteSynced(noteId, res.synced);
         if (res.synced) {
           this.setStatus('Запись успешно синхронизирована с Lemon Seasons.');
         } else if (res.error) {
           this.setStatus(`Seasons sync error: ${res.error}`);
         }
-      });
+      },
+      error: (err) => {
+        this.setStatus(
+          this.formatApiError(err, 'Не удалось связаться с backend для синхронизации Seasons.'),
+        );
+      },
+    });
   }
 
   shareNoteWithGroup(noteId: string, shared: boolean): void {
     const profileId = this.profileService.currentProfileId;
-    const optimistic = this.notesSubject.value.map((n) =>
+    const prevNotes = this.notesSubject.value;
+    const optimistic = prevNotes.map((n) =>
       n.id === noteId ? { ...n, sharedWithGroup: shared } : n,
     );
     this.notesSubject.next(optimistic);
-    saveLocalNotes(optimistic);
 
-    this.api
-      .shareNoteWithBoardGroup(noteId, { shared }, profileId)
-      .pipe(catchError(() => of(null)))
-      .subscribe((res) => {
-        if (res) {
-          const updated = this.notesSubject.value.map((n) =>
-            n.id === noteId
-              ? {
-                  ...n,
-                  sharedWithGroup: res.sharedWithGroup,
-                  seasonsNoteId: res.seasonsNoteId || n.seasonsNoteId,
-                }
-              : n,
-          );
-          this.notesSubject.next(updated);
-          saveLocalNotes(updated);
-          this.setStatus(
-            res.sharedWithGroup
-              ? `NoteShare включён для участников группы (${res.sharedCount} расшарено).`
-              : 'Доступ NoteShare для группы отозван.',
-          );
-        }
-      });
+    this.api.shareNoteWithBoardGroup(noteId, { shared }, profileId).subscribe({
+      next: (res) => {
+        const updated = this.notesSubject.value.map((n) =>
+          n.id === noteId
+            ? {
+                ...n,
+                sharedWithGroup: res.sharedWithGroup,
+                seasonsNoteId: res.seasonsNoteId || n.seasonsNoteId,
+              }
+            : n,
+        );
+        this.notesSubject.next(updated);
+        this.setStatus(
+          res.sharedWithGroup
+            ? `NoteShare включён для участников группы (${res.sharedCount} расшарено).`
+            : 'Доступ NoteShare для группы отозван.',
+        );
+      },
+      error: (err) => {
+        this.notesSubject.next(prevNotes);
+        this.setStatus(this.formatApiError(err, 'Не удалось изменить доступ NoteShare на сервере.'));
+      },
+    });
   }
 
   deleteNote(noteId: string): void {
     const profileId = this.profileService.currentProfileId;
-    const next = this.notesSubject.value.filter((n) => n.id !== noteId);
+    const prevNotes = this.notesSubject.value;
+    const next = prevNotes.filter((n) => n.id !== noteId);
     this.notesSubject.next(next);
-    saveLocalNotes(next);
 
-    this.api
-      .deleteTimelineNote(noteId, profileId)
-      .pipe(catchError(() => of(null)))
-      .subscribe();
+    this.api.deleteTimelineNote(noteId, profileId).subscribe({
+      error: (err) => {
+        this.notesSubject.next(prevNotes);
+        this.setStatus(this.formatApiError(err, 'Не удалось удалить запись на сервере.'));
+      },
+    });
   }
 
   getCompatibleCrossLinkCandidates(sourceBoard: TimelineBoard): CloudDayNote[] {
@@ -797,7 +607,8 @@ export class TimelinesService {
       sessionStatus: targetBoard.flowStatus === 'ACTIVE' ? 'ACTIVE' : 'COMPLETED',
     };
 
-    const next = this.notesSubject.value.map((n) => {
+    const prevNotes = this.notesSubject.value;
+    const next = prevNotes.map((n) => {
       if (n.id !== sourceNote.id) return n;
       const existing = n.crossRefs || [];
       return {
@@ -806,7 +617,6 @@ export class TimelinesService {
       };
     });
     this.notesSubject.next(next);
-    saveLocalNotes(next);
 
     this.api
       .createCrossLink(
@@ -820,8 +630,12 @@ export class TimelinesService {
         },
         profileId,
       )
-      .pipe(catchError(() => of(null)))
-      .subscribe();
+      .subscribe({
+        error: (err) => {
+          this.notesSubject.next(prevNotes);
+          this.setStatus(this.formatApiError(err, 'Не удалось сохранить кросс-ссылку на сервере.'));
+        },
+      });
 
     return { ok: true };
   }
@@ -838,7 +652,7 @@ export class TimelinesService {
       reader.readAsDataURL(file);
     });
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       this.api
         .uploadSeasonsMedia({
           filename: file.name,
@@ -849,24 +663,15 @@ export class TimelinesService {
           authorProfileId: this.profileService.currentProfileId,
           folderPath: 'universe/timelines',
         })
-        .pipe(
-          catchError(() =>
-            of({
-              uploadedToHub: false,
-              attachment: {
-                url: dataUrl,
-                thumbnailUrl: dataUrl,
-                filename: file.name,
-                mimeType: file.type || 'image/png',
-                sizeBytes: file.size,
-                caption: caption || file.name,
-                isMain: true,
-              },
-            }),
-          ),
-        )
-        .subscribe((res) => {
-          resolve(res.attachment);
+        .subscribe({
+          next: (res) => {
+            resolve(res.attachment);
+          },
+          error: (err) => {
+            const msg = this.formatApiError(err, 'Не удалось загрузить медиафайл на сервер.');
+            this.setStatus(msg);
+            reject(new Error(msg));
+          },
         });
     });
   }
@@ -921,7 +726,8 @@ export class TimelinesService {
       seasonsFeedSlug: input.sourceBoard.seasonsFeedSlug,
     };
 
-    const nextNotes = [summaryNote, ...this.notesSubject.value];
+    const prevNotes = this.notesSubject.value;
+    const nextNotes = [summaryNote, ...prevNotes];
 
     if (input.targetBoard) {
       const anchorNote: CloudDayNote = {
@@ -958,7 +764,6 @@ export class TimelinesService {
     }
 
     this.notesSubject.next(nextNotes);
-    saveLocalNotes(nextNotes);
     this.seasonsBridge.recordTimelineNoteToFeed(summaryNote, input.sourceBoard, {
       skipRemoteIngest: true,
     });
@@ -975,11 +780,14 @@ export class TimelinesService {
         time,
         tags: input.tags,
       })
-      .pipe(catchError(() => of(null)))
-      .subscribe((res) => {
-        if (res) {
+      .subscribe({
+        next: () => {
           this.seasonsBridge.markNoteSynced(summaryNote.id, true);
-        }
+        },
+        error: (err) => {
+          this.notesSubject.next(prevNotes);
+          this.setStatus(this.formatApiError(err, 'Не удалось сохранить сводку агента на сервере.'));
+        },
       });
 
     return { ok: true };

@@ -30,6 +30,7 @@ import {
   TimelineBoardModalComponent,
 } from './timeline-board-modal.component';
 import { TimelineMembersModalComponent } from './timeline-members-modal.component';
+import { TimelineProjectariumModalComponent } from './timeline-projectarium-modal.component';
 import { TimelineCrossLinkModalComponent } from './timeline-crosslink-modal.component';
 import {
   AgentSummarySubmitPayload,
@@ -49,6 +50,7 @@ type TimelineViewMode = 'DIARY_FEED' | 'VISUAL_TIMELINE';
     ModalOverlayDirective,
     TimelineBoardModalComponent,
     TimelineMembersModalComponent,
+    TimelineProjectariumModalComponent,
     TimelineCrossLinkModalComponent,
     TimelineAgentSummaryModalComponent,
   ],
@@ -192,6 +194,16 @@ type TimelineViewMode = 'DIARY_FEED' | 'VISUAL_TIMELINE';
               >
                 <span class="material-symbols-rounded text-base text-primary">group_add</span>
                 <span>Members &amp; Приватность ({{ (board.members || []).length }})</span>
+              </button>
+
+              <button
+                type="button"
+                (click)="isProjectariumModalOpen.set(true)"
+                class="px-3 py-1.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold border border-outline-variant/30 inline-flex items-center gap-1.5 cursor-pointer"
+                title="Привязка к Projectarium и выдача токена"
+              >
+                <span class="material-symbols-rounded text-base text-primary">hub</span>
+                <span>Projectarium</span>
               </button>
 
               <!-- View Switcher -->
@@ -667,6 +679,14 @@ type TimelineViewMode = 'DIARY_FEED' | 'VISUAL_TIMELINE';
         (removeMember)="handleRemoveMember($event)"
       />
 
+      <app-timeline-projectarium-modal
+        [isOpen]="isProjectariumModalOpen()"
+        [boards]="visibleBoards()"
+        [activeBoardId]="activeBoard()?.id || null"
+        [actorProfileId]="activeProfile()?.id || null"
+        (closed)="isProjectariumModalOpen.set(false)"
+      />
+
       <app-timeline-crosslink-modal
         [sourceBoard]="activeBoard()"
         [sourceNote]="crossLinkSourceNote()"
@@ -862,6 +882,7 @@ export class TimelinesWorkspaceComponent {
   // Modals state
   readonly isCreateBoardOpen = signal<boolean>(false);
   readonly isMembersModalOpen = signal<boolean>(false);
+  readonly isProjectariumModalOpen = signal<boolean>(false);
   readonly crossLinkSourceNote = signal<CloudDayNote | null>(null);
   readonly isAgentSummaryOpen = signal<boolean>(false);
   readonly agentSummaryError = signal<string | null>(null);
@@ -1070,6 +1091,8 @@ export class TimelinesWorkspaceComponent {
       const privacy: BoardPrivacy = board.privacy === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE';
       const attachment = await this.timelines.uploadMediaFile(file, privacy, this.composerTitle || file.name);
       this.pendingMedia.update((list) => [...list, attachment]);
+    } catch {
+      // Статус ошибки уже выставлен в TimelinesService
     } finally {
       this.isUploadingMedia.set(false);
       input.value = '';

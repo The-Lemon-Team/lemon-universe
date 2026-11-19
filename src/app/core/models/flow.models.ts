@@ -605,7 +605,7 @@ export interface TimelineBoard {
   defaultActorId?: string | null;
   isArchived?: boolean;
   members?: TimelineBoardMember[];
-  flowId: string;
+  flowId: string | null;
   flowType: FlowType;
   flowStatus: FlowStatus;
   activeSessionId?: string | null;

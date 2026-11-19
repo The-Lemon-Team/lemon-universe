@@ -8,108 +8,13 @@ import {
   TimelineBoard,
 } from '../models/flow.models';
 import { ApiService } from './api.service';
-import { readWithLegacyMigration } from './neuron-arena.storage';
 import { ProfileService } from './profile.service';
-
-const PERSONAL_FEED_STORAGE_KEY = 'lemon-universe:seasons-personal-feed-v1';
 
 const CLOUD_TYPE_TO_SEASON_TYPE: Record<CloudItemType, 'SINGLE' | 'EVENT' | 'DONE'> = {
   thought: 'SINGLE',
   proposal: 'EVENT',
   action: 'DONE',
 };
-
-const DEFAULT_SEED_FEED_ENTRIES: SeasonsPersonalFeedEntry[] = [
-  {
-    id: 'seasons-feed-seed-global-1',
-    externalId: 'universe-timeline:note-global-coding-summary-1',
-    boardId: 'board-global-day',
-    boardTitle: '🌍 Глобальный Таймлайн Дня',
-    boardIcon: 'public',
-    feedSlug: 'universe-personal-feed',
-    streamSlug: 'lemon-universe',
-    origin: 'NEURON_PARTY',
-    noteType: 'DONE',
-    title: 'Провели кодинг-сессию по Lemon Universe',
-    summary:
-      'Мы провели мощную кодинг-сессию с Antigravity Agent и ТимЛидом Старлидером! Подняли PostgreSQL и настроили сводку в личный фид.',
-    content:
-      'Мы провели мощную кодинг-сессию с Antigravity Agent и ТимЛидом Старлидером! Переименовали проект в Lemon Universe, подняли свою БД PostgreSQL и настроили сводку в личный фид Lemon Seasons.',
-    actorId: 'actor-lemon-coder',
-    actorName: 'Программист (Lemon Team)',
-    actorAvatar: 'lemon-coder',
-    dateKey: '2026-11-06',
-    time: '14:35',
-    createdAt: '2026-11-06T14:35:00Z',
-    tags: ['lemon-universe', 'coding-session', 'cross-timeline', 'personal-summary'],
-    syncedToRemote: true,
-    crossRefs: [
-      {
-        targetBoardId: 'board-coding-sessions',
-        targetBoardTitle: '💻 TimeLine Board: Сессии Кодинга',
-        targetBoardIcon: 'terminal',
-        targetNoteId: 'note-coding-child-session-1',
-        targetDateKey: '2026-11-06',
-        targetTime: '14:30',
-        targetActorId: 'actor-antigravity-agent',
-        targetActorName: 'Antigravity Agent & Программист',
-        targetActorAvatar: 'antigravity-agent',
-        targetTitle: 'Кодинг-сессия #1: PostgreSQL + Core Combinator + Multi-TimeLines',
-        targetSnippet:
-          'Развернули базу lemon_universe_db в Docker с расширением ltree, подключили потоки Core Combinator (PROJECTION + MUTEX)...',
-        relationLabel: 'Дочерний узел · Сессия Кодинга',
-        sessionStatus: 'ACTIVE',
-      },
-    ],
-  },
-  {
-    id: 'seasons-feed-seed-coding-1',
-    externalId: 'coding-session:note-coding-child-session-1',
-    boardId: 'board-coding-sessions',
-    boardTitle: '💻 TimeLine Board: Сессии Кодинга',
-    boardIcon: 'terminal',
-    feedSlug: 'universe-coding-sessions',
-    streamSlug: 'lemon-universe',
-    origin: 'CODING_AGENT',
-    noteType: 'DONE',
-    title: 'Кодинг-сессия #1: PostgreSQL + Core Combinator + Multi-TimeLines',
-    summary:
-      'Развернули базу lemon_universe_db в Docker с расширением ltree, подключили потоки Core Combinator и мост lemon-seasons-neurons.',
-    content:
-      'Развернули базу lemon_universe_db в Docker с расширением ltree, подключили потоки Core Combinator (PROJECTION + MUTEX) и мост lemon-seasons-neurons для синхронизации сводки в личный фид feed-app!',
-    actorId: 'actor-antigravity-agent',
-    actorName: 'Antigravity Agent',
-    actorAvatar: 'antigravity-agent',
-    dateKey: '2026-11-06',
-    time: '14:30',
-    createdAt: '2026-11-06T14:30:00Z',
-    tags: ['coding-memory', 'postgresql', 'core-combinator', 'antigravity-agent'],
-    syncedToRemote: true,
-  },
-];
-
-function loadInitialFeedEntries(): SeasonsPersonalFeedEntry[] {
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = readWithLegacyMigration(PERSONAL_FEED_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {}
-  }
-  return DEFAULT_SEED_FEED_ENTRIES;
-}
-
-function saveFeedEntries(entries: SeasonsPersonalFeedEntry[]): void {
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem(PERSONAL_FEED_STORAGE_KEY, JSON.stringify(entries.slice(0, 120)));
-    } catch {}
-  }
-}
 
 /**
  * Мост интеграции с пакетом `lemon-seasons-neurons` (CharacterDialogueAxon, CodingMemoryAxon, FeedNeuron).
@@ -121,9 +26,7 @@ export class SeasonsTimelineBridgeService {
   private readonly api = inject(ApiService);
   private readonly profileService = inject(ProfileService);
 
-  private readonly feedEntriesSubject = new BehaviorSubject<SeasonsPersonalFeedEntry[]>(
-    loadInitialFeedEntries(),
-  );
+  private readonly feedEntriesSubject = new BehaviorSubject<SeasonsPersonalFeedEntry[]>([]);
   private readonly remoteFeedNotesSubject = new BehaviorSubject<any[]>([]);
   private readonly remoteFeedAccountSubject = new BehaviorSubject<string | null>(null);
   private readonly lastSyncStatusSubject = new BehaviorSubject<'SYNCED' | 'LOCAL_QUEUE'>('SYNCED');
@@ -198,9 +101,8 @@ export class SeasonsTimelineBridgeService {
     };
 
     const current = this.feedEntriesSubject.value;
-    const nextList = [entry, ...current.filter((item) => item.id !== entry.id)];
+    const nextList = [entry, ...current.filter((item) => item.id !== entry.id)].slice(0, 120);
     this.feedEntriesSubject.next(nextList);
-    saveFeedEntries(nextList);
 
     if (opts?.syncedToRemote) {
       this.lastSyncStatusSubject.next('SYNCED');
@@ -227,7 +129,6 @@ export class SeasonsTimelineBridgeService {
       e.id === entryId ? { ...e, syncedToRemote } : e,
     );
     this.feedEntriesSubject.next(updated);
-    saveFeedEntries(updated);
   }
 
   fetchRemoteFeedNotes(feedSlug?: string, profileId?: string): void {
