@@ -12,48 +12,96 @@
     (function () {
       try {
         var params = new URLSearchParams(window.location.search);
-        var fromUrl = params.get('theme');
-        var saved = localStorage.getItem('lemon-actions:theme');
-        var theme =
-          fromUrl === 'dark' || fromUrl === 'light'
-            ? fromUrl
-            : saved === 'dark' || saved === 'light'
-              ? saved
-              : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-                ? 'dark'
-                : 'light';
-        if (theme === 'dark') {
-          document.documentElement.classList.add('dark');
+        var fromTheme = params.get('theme');
+        var fromPalette = params.get('palette');
+        var palette = 'atom';
+        var mode = null;
+
+        var raw = localStorage.getItem('lemon_theme_state');
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (parsed && (parsed.palette === 'atom' || parsed.palette === 'slate')) palette = parsed.palette;
+          if (parsed && (parsed.mode === 'light' || parsed.mode === 'dark')) mode = parsed.mode;
         }
+        if (!mode) {
+          var saved = localStorage.getItem('lemon-actions:theme');
+          if (saved === 'dark' || saved === 'light') mode = saved;
+        }
+        if (!mode) {
+          mode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        if (fromPalette === 'atom' || fromPalette === 'slate') palette = fromPalette;
+        if (fromTheme === 'dark' || fromTheme === 'light') {
+          mode = fromTheme;
+        } else if (fromTheme) {
+          var parts = fromTheme.split('-');
+          if (parts[0] === 'atom' || parts[0] === 'slate') palette = parts[0];
+          if (parts[1] === 'dark' || parts[1] === 'light') mode = parts[1];
+        }
+
+        var root = document.documentElement;
+        root.setAttribute('data-theme', palette);
+        root.setAttribute('data-theme-mode', mode);
+        root.classList.toggle('dark', mode === 'dark');
+        root.classList.toggle('light', mode === 'light');
+        root.style.colorScheme = mode;
       } catch (e) {}
     })();
   </script>
   <style>
-    :root {
+    :root,
+    :root[data-theme="atom"] {
       color-scheme: light;
-      --boot-bg: #fafafa;
+      --boot-bg: #e2e8f0;
       --boot-surface: #ffffff;
-      --boot-surface-low: #f4f4f5;
-      --boot-surface-high: #e5e5e6;
+      --boot-surface-low: #f1f5f9;
+      --boot-surface-high: #e2e8f0;
       --boot-text: #383a42;
-      --boot-muted: #696c77;
-      --boot-border: rgba(219, 219, 220, 0.55);
-      --boot-primary: #986801;
+      --boot-muted: #5c6370;
+      --boot-border: rgba(15, 23, 42, 0.14);
+      --boot-primary: #707600;
       --boot-primary-on: #ffffff;
-      --boot-primary-soft: rgba(242, 214, 117, 0.35);
+      --boot-primary-soft: rgba(242, 214, 117, 0.45);
     }
-    html.dark {
+    :root[data-theme="slate"] {
+      color-scheme: light;
+      --boot-bg: #f8fafc;
+      --boot-surface: #ffffff;
+      --boot-surface-low: #f1f5f9;
+      --boot-surface-high: #e2e8f0;
+      --boot-text: #0f172a;
+      --boot-muted: #475569;
+      --boot-border: rgba(226, 232, 240, 0.85);
+      --boot-primary: #2481cc;
+      --boot-primary-on: #ffffff;
+      --boot-primary-soft: rgba(36, 129, 204, 0.12);
+    }
+    html.dark,
+    html[data-theme="atom"].dark {
       color-scheme: dark;
-      --boot-bg: #282c34;
-      --boot-surface: #21252b;
-      --boot-surface-low: #2c313a;
-      --boot-surface-high: #3e4451;
-      --boot-text: #abb2bf;
-      --boot-muted: #8c94a3;
-      --boot-border: rgba(62, 68, 81, 0.65);
+      --boot-bg: #1b1d23;
+      --boot-surface: #242830;
+      --boot-surface-low: #1e2227;
+      --boot-surface-high: #282c34;
+      --boot-text: #9da5b4;
+      --boot-muted: #7e8796;
+      --boot-border: rgba(255, 255, 255, 0.06);
       --boot-primary: #e5c07b;
-      --boot-primary-on: #282c34;
-      --boot-primary-soft: rgba(229, 192, 123, 0.16);
+      --boot-primary-on: #1e2227;
+      --boot-primary-soft: rgba(229, 192, 123, 0.14);
+    }
+    html[data-theme="slate"].dark {
+      color-scheme: dark;
+      --boot-bg: #0e1621;
+      --boot-surface: #18222d;
+      --boot-surface-low: #1f2b38;
+      --boot-surface-high: #273544;
+      --boot-text: #e2e8f0;
+      --boot-muted: #94a3b8;
+      --boot-border: rgba(255, 255, 255, 0.08);
+      --boot-primary: #2481cc;
+      --boot-primary-on: #ffffff;
+      --boot-primary-soft: rgba(36, 129, 204, 0.16);
     }
     html, body {
       margin: 0;
@@ -78,6 +126,10 @@
       border-bottom: 1px solid var(--boot-border);
     }
     .lp-boot-topbar {
+      max-width: 80rem;
+      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
       height: 4rem;
       padding: 0 1.5rem;
       display: flex;
@@ -142,6 +194,10 @@
       animation: lp-pulse 1.2s infinite ease-in-out;
     }
     .lp-boot-nav {
+      max-width: 80rem;
+      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
       border-top: 1px solid var(--boot-border);
       padding: 0.5rem 1.5rem;
       display: flex;
@@ -161,6 +217,10 @@
     }
     .lp-boot-main {
       flex: 1;
+      max-width: 80rem;
+      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
       padding: 1.5rem;
       display: flex;
       flex-direction: column;
@@ -201,7 +261,7 @@
     }
   </style>
 </head>
-<body class="bg-surface font-body-md text-on-surface antialiased transition-colors duration-200 selection:bg-primary-container selection:text-on-primary-container">
+<body class="bg-background font-body-md text-on-surface antialiased transition-colors duration-200 selection:bg-primary-container selection:text-on-primary-container">
   <app-root>
     <div class="lp-boot-shell" aria-busy="true" aria-label="Загрузка Lemon Universe">
       <header class="lp-boot-header">

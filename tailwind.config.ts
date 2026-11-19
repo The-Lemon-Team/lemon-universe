@@ -1,8 +1,9 @@
 import type { Config } from 'tailwindcss';
+import lemonTailwindPreset from '@lemon/themes/tailwind';
 
 /**
- * "Lemon Seasons" theme: tokens from DESIGN.md merged with the
- * tailwind.config block of the code.html prototype.
+ * "Lemon Universe" theme: @lemon/themes preset (Atom & Slate, light & dark)
+ * bridged with Material-style `--c-*` tokens and Lemon Seasons typography.
  */
 /**
  * Color tokens are CSS variables (RGB triplets) defined per theme in src/styles.css
@@ -32,6 +33,7 @@ const font = (family: string, size: string, lineHeight: string, fontWeight: stri
   ];
 
 const config: Config = {
+  presets: [lemonTailwindPreset],
   content: ['./src/**/*.{html,ts}'],
   darkMode: 'class',
   theme: {

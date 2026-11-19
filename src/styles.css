@@ -1,52 +1,56 @@
 @import './fonts.css';
+@import '@lemon/themes/tokens.css';
+@import '@lemon/themes/surfaces.css';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  /* ---- Light theme: Atom "One Light" neutrals + soft lemon accent ---- */
+  /*
+   * Symbiosis of @lemon/themes (Atom & Slate, Light & Dark) with Lemon Universe `--c-*` tokens.
+   * Light modes combine crisp white tiles/panels on architectural platform surfaces with warm lemon accents.
+   */
   :root {
-    color-scheme: light;
-    --c-surface: 250 250 250; /* #fafafa */
-    --c-surface-dim: 219 219 220;
-    --c-surface-bright: 250 250 250;
-    --c-surface-variant: 229 229 230;
-    --c-surface-tint: 152 104 1;
-    --c-surface-container-lowest: 255 255 255;
-    --c-surface-container-low: 244 244 245;
-    --c-surface-container: 240 240 241;
-    --c-surface-container-high: 234 234 235;
-    --c-surface-container-highest: 229 229 230;
-    --c-background: 250 250 250;
-    --c-on-background: 56 58 66;
-    --c-on-surface: 56 58 66; /* #383a42 */
-    --c-on-surface-variant: 105 108 119; /* #696c77 */
+    --c-surface: var(--lemon-panel-rgb);
+    --c-surface-dim: var(--lemon-tile-muted-rgb);
+    --c-surface-bright: var(--lemon-tile-rgb);
+    --c-surface-variant: var(--lemon-tile-muted-rgb);
+    --c-surface-tint: var(--lemon-primary-rgb);
+    --c-surface-container-lowest: var(--lemon-tile-rgb);
+    --c-surface-container-low: var(--lemon-tile-subtle-rgb);
+    --c-surface-container: var(--lemon-canvas-rgb);
+    --c-surface-container-high: var(--lemon-tile-muted-rgb);
+    --c-surface-container-highest: var(--lemon-tile-muted-rgb);
+    --c-background: var(--lemon-platform-rgb);
+    --c-on-background: var(--lemon-text-main-rgb);
+    --c-on-surface: var(--lemon-text-main-rgb);
+    --c-on-surface-variant: var(--lemon-text-secondary-rgb);
     --c-inverse-surface: 56 58 66;
     --c-inverse-on-surface: 250 250 250;
-    --c-outline: 160 161 167; /* #a0a1a7 */
-    --c-outline-variant: 219 219 220;
+    --c-outline: var(--lemon-text-muted-rgb);
+    --c-outline-variant: var(--lemon-text-dim-rgb);
 
-    --c-primary: 152 104 1; /* #986801 */
-    --c-on-primary: 255 255 255;
-    --c-primary-container: 242 214 117; /* soft lemon */
-    --c-on-primary-container: 92 69 0;
+    --c-primary: var(--lemon-primary-rgb);
+    --c-on-primary: var(--lemon-on-primary-rgb);
+    --c-primary-container: 242 214 117; /* soft lemon symbiosis */
+    --c-on-primary-container: 72 56 0;
     --c-inverse-primary: 229 192 123;
     --c-primary-fixed: 247 229 160;
     --c-primary-fixed-dim: 232 200 90;
     --c-on-primary-fixed: 60 45 0;
     --c-on-primary-fixed-variant: 110 80 0;
 
-    --c-secondary: 193 132 1; /* #c18401 */
+    --c-secondary: 193 132 1;
     --c-on-secondary: 255 255 255;
     --c-secondary-container: 250 228 150;
-    --c-on-secondary-container: 110 80 0;
+    --c-on-secondary-container: 92 69 0;
     --c-secondary-fixed: 250 232 165;
     --c-secondary-fixed-dim: 235 200 90;
     --c-on-secondary-fixed: 70 50 0;
     --c-on-secondary-fixed-variant: 110 80 0;
 
-    --c-tertiary: 64 120 242; /* #4078f2 */
+    --c-tertiary: var(--lemon-info-rgb);
     --c-on-tertiary: 255 255 255;
     --c-tertiary-container: 214 227 253;
     --c-on-tertiary-container: 36 70 150;
@@ -55,53 +59,47 @@
     --c-on-tertiary-fixed: 30 60 130;
     --c-on-tertiary-fixed-variant: 36 70 150;
 
-    --c-error: 228 86 73; /* #e45649 */
+    --c-error: var(--lemon-error-rgb);
     --c-on-error: 255 255 255;
     --c-error-container: 252 226 222;
     --c-on-error-container: 140 40 32;
 
-    --c-success: 80 161 79; /* #50a14f */
+    --c-success: var(--lemon-success-rgb);
     --c-success-container: 226 242 224;
     --c-on-success-container: 40 100 40;
-    --c-warning: 193 132 1;
+    --c-warning: var(--lemon-warning-rgb);
     --c-warning-container: 252 238 205;
     --c-on-warning-container: 120 80 0;
   }
 
-  /* ---- Dark theme: Atom "One Dark" ---- */
-  .dark {
-    color-scheme: dark;
-    --c-surface: 40 44 52; /* #282c34 */
-    --c-surface-dim: 33 37 43; /* #21252b */
-    --c-surface-bright: 62 68 81;
-    --c-surface-variant: 62 68 81;
-    --c-surface-tint: 229 192 123;
-    --c-surface-container-lowest: 33 37 43;
-    --c-surface-container-low: 44 49 58; /* #2c313a */
-    --c-surface-container: 50 55 65;
-    --c-surface-container-high: 57 63 75;
-    --c-surface-container-highest: 62 68 81; /* #3e4451 */
-    --c-background: 40 44 52;
-    --c-on-background: 171 178 191;
-    --c-on-surface: 171 178 191; /* #abb2bf */
-    --c-on-surface-variant: 140 148 163;
-    --c-inverse-surface: 171 178 191;
-    --c-inverse-on-surface: 40 44 52;
-    --c-outline: 92 99 112; /* #5c6370 */
-    --c-outline-variant: 62 68 81;
+  /* ---- Lemon Slate Light ---- */
+  :root[data-theme="slate"] {
+    --c-primary-container: 219 234 254;
+    --c-on-primary-container: 23 68 128;
+    --c-inverse-primary: 147 197 253;
+    --c-secondary: 14 165 233;
+    --c-secondary-container: 224 242 254;
+    --c-on-secondary-container: 12 74 110;
+  }
 
-    --c-primary: 229 192 123; /* #e5c07b */
-    --c-on-primary: 40 44 52;
-    --c-primary-container: 229 192 123;
-    --c-on-primary-container: 40 44 52;
-    --c-inverse-primary: 152 104 1;
+  /* ---- Dark themes: Lemon Atom Dark (default .dark) ---- */
+  :root.dark,
+  :root[data-theme="atom"].dark {
+    --c-surface-container-high: 57 63 75;
+    --c-surface-container-highest: 62 68 81;
+    --c-inverse-surface: 226 232 240;
+    --c-inverse-on-surface: 27 29 35;
+
+    --c-primary-container: 72 62 42;
+    --c-on-primary-container: 240 211 141;
+    --c-inverse-primary: 112 118 0;
     --c-primary-fixed: 72 66 52;
-    --c-primary-fixed-dim: 209 154 102; /* #d19a66 */
+    --c-primary-fixed-dim: 209 154 102;
     --c-on-primary-fixed: 229 192 123;
     --c-on-primary-fixed-variant: 209 154 102;
 
     --c-secondary: 209 154 102;
-    --c-on-secondary: 40 44 52;
+    --c-on-secondary: 30 34 39;
     --c-secondary-container: 79 68 50;
     --c-on-secondary-container: 229 192 123;
     --c-secondary-fixed: 79 68 50;
@@ -109,8 +107,7 @@
     --c-on-secondary-fixed: 229 192 123;
     --c-on-secondary-fixed-variant: 209 154 102;
 
-    --c-tertiary: 97 175 239; /* #61afef */
-    --c-on-tertiary: 40 44 52;
+    --c-on-tertiary: 30 34 39;
     --c-tertiary-container: 40 70 100;
     --c-on-tertiary-container: 150 200 245;
     --c-tertiary-fixed: 40 70 100;
@@ -118,17 +115,40 @@
     --c-on-tertiary-fixed: 97 175 239;
     --c-on-tertiary-fixed-variant: 150 200 245;
 
-    --c-error: 224 108 117; /* #e06c75 */
-    --c-on-error: 40 44 52;
+    --c-on-error: 30 34 39;
     --c-error-container: 90 45 50;
     --c-on-error-container: 240 160 165;
 
-    --c-success: 152 195 121; /* #98c379 */
     --c-success-container: 45 66 48;
     --c-on-success-container: 152 195 121;
-    --c-warning: 229 192 123;
     --c-warning-container: 70 62 40;
     --c-on-warning-container: 229 192 123;
+  }
+
+  /* ---- Lemon Slate Dark ---- */
+  :root[data-theme="slate"].dark {
+    --c-surface-container-high: 39 53 68;
+    --c-surface-container-highest: 47 64 82;
+    --c-inverse-surface: 226 232 240;
+    --c-inverse-on-surface: 14 22 33;
+
+    --c-primary-container: 30 58 95;
+    --c-on-primary-container: 147 197 253;
+    --c-inverse-primary: 36 129 204;
+
+    --c-secondary: 56 189 248;
+    --c-on-secondary: 14 22 33;
+    --c-secondary-container: 26 52 78;
+    --c-on-secondary-container: 125 211 252;
+
+    --c-tertiary-container: 26 52 78;
+    --c-on-tertiary-container: 147 197 253;
+    --c-error-container: 88 32 42;
+    --c-on-error-container: 254 202 202;
+    --c-success-container: 20 68 52;
+    --c-on-success-container: 110 231 183;
+    --c-warning-container: 74 52 20;
+    --c-on-warning-container: 253 230 138;
   }
 
   html,
@@ -137,6 +157,8 @@
     padding: 0;
   }
   body {
+    background-color: rgb(var(--lemon-platform-rgb));
+    color: rgb(var(--lemon-text-main-rgb));
     overscroll-behavior: none;
   }
 }

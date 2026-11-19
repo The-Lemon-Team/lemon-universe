@@ -16,7 +16,7 @@ import { ThemeService } from '../../core/services/theme.service';
     <div class="min-h-screen bg-background text-on-surface flex flex-col">
       <!-- Dedicated TimeLines App Header -->
       <header class="sticky top-0 z-40 w-full bg-surface border-b border-outline-variant/40 shadow-xs">
-        <div class="w-full px-4 sm:px-6 lg:px-8 xl:px-12 min-h-16 py-2 flex items-center justify-between gap-3 flex-wrap">
+        <div class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 min-h-16 py-2 flex items-center justify-between gap-3 flex-wrap">
           <!-- Brand -->
           <div class="flex items-center gap-3 min-w-0">
             <a routerLink="/timelines" class="flex items-center gap-2.5 text-on-surface no-underline">
@@ -80,9 +80,19 @@ import { ThemeService } from '../../core/services/theme.service';
 
             <button
               type="button"
+              (click)="theme.togglePalette()"
+              class="h-9 px-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors border border-outline-variant/30 cursor-pointer text-[11px] font-label-code-sm font-bold"
+              [title]="'Палитра Lemon Themes: ' + ((theme.palette$ | async) === 'slate' ? 'Slate' : 'Atom') + ' (нажмите для смены)'"
+            >
+              <span class="material-symbols-rounded text-base text-primary">palette</span>
+              <span class="hidden md:inline uppercase">{{ (theme.palette$ | async) === 'slate' ? 'Slate' : 'Atom' }}</span>
+            </button>
+
+            <button
+              type="button"
               (click)="theme.toggle()"
               class="w-9 h-9 rounded-xl bg-surface-container-low hover:bg-surface-container-high text-on-surface flex items-center justify-center transition-colors border border-outline-variant/30 cursor-pointer"
-              title="Переключить тему"
+              [title]="(theme.theme$ | async) === 'dark' ? 'Переключить на светлую тему' : 'Переключить на тёмную тему'"
             >
               <span class="material-symbols-rounded text-lg">
                 {{ (theme.theme$ | async) === 'dark' ? 'light_mode' : 'dark_mode' }}
@@ -92,7 +102,7 @@ import { ThemeService } from '../../core/services/theme.service';
         </div>
       </header>
 
-      <main class="flex-1 w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-6">
+      <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
         <router-outlet />
       </main>
 

@@ -27,7 +27,7 @@ import { PartySoundService } from './party-sound.service';
         class="sticky top-0 z-40 w-full bg-surface border-b border-outline-variant/40 shadow-sm"
       >
         <div
-          class="relative w-full px-4 sm:px-6 lg:px-8 xl:px-12 min-h-16 py-2 flex items-center justify-between gap-2 sm:gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-4"
+          class="relative max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 min-h-16 py-2 flex items-center justify-between gap-2 sm:gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-4"
         >
           <!-- Game Brand & Portal Link -->
           <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0 z-10 min-w-0 lg:justify-self-start">
@@ -182,12 +182,23 @@ import { PartySoundService } from './party-sound.service';
               </span>
             </button>
 
-            <!-- Theme Toggle -->
+            <!-- Palette Switcher (Atom / Slate) -->
+            <button
+              type="button"
+              (click)="theme.togglePalette()"
+              class="h-9 px-2.5 rounded-xl bg-surface-container-low hover:bg-surface-container-high text-on-surface flex items-center gap-1.5 transition-colors border border-outline-variant/30 cursor-pointer text-[11px] font-label-code-sm font-bold"
+              [title]="'Палитра Lemon Themes: ' + ((theme.palette$ | async) === 'slate' ? 'Slate' : 'Atom') + ' (нажмите для смены)'"
+            >
+              <span class="material-symbols-rounded text-base text-primary">palette</span>
+              <span class="hidden md:inline uppercase">{{ (theme.palette$ | async) === 'slate' ? 'Slate' : 'Atom' }}</span>
+            </button>
+
+            <!-- Theme Mode Toggle (Light / Dark) -->
             <button
               type="button"
               (click)="theme.toggle()"
               class="w-9 h-9 rounded-xl bg-surface-container-low hover:bg-surface-container-high text-on-surface flex items-center justify-center transition-colors border border-outline-variant/30 cursor-pointer"
-              title="Переключить тему оформления"
+              [title]="(theme.theme$ | async) === 'dark' ? 'Переключить на светлую тему' : 'Переключить на тёмную тему'"
             >
               <span class="material-symbols-rounded text-lg">
                 {{ (theme.theme$ | async) === 'dark' ? 'light_mode' : 'dark_mode' }}
@@ -230,7 +241,7 @@ import { PartySoundService } from './party-sound.service';
 
         <!-- 2. GAME NAVIGATION RIBBON (TAB BAR) -->
         <div class="border-t border-outline-variant/25 bg-surface-container-lowest">
-          <div class="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
+          <div class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
             <nav
               aria-label="Game Navigation"
               class="flex items-center gap-1 sm:gap-1.5 overflow-x-auto py-2 no-scrollbar"
@@ -339,9 +350,9 @@ import { PartySoundService } from './party-sound.service';
       @if ((realtime.events$ | async)?.[0]; as latestEvent) {
         <aside
           aria-label="Живой стрим комнаты"
-          class="bg-primary/10 border-b border-primary/20 px-4 sm:px-6 lg:px-8 xl:px-12 py-1.5 text-xs font-body-sm text-on-surface"
+          class="bg-primary/10 border-b border-primary/20 py-1.5 text-xs font-body-sm text-on-surface"
         >
-          <div class="w-full flex items-center justify-between gap-3">
+          <div class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-3">
             <div class="flex items-center gap-2 min-w-0">
               <span class="w-2 h-2 rounded-full bg-primary flex-shrink-0"></span>
               <span class="font-label-ui font-bold text-primary flex-shrink-0">Live:</span>
@@ -357,13 +368,13 @@ import { PartySoundService } from './party-sound.service';
       }
 
       <!-- 4. ACTIVE GAME ROUTE CONTENT -->
-      <main class="flex-1 w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-6">
+      <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
         <router-outlet />
       </main>
 
       <!-- 5. FOOTER (GAME IDENTITY) -->
       <footer class="mt-auto border-t border-outline-variant/20 bg-surface-container-lowest py-6">
-        <div class="w-full px-4 sm:px-6 lg:px-8 xl:px-12 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-body-sm text-on-surface-variant">
+        <div class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-body-sm text-on-surface-variant">
           <div class="flex items-center gap-2">
             <span class="font-bold text-on-surface">Lemon Universe · Game Suite</span>
             <span>· Отдельное приложение выбора досуга и TimeLines</span>
