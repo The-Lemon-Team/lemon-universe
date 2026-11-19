@@ -32,7 +32,6 @@ import {
 } from '../../core/models/flow.models';
 import { NeuronArenaService } from '../../core/services/neuron-arena.service';
 import { readWithLegacyMigration } from '../../core/services/neuron-arena.storage';
-import { SEED_HERO_CLOUD_NOTES } from '../../core/services/hero-notes.seeds';
 import { PartyRealtimeService } from '../../core/services/party-realtime.service';
 import { ProfileService } from '../../core/services/profile.service';
 import { SeasonsTimelineBridgeService } from '../../core/services/seasons-timeline-bridge.service';
@@ -149,7 +148,6 @@ const STORAGE_DAY_VIBE_KEY = 'lemon-universe:day-vibe';
 const LEGACY_SQUAD_DAY_VIBE_KEY = 'lemon-guild-squad:day-vibe';
 const LEGACY_STORAGE_DAY_VIBE_KEY = 'lemon-party:day-vibe';
 
-const SEED_NOTES: Record<string, CloudDayNote[]> = SEED_HERO_CLOUD_NOTES;
 
 
 
@@ -4206,23 +4204,14 @@ export class PartyCloudComponent {
         if (raw) {
           const parsed = JSON.parse(raw);
           if (parsed && typeof parsed === 'object') {
-            const merged: Record<string, CloudDayNote[]> = { ...parsed };
-            for (const [date, seedNotes] of Object.entries(SEED_HERO_CLOUD_NOTES)) {
-              const existing = merged[date] || [];
-              const seedMap = new Map(seedNotes.map((n) => [n.id, n]));
-              const updated = existing.map((n) => seedMap.get(n.id) ?? n);
-              const existingIds = new Set(existing.map((n) => n.id));
-              const missing = seedNotes.filter((n) => !existingIds.has(n.id));
-              merged[date] = [...updated, ...missing];
-            }
-            return merged;
+            return parsed;
           }
         }
       } catch {
         // Local storage unreadable
       }
     }
-    return SEED_NOTES;
+    return {};
   }
 
   private persistNotes(store: Record<string, CloudDayNote[]>): void {

@@ -40,7 +40,6 @@ import {
   TimelineNodeCrossRef,
 } from '../models/flow.models';
 import { ApiService } from './api.service';
-import { SEED_HERO_CLOUD_NOTES } from './hero-notes.seeds';
 import {
   ArenaStateStore,
   buildTrainingSamples,
@@ -158,22 +157,12 @@ function loadStoredNotes(): Record<string, CloudDayNote[]> {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object') {
-          // Merge seed notes so new seeds are automatically loaded without requiring manual cache clear
-          const merged: Record<string, CloudDayNote[]> = { ...parsed };
-          for (const [date, seedNotes] of Object.entries(SEED_HERO_CLOUD_NOTES)) {
-            const existing = merged[date] || [];
-            const seedMap = new Map(seedNotes.map((n) => [n.id, n]));
-            const updated = existing.map((n) => seedMap.get(n.id) ?? n);
-            const existingIds = new Set(existing.map((n) => n.id));
-            const missing = seedNotes.filter((n) => !existingIds.has(n.id));
-            merged[date] = [...updated, ...missing];
-          }
-          return merged;
+          return parsed;
         }
       }
     } catch {}
   }
-  return SEED_HERO_CLOUD_NOTES;
+  return {};
 }
 
 function saveStoredNotes(store: Record<string, CloudDayNote[]>): void {
