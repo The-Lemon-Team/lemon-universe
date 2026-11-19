@@ -1,8 +1,10 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  BoardMemberRole,
+  BoardPrivacy,
   CloudDayNote,
   CodeRepoView,
   CreateFlowPayload,
@@ -12,8 +14,13 @@ import {
   FlowSessionRecord,
   FlowStatus,
   Folder,
+  PlayerType,
   Profile,
   TimelineBoard,
+  TimelineBoardMember,
+  TimelineBoardMode,
+  TimelineMediaAttachment,
+  TimelineNodeCrossRef,
 } from '../models/flow.models';
 
 /** Thin typed wrapper over the NestJS REST API (contracts = flow.models.ts). */
@@ -22,12 +29,31 @@ export class ApiService {
   private readonly http = inject(HttpClient);
   private readonly base = environment.apiUrl;
 
+  private profileHeaders(profileId?: string | null): HttpHeaders {
+    return profileId ? new HttpHeaders({ 'x-profile-id': profileId }) : new HttpHeaders();
+  }
+
   getProfiles(): Observable<Profile[]> {
     return this.http.get<Profile[]>(`${this.base}/profiles`);
   }
 
-  registerProfile(dto: { handle: string; displayName: string; avatarIcon?: string }): Observable<Profile> {
+  registerProfile(dto: {
+    handle: string;
+    displayName: string;
+    avatarIcon?: string;
+    playerType?: PlayerType;
+    defaultFeedSlug?: string;
+    seasonsUserId?: string;
+    seasonsUserKey?: string;
+  }): Observable<Profile> {
     return this.http.post<Profile>(`${this.base}/profiles`, dto);
+  }
+
+  updateProfileSeasons(
+    profileId: string,
+    dto: { seasonsUserId?: string | null; seasonsUserKey?: string | null },
+  ): Observable<Profile> {
+    return this.http.patch<Profile>(`${this.base}/profiles/${profileId}/seasons`, dto);
   }
 
   getFlows(opts?: { profileId?: string | null; scope?: string }): Observable<Flow[]> {
@@ -116,23 +142,253 @@ export class ApiService {
     return this.http.post<{ processed: number }>(`${this.base}/code-tasks/repos/${id}/results`, payload);
   }
 
-  /* TimeLine Boards & Lemon Seasons Bridge Endpoints */
-  getTimelineBoards(): Observable<TimelineBoard[]> {
-    return this.http.get<TimelineBoard[]>(`${this.base}/timelines/boards`);
+  /* TimeLine Boards, Members, Cross-Links & Lemon Seasons Bridge Endpoints */
+  getTimelineBoards(profileId?: string | null): Observable<TimelineBoard[]> {
+    return this.http.get<TimelineBoard[]>(`${this.base}/timelines/boards`, {
+      headers: this.profileHeaders(profileId),
+    });
   }
 
-  createTimelineBoard(dto: Partial<TimelineBoard>): Observable<TimelineBoard> {
-    return this.http.post<TimelineBoard>(`${this.base}/timelines/boards`, dto);
+  createTimelineBoard(
+    dto: Partial<TimelineBoard> & { memberProfileIds?: string[] },
+    profileId?: string | null,
+  ): Observable<TimelineBoard> {
+    return this.http.post<TimelineBoard>(`${this.base}/timelines/boards`, dto, {
+      headers: this.profileHeaders(profileId),
+    });
   }
 
-  getTimelineNotes(boardId?: string): Observable<CloudDayNote[]> {
+  updateTimelineBoard(
+    boardId: string,
+    dto: {
+      title?: string;
+      description?: string;
+      icon?: string;
+      colorTheme?: string;
+      vibeId?: string;
+      boardMode?: TimelineBoardMode;
+      privacy?: BoardPrivacy;
+      defaultActorId?: string | null;
+      isArchived?: boolean;
+    },
+    profileId?: string | null,
+  ): Observable<TimelineBoard> {
+    return this.http.patch<TimelineBoard>(`${this.base}/timelines/boards/${boardId}`, dto, {
+      headers: this.profileHeaders(profileId),
+    });
+  }
+
+  deleteTimelineBoard(boardId: string, profileId?: string | null): Observable<{ deleted: boolean; id: string }> {
+    return this.http.delete<{ deleted: boolean; id: string }>(
+      `${this.base}/timelines/boards/${boardId}`,
+      { headers: this.profileHeaders(profileId) },
+    );
+  }
+
+  getBoardMembers(boardId: string, profileId?: string | null): Observable<TimelineBoardMember[]> {
+    return this.http.get<TimelineBoardMember[]>(`${this.base}/timelines/boards/${boardId}/members`, {
+      headers: this.profileHeaders(profileId),
+    });
+  }
+
+  upsertBoardMember(
+    boardId: string,
+    dto: { profileId: string; role?: BoardMemberRole; canPost?: boolean; canCrossLink?: boolean },
+    actorProfileId?: string | null,
+  ): Observable<TimelineBoardMember[]> {
+    return this.http.post<TimelineBoardMember[]>(
+      `${this.base}/timelines/boards/${boardId}/members`,
+      dto,
+      { headers: this.profileHeaders(actorProfileId) },
+    );
+  }
+
+  removeBoardMember(
+    boardId: string,
+    targetProfileId: string,
+    actorProfileId?: string | null,
+  ): Observable<TimelineBoardMember[]> {
+    return this.http.delete<TimelineBoardMember[]>(
+      `${this.base}/timelines/boards/${boardId}/members/${targetProfileId}`,
+      { headers: this.profileHeaders(actorProfileId) },
+    );
+  }
+
+  getTimelineNotes(
+    opts?: string | { boardId?: string; dateKey?: string; actorId?: string; search?: string; profileId?: string | null },
+  ): Observable<CloudDayNote[]> {
+    const options = typeof opts === 'string' ? { boardId: opts } : opts || {};
     let params = new HttpParams();
-    if (boardId) params = params.set('boardId', boardId);
-    return this.http.get<CloudDayNote[]>(`${this.base}/timelines/notes`, { params });
+    if (options.boardId) params = params.set('boardId', options.boardId);
+    if (options.dateKey) params = params.set('dateKey', options.dateKey);
+    if (options.actorId) params = params.set('actorId', options.actorId);
+    if (options.search) params = params.set('search', options.search);
+    return this.http.get<CloudDayNote[]>(`${this.base}/timelines/notes`, {
+      params,
+      headers: this.profileHeaders(options.profileId),
+    });
   }
 
-  createTimelineNote(note: CloudDayNote): Observable<CloudDayNote> {
-    return this.http.post<CloudDayNote>(`${this.base}/timelines/notes`, note);
+  createTimelineNote(note: CloudDayNote, profileId?: string | null): Observable<CloudDayNote> {
+    return this.http.post<CloudDayNote>(`${this.base}/timelines/notes`, note, {
+      headers: this.profileHeaders(profileId),
+    });
+  }
+
+  updateTimelineNote(
+    noteId: string,
+    dto: {
+      title?: string;
+      text?: string;
+      type?: CloudDayNote['type'];
+      moodEmoji?: string;
+      tags?: string[];
+      mediaAttachments?: TimelineMediaAttachment[];
+    },
+    profileId?: string | null,
+  ): Observable<CloudDayNote> {
+    return this.http.patch<CloudDayNote>(`${this.base}/timelines/notes/${noteId}`, dto, {
+      headers: this.profileHeaders(profileId),
+    });
+  }
+
+  syncNoteToSeasons(
+    noteId: string,
+    profileId?: string | null,
+  ): Observable<{
+    noteId: string;
+    synced: boolean;
+    seasonsNoteId?: string;
+    seasonsExternalId?: string;
+    seasonsAccountId?: string;
+    seasonsSyncedAt?: string;
+    error?: string;
+  }> {
+    return this.http.post<{
+      noteId: string;
+      synced: boolean;
+      seasonsNoteId?: string;
+      seasonsExternalId?: string;
+      seasonsAccountId?: string;
+      seasonsSyncedAt?: string;
+      error?: string;
+    }>(`${this.base}/timelines/notes/${noteId}/sync-seasons`, {}, {
+      headers: this.profileHeaders(profileId),
+    });
+  }
+
+  shareNoteWithBoardGroup(
+    noteId: string,
+    dto: { shared?: boolean; granteeProfileIds?: string[] },
+    profileId?: string | null,
+  ): Observable<{
+    noteId: string;
+    boardId: string;
+    sharedWithGroup: boolean;
+    seasonsNoteId?: string;
+    sharedCount: number;
+  }> {
+    return this.http.post<{
+      noteId: string;
+      boardId: string;
+      sharedWithGroup: boolean;
+      seasonsNoteId?: string;
+      sharedCount: number;
+    }>(`${this.base}/timelines/notes/${noteId}/share`, dto, {
+      headers: this.profileHeaders(profileId),
+    });
+  }
+
+  deleteTimelineNote(noteId: string, profileId?: string | null): Observable<{ deleted: boolean; id: string }> {
+    return this.http.delete<{ deleted: boolean; id: string }>(
+      `${this.base}/timelines/notes/${noteId}`,
+      { headers: this.profileHeaders(profileId) },
+    );
+  }
+
+  getCrossLinkCandidates(sourceBoardId: string, profileId?: string | null): Observable<CloudDayNote[]> {
+    const params = new HttpParams().set('sourceBoardId', sourceBoardId);
+    return this.http.get<CloudDayNote[]>(`${this.base}/timelines/cross-links/candidates`, {
+      params,
+      headers: this.profileHeaders(profileId),
+    });
+  }
+
+  createCrossLink(
+    dto: {
+      sourceBoardId?: string;
+      sourceNoteId: string;
+      targetBoardId: string;
+      targetNoteId: string;
+      relationLabel?: string;
+      previewCache?: TimelineNodeCrossRef;
+    },
+    profileId?: string | null,
+  ): Observable<TimelineNodeCrossRef> {
+    return this.http.post<TimelineNodeCrossRef>(`${this.base}/timelines/cross-links`, dto, {
+      headers: this.profileHeaders(profileId),
+    });
+  }
+
+  postAgentSummary(dto: {
+    agentProfileId?: string;
+    sourceBoardId?: string;
+    targetBoardId?: string;
+    targetNoteId?: string;
+    actorId?: string;
+    title?: string;
+    text: string;
+    dateKey?: string;
+    time?: string;
+    tags?: string[];
+    relationLabel?: string;
+  }): Observable<{ summaryNote: CloudDayNote; crossLink: TimelineNodeCrossRef | null }> {
+    return this.http.post<{ summaryNote: CloudDayNote; crossLink: TimelineNodeCrossRef | null }>(
+      `${this.base}/timelines/agent/summary`,
+      dto,
+    );
+  }
+
+  uploadSeasonsMedia(payload: {
+    filename: string;
+    mimeType: string;
+    dataBase64: string;
+    caption?: string;
+    boardPrivacy?: BoardPrivacy;
+    authorProfileId?: string;
+    folderPath?: string;
+    tags?: string[];
+  }): Observable<{ uploadedToHub: boolean; attachment: TimelineMediaAttachment }> {
+    return this.http.post<{ uploadedToHub: boolean; attachment: TimelineMediaAttachment }>(
+      `${this.base}/seasons-bridge/media`,
+      payload,
+    );
+  }
+
+  getSeasonsFeedNotes(opts?: {
+    feedSlug?: string;
+    profileId?: string | null;
+    limit?: number;
+  }): Observable<{
+    synced: boolean;
+    seasonsAccountId?: string;
+    feedSlug?: string | null;
+    items: any[];
+    error?: string;
+  }> {
+    let params = new HttpParams();
+    if (opts?.feedSlug) params = params.set('feedSlug', opts.feedSlug);
+    if (opts?.limit) params = params.set('limit', String(opts.limit));
+    return this.http.get<{
+      synced: boolean;
+      seasonsAccountId?: string;
+      feedSlug?: string | null;
+      items: any[];
+      error?: string;
+    }>(`${this.base}/seasons-bridge/feed`, {
+      params,
+      headers: this.profileHeaders(opts?.profileId),
+    });
   }
 
   ingestSeasonsNote(payload: Record<string, unknown>): Observable<{

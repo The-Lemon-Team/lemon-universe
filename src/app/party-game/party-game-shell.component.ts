@@ -57,6 +57,16 @@ import { PartySoundService } from './party-sound.service';
               </div>
             </a>
 
+            <!-- Open Standalone TimeLines App button -->
+            <a
+              routerLink="/timelines"
+              class="ml-1 hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-800 dark:text-emerald-200 font-label-ui text-xs font-bold transition-colors border border-emerald-500/30 no-underline flex-shrink-0"
+              title="Открыть отдельное приложение TimeLines (Дневники, Сводки Агентов, Members)"
+            >
+              <span class="material-symbols-rounded text-sm">view_timeline</span>
+              <span>TimeLines App</span>
+            </a>
+
             <!-- Return to Lemon Portal button -->
             <a
               routerLink="/core"

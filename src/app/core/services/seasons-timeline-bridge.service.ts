@@ -124,18 +124,27 @@ export class SeasonsTimelineBridgeService {
   private readonly feedEntriesSubject = new BehaviorSubject<SeasonsPersonalFeedEntry[]>(
     loadInitialFeedEntries(),
   );
+  private readonly remoteFeedNotesSubject = new BehaviorSubject<any[]>([]);
+  private readonly remoteFeedAccountSubject = new BehaviorSubject<string | null>(null);
   private readonly lastSyncStatusSubject = new BehaviorSubject<'SYNCED' | 'LOCAL_QUEUE'>('SYNCED');
 
   readonly personalFeedEntries$: Observable<SeasonsPersonalFeedEntry[]> =
     this.feedEntriesSubject.asObservable();
+  readonly remoteFeedNotes$: Observable<any[]> = this.remoteFeedNotesSubject.asObservable();
+  readonly remoteFeedAccount$: Observable<string | null> = this.remoteFeedAccountSubject.asObservable();
   readonly syncStatus$: Observable<'SYNCED' | 'LOCAL_QUEUE'> =
     this.lastSyncStatusSubject.asObservable();
 
   /**
    * Формирует совместимый с `lemon-seasons-neurons` payload (cloudDayNoteToIngestInput / CodingMemoryAxon)
-   * и отправляет сводку в личный feed Lemon Seasons для отображения в `feed-app`.
+   * и записывает его в локальный журнал UI. Удалённая отправка через `ingestSeasonsNote` выполняется только
+   * если backend `/api/timelines/notes` не синхронизировал запись сам (skipRemoteIngest = false).
    */
-  recordTimelineNoteToFeed(note: CloudDayNote, board: TimelineBoard): SeasonsPersonalFeedEntry {
+  recordTimelineNoteToFeed(
+    note: CloudDayNote,
+    board: TimelineBoard,
+    opts?: { skipRemoteIngest?: boolean; syncedToRemote?: boolean },
+  ): SeasonsPersonalFeedEntry {
     const isCodingBoard = board.boardKind === 'CODING_SESSIONS';
     const origin: 'NEURON_PARTY' | 'CODING_AGENT' = isCodingBoard
       ? 'CODING_AGENT'
@@ -185,7 +194,7 @@ export class SeasonsTimelineBridgeService {
         ]),
       ),
       crossRefs: note.crossRefs,
-      syncedToRemote: false,
+      syncedToRemote: Boolean(opts?.syncedToRemote),
     };
 
     const current = this.feedEntriesSubject.value;
@@ -193,36 +202,71 @@ export class SeasonsTimelineBridgeService {
     this.feedEntriesSubject.next(nextList);
     saveFeedEntries(nextList);
 
-    const ingestPayload = this.buildIngestSeasonNoteInput(entry, note);
-    this.api
-      .ingestSeasonsNote(ingestPayload)
-      .pipe(catchError(() => of({ synced: false, queuedInPersonalFeed: true })))
-      .subscribe((res) => {
-        const isRemoteSynced = Boolean(res?.synced);
-        this.lastSyncStatusSubject.next(isRemoteSynced ? 'SYNCED' : 'LOCAL_QUEUE');
-        if (isRemoteSynced) {
-          const updated = this.feedEntriesSubject.value.map((e) =>
-            e.id === entry.id ? { ...e, syncedToRemote: true } : e,
-          );
-          this.feedEntriesSubject.next(updated);
-          saveFeedEntries(updated);
-        }
-      });
+    if (opts?.syncedToRemote) {
+      this.lastSyncStatusSubject.next('SYNCED');
+    }
+
+    if (!opts?.skipRemoteIngest) {
+      const ingestPayload = this.buildIngestSeasonNoteInput(entry, note, board);
+      this.api
+        .ingestSeasonsNote(ingestPayload)
+        .pipe(catchError(() => of({ synced: false, queuedInPersonalFeed: true })))
+        .subscribe((res) => {
+          const isRemoteSynced = Boolean(res?.synced);
+          this.markNoteSynced(note.id, isRemoteSynced);
+        });
+    }
 
     return entry;
+  }
+
+  markNoteSynced(noteId: string, syncedToRemote: boolean): void {
+    const entryId = `seasons-feed-${noteId}`;
+    this.lastSyncStatusSubject.next(syncedToRemote ? 'SYNCED' : 'LOCAL_QUEUE');
+    const updated = this.feedEntriesSubject.value.map((e) =>
+      e.id === entryId ? { ...e, syncedToRemote } : e,
+    );
+    this.feedEntriesSubject.next(updated);
+    saveFeedEntries(updated);
+  }
+
+  fetchRemoteFeedNotes(feedSlug?: string, profileId?: string): void {
+    this.api
+      .getSeasonsFeedNotes({
+        feedSlug,
+        profileId: profileId || this.profileService.currentProfileId,
+        limit: 40,
+      })
+      .pipe(catchError(() => of({ synced: false, items: [], seasonsAccountId: undefined })))
+      .subscribe((res) => {
+        if (res.seasonsAccountId) {
+          this.remoteFeedAccountSubject.next(res.seasonsAccountId);
+        }
+        if (Array.isArray(res.items)) {
+          this.remoteFeedNotesSubject.next(res.items);
+        }
+      });
   }
 
   private buildIngestSeasonNoteInput(
     entry: SeasonsPersonalFeedEntry,
     note: CloudDayNote,
+    board?: TimelineBoard,
   ): Record<string, unknown> {
+    const mediaAttachments = note.mediaAttachments || [];
+    const mediaAssetIds = mediaAttachments
+      .map((m) => m.mediaAssetId)
+      .filter((id): id is string => Boolean(id));
+    const binaryPrivacy =
+      board?.privacy === 'PRIVATE' || note.visibility !== 'PUBLIC' ? 'private' : 'public';
+
     return {
       externalId: entry.externalId,
       title: entry.title,
       content: entry.content,
       summary: entry.summary,
       type: entry.noteType,
-      privacy: note.visibility === 'PUBLIC' ? 'public' : 'private',
+      privacy: binaryPrivacy,
       status: 'PUBLISHED',
       feedSlug: entry.feedSlug,
       personalSummaryFeedSlug: 'universe-personal-feed',
@@ -232,11 +276,15 @@ export class SeasonsTimelineBridgeService {
       startDate: `${note.dateKey}T${note.time.length === 5 ? `${note.time}:00` : note.time}Z`,
       icon: note.moodEmoji || '🍋',
       tags: entry.tags,
-      origin: entry.origin,
+      origin: board?.boardMode === 'DIARY' ? 'TIMELINE_DIARY' : entry.origin,
+      images: mediaAttachments.length > 0 ? mediaAttachments : undefined,
+      mediaAssetIds: mediaAssetIds.length > 0 ? mediaAssetIds : undefined,
       metadata: {
         lemonUniverseKind: 'CloudDayNote',
         boardId: entry.boardId,
         boardTitle: entry.boardTitle,
+        boardMode: board?.boardMode || 'TIMELINE',
+        boardPrivacy: board?.privacy || 'PUBLIC',
         partyNoteId: note.id,
         dateKey: note.dateKey,
         time: note.time,

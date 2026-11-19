@@ -40,6 +40,26 @@ enum TimelineBoardKind {
   PARTY_ROOM
 }
 
+enum BoardPrivacy {
+  PUBLIC
+  PRIVATE
+}
+
+enum TimelineBoardMode {
+  TIMELINE
+  DIARY
+  AGENT_SUMMARY
+  PARTY_CLOUD
+}
+
+enum BoardMemberRole {
+  OWNER
+  EDITOR
+  MEMBER
+  AGENT
+  VIEWER
+}
+
 model Profile {
   id              String     @id @default(uuid()) @db.Uuid
   handle          String     @unique
@@ -47,12 +67,17 @@ model Profile {
   avatarIcon      String?    @map("avatar_icon")
   playerType      PlayerType @default(HUMAN) @map("player_type")
   defaultFeedSlug String?    @map("default_feed_slug")
+  seasonsUserId   String?    @map("seasons_user_id")
+  seasonsUserKey  String?    @map("seasons_user_key")
   createdAt       DateTime   @default(now()) @map("created_at")
 
-  folders Folder[]
-  flows   Flow[]
-  actors  ArenaActor[]
-  notes   TimelineNote[]
+  folders       Folder[]
+  flows         Flow[]
+  actors        ArenaActor[]
+  notes         TimelineNote[]
+  ownedBoards   TimelineBoard[]       @relation("BoardOwner")
+  boardMembers  TimelineBoardMember[] @relation("BoardMemberProfile")
+  addedMembers  TimelineBoardMember[] @relation("BoardMemberAddedBy")
 
   @@map("profiles")
 }
@@ -202,6 +227,11 @@ model TimelineBoard {
   colorTheme        String            @default("amber") @map("color_theme")
   vibeId            String            @default("CHRONO_DAYFLOW") @map("vibe_id")
   boardKind         TimelineBoardKind @default(GLOBAL_DAY) @map("board_kind")
+  boardMode         TimelineBoardMode @default(TIMELINE) @map("board_mode")
+  privacy           BoardPrivacy      @default(PRIVATE)
+  ownerProfileId    String?           @map("owner_profile_id") @db.Uuid
+  defaultActorId    String?           @map("default_actor_id")
+  isArchived        Boolean           @default(false) @map("is_archived")
   flowId            String?           @map("flow_id") @db.Uuid
   seasonsStreamSlug String            @default("lemon-universe") @map("seasons_stream_slug")
   seasonsFeedSlug   String            @map("seasons_feed_slug")
@@ -209,13 +239,36 @@ model TimelineBoard {
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
 
-  flow          Flow?               @relation(fields: [flowId], references: [id], onDelete: SetNull)
+  flow          Flow?                 @relation(fields: [flowId], references: [id], onDelete: SetNull)
+  ownerProfile  Profile?              @relation("BoardOwner", fields: [ownerProfileId], references: [id], onDelete: SetNull)
+  members       TimelineBoardMember[]
   notes         TimelineNote[]
-  outgoingLinks TimelineCrossLink[] @relation("OutgoingCrossLinks")
-  incomingLinks TimelineCrossLink[] @relation("IncomingCrossLinks")
+  outgoingLinks TimelineCrossLink[]   @relation("OutgoingCrossLinks")
+  incomingLinks TimelineCrossLink[]   @relation("IncomingCrossLinks")
 
   @@index([boardKind])
+  @@index([privacy])
+  @@index([ownerProfileId])
   @@map("timeline_boards")
+}
+
+model TimelineBoardMember {
+  id               String          @id @default(uuid()) @db.Uuid
+  boardId          String          @map("board_id")
+  profileId        String          @map("profile_id") @db.Uuid
+  role             BoardMemberRole @default(MEMBER)
+  canPost          Boolean         @default(true) @map("can_post")
+  canCrossLink     Boolean         @default(true) @map("can_cross_link")
+  addedByProfileId String?         @map("added_by_profile_id") @db.Uuid
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  board   TimelineBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  profile Profile       @relation("BoardMemberProfile", fields: [profileId], references: [id], onDelete: Cascade)
+  addedBy Profile?      @relation("BoardMemberAddedBy", fields: [addedByProfileId], references: [id], onDelete: SetNull)
+
+  @@unique([boardId, profileId])
+  @@index([profileId])
+  @@map("timeline_board_members")
 }
 
 model TimelineNote {
@@ -241,6 +294,7 @@ model TimelineNote {
   text                 String
   moodEmoji            String?  @map("mood_emoji")
   tags                 String[] @default([])
+  mediaAttachments     Json     @default("[]") @map("media_attachments")
   partyActorIds        String[] @default([]) @map("party_actor_ids")
   supporters           String[] @default([])
   votesCount           Int      @default(1) @map("votes_count")
@@ -250,9 +304,12 @@ model TimelineNote {
   replyToTextSnippet   String?  @map("reply_to_text_snippet")
   isPinnedToHero       Boolean  @default(false) @map("is_pinned_to_hero")
   isPinnedToCloud      Boolean  @default(false) @map("is_pinned_to_cloud")
-  seasonsNoteId        String?  @map("seasons_note_id")
-  seasonsExternalId    String?  @map("seasons_external_id")
-  activeFlowSessionIds String[] @default([]) @map("active_flow_session_ids")
+  seasonsNoteId        String?   @map("seasons_note_id")
+  seasonsExternalId    String?   @map("seasons_external_id")
+  seasonsSyncedAt      DateTime? @map("seasons_synced_at")
+  seasonsAccountId     String?   @map("seasons_account_id")
+  sharedWithGroup      Boolean   @default(false) @map("shared_with_group")
+  activeFlowSessionIds String[]  @default([]) @map("active_flow_session_ids")
   createdAt            DateTime @default(now()) @map("created_at")
 
   board         TimelineBoard       @relation(fields: [boardId], references: [id], onDelete: Cascade)

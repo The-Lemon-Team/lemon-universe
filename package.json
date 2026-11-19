@@ -10,7 +10,11 @@
     "test": "ng test",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
-    "api:start": "node server/index.mjs"
+    "api:install": "npm --prefix server install",
+    "api:build": "npm --prefix server run build",
+    "api:start": "npm --prefix server run start:prod",
+    "api:dev": "npm --prefix server run start:dev",
+    "api:test": "npm --prefix server test"
   },
   "private": true,
   "dependencies": {

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject, Observable, catchError, combineLatest, filter, map, of, shareReplay, tap } from 'rxjs';
-import { AppMode, Profile } from '../models/flow.models';
+import { AppMode, PlayerType, Profile } from '../models/flow.models';
 import { ApiService } from './api.service';
 
 @Injectable({ providedIn: 'root' })
@@ -57,6 +57,11 @@ export class ProfileService {
     return this.activeProfileIdSubject.value;
   }
 
+  get currentProfile(): Profile {
+    const id = this.activeProfileIdSubject.value;
+    return this.profilesSubject.value.find((p) => p.id === id) ?? this.profilesSubject.value[0];
+  }
+
   loadProfiles(): void {
     this.api
       .getProfiles()
@@ -81,19 +86,49 @@ export class ProfileService {
     this.appModeSubject.next(mode);
   }
 
-  registerProfile(dto: { handle: string; displayName: string; avatarIcon?: string }): Observable<Profile> {
+  registerProfile(dto: {
+    handle: string;
+    displayName: string;
+    avatarIcon?: string;
+    playerType?: PlayerType;
+    defaultFeedSlug?: string;
+    seasonsUserId?: string;
+    seasonsUserKey?: string;
+  }): Observable<Profile> {
     const cleanHandle = dto.handle.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
     const cleanName = dto.displayName.trim();
-    const icon = dto.avatarIcon || 'home';
+    const icon = dto.avatarIcon || (dto.playerType === 'AGENT' ? 'smart_toy' : 'person');
 
-    return this.api.registerProfile({ handle: cleanHandle, displayName: cleanName, avatarIcon: icon }).pipe(
-      tap((created) => {
-        const existing = this.profilesSubject.value;
-        const next = existing.some((p) => p.id === created.id)
-          ? existing
-          : [...existing, created];
+    return this.api
+      .registerProfile({
+        handle: cleanHandle,
+        displayName: cleanName,
+        avatarIcon: icon,
+        playerType: dto.playerType,
+        defaultFeedSlug: dto.defaultFeedSlug,
+        seasonsUserId: dto.seasonsUserId?.trim() || undefined,
+        seasonsUserKey: dto.seasonsUserKey?.trim() || undefined,
+      })
+      .pipe(
+        tap((created) => {
+          const existing = this.profilesSubject.value;
+          const next = existing.some((p) => p.id === created.id)
+            ? existing
+            : [...existing, created];
+          this.profilesSubject.next(next);
+          this.activeProfileIdSubject.next(created.id);
+        }),
+      );
+  }
+
+  updateProfileSeasons(
+    profileId: string,
+    dto: { seasonsUserId?: string | null; seasonsUserKey?: string | null },
+  ): Observable<Profile> {
+    return this.api.updateProfileSeasons(profileId, dto).pipe(
+      tap((updated) => {
+        const next = this.profilesSubject.value.map((p) => (p.id === updated.id ? updated : p));
         this.profilesSubject.next(next);
-        this.activeProfileIdSubject.next(created.id);
       }),
     );
   }

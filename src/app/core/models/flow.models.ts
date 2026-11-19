@@ -10,7 +10,25 @@ export interface Profile {
   avatarIcon?: string;
   playerType?: PlayerType;
   defaultFeedSlug?: string;
+  seasonsUserId?: string | null;
+  hasSeasonsKey?: boolean;
   createdAt: string;
+}
+
+export interface SeasonsFeedNoteItem {
+  id: string;
+  externalId?: string | null;
+  title?: string | null;
+  summary?: string | null;
+  content?: string | null;
+  type?: string;
+  privacy?: string;
+  feedId?: string | null;
+  author?: string | null;
+  startDate?: string | null;
+  tags?: string[];
+  createdAt?: string;
+  images?: TimelineMediaAttachment[];
 }
 
 export enum FlowType {
@@ -539,6 +557,38 @@ export interface CombineHistoryCard {
 export type CloudItemType = 'thought' | 'proposal' | 'action';
 export type NoteVisibility = 'PUBLIC' | 'PRIVATE' | 'GM_ONLY';
 export type TimelineBoardKind = 'GLOBAL_DAY' | 'CODING_SESSIONS' | 'CUSTOM_PROJECT' | 'PARTY_ROOM';
+export type BoardPrivacy = 'PUBLIC' | 'PRIVATE';
+export type TimelineBoardMode = 'TIMELINE' | 'DIARY' | 'AGENT_SUMMARY' | 'PARTY_CLOUD';
+export type BoardMemberRole = 'OWNER' | 'EDITOR' | 'MEMBER' | 'AGENT' | 'VIEWER';
+
+export interface TimelineBoardMember {
+  id: string;
+  boardId: string;
+  profileId: string;
+  role: BoardMemberRole;
+  canPost: boolean;
+  canCrossLink: boolean;
+  addedByProfileId?: string | null;
+  createdAt?: string;
+  profileHandle?: string;
+  profileDisplayName?: string;
+  profileAvatarIcon?: string;
+  profilePlayerType?: PlayerType;
+}
+
+export interface TimelineMediaAttachment {
+  url: string;
+  thumbnailUrl?: string;
+  filename?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  width?: number | null;
+  height?: number | null;
+  caption?: string;
+  alt?: string;
+  isMain?: boolean;
+  mediaAssetId?: string;
+}
 
 export interface TimelineBoard {
   id: string;
@@ -549,6 +599,12 @@ export interface TimelineBoard {
   colorTheme: ArenaAccentColor;
   vibeId?: string;
   boardKind: TimelineBoardKind;
+  boardMode?: TimelineBoardMode;
+  privacy?: BoardPrivacy;
+  ownerProfileId?: string | null;
+  defaultActorId?: string | null;
+  isArchived?: boolean;
+  members?: TimelineBoardMember[];
   flowId: string;
   flowType: FlowType;
   flowStatus: FlowStatus;
@@ -668,7 +724,14 @@ export interface CloudDayNote {
     sourceActorName?: string;
   };
   seasonsNoteId?: string;
+  seasonsExternalId?: string;
+  seasonsAccountId?: string;
   seasonsFeedSlug?: string;
+  seasonsSyncedAt?: string;
+  seasonsSynced?: boolean;
+  seasonsSyncError?: string;
+  sharedWithGroup?: boolean;
+  mediaAttachments?: TimelineMediaAttachment[];
   activeFlowSessionIds?: string[];
 }
 

@@ -4,6 +4,11 @@ import { partyGameRoutes } from './party-game/party-game.routes';
 
 export const routes: Routes = [
   {
+    path: 'timelines',
+    loadChildren: () =>
+      import('./timelines/timelines.routes').then((m) => m.timelinesRoutes),
+  },
+  {
     path: 'party',
     component: PartyGameShellComponent,
     children: partyGameRoutes,
@@ -32,7 +37,7 @@ export const routes: Routes = [
   },
   {
     path: 'cloud',
-    redirectTo: 'party/cloud',
+    redirectTo: 'timelines',
   },
   {
     path: 'chronicle',

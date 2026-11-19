@@ -18,6 +18,18 @@ DO $$ BEGIN
   CREATE TYPE "TimelineBoardKind" AS ENUM ('GLOBAL_DAY', 'CODING_SESSIONS', 'CUSTOM_PROJECT', 'PARTY_ROOM');
 EXCEPTION WHEN duplicate_object THEN null; END $$;
 
+DO $$ BEGIN
+  CREATE TYPE "BoardPrivacy" AS ENUM ('PUBLIC', 'PRIVATE');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "TimelineBoardMode" AS ENUM ('TIMELINE', 'DIARY', 'AGENT_SUMMARY', 'PARTY_CLOUD');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "BoardMemberRole" AS ENUM ('OWNER', 'EDITOR', 'MEMBER', 'AGENT', 'VIEWER');
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+
 -- 3. Core Tables
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY,
@@ -26,6 +38,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   avatar_icon TEXT,
   player_type "PlayerType" NOT NULL DEFAULT 'HUMAN',
   default_feed_slug TEXT,
+  seasons_user_id TEXT,
+  seasons_user_key TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -127,6 +141,11 @@ CREATE TABLE IF NOT EXISTS timeline_boards (
   color_theme TEXT NOT NULL DEFAULT 'amber',
   vibe_id TEXT NOT NULL DEFAULT 'CHRONO_DAYFLOW',
   board_kind "TimelineBoardKind" NOT NULL DEFAULT 'GLOBAL_DAY',
+  board_mode "TimelineBoardMode" NOT NULL DEFAULT 'TIMELINE',
+  privacy "BoardPrivacy" NOT NULL DEFAULT 'PRIVATE',
+  owner_profile_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  default_actor_id TEXT,
+  is_archived BOOLEAN NOT NULL DEFAULT FALSE,
   flow_id UUID REFERENCES flows(id) ON DELETE SET NULL,
   seasons_stream_slug TEXT NOT NULL DEFAULT 'lemon-universe',
   seasons_feed_slug TEXT NOT NULL,
@@ -134,6 +153,20 @@ CREATE TABLE IF NOT EXISTS timeline_boards (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS timeline_board_members (
+  id UUID PRIMARY KEY,
+  board_id TEXT NOT NULL REFERENCES timeline_boards(id) ON DELETE CASCADE,
+  profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  role "BoardMemberRole" NOT NULL DEFAULT 'MEMBER',
+  can_post BOOLEAN NOT NULL DEFAULT TRUE,
+  can_cross_link BOOLEAN NOT NULL DEFAULT TRUE,
+  added_by_profile_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (board_id, profile_id)
+);
+
+CREATE INDEX IF NOT EXISTS timeline_board_members_profile_idx ON timeline_board_members (profile_id);
 
 CREATE TABLE IF NOT EXISTS timeline_notes (
   id TEXT PRIMARY KEY,
@@ -158,6 +191,7 @@ CREATE TABLE IF NOT EXISTS timeline_notes (
   text TEXT NOT NULL,
   mood_emoji TEXT,
   tags TEXT[] NOT NULL DEFAULT '{}',
+  media_attachments JSONB NOT NULL DEFAULT '[]'::jsonb,
   party_actor_ids TEXT[] NOT NULL DEFAULT '{}',
   supporters TEXT[] NOT NULL DEFAULT '{}',
   votes_count INT NOT NULL DEFAULT 1,
@@ -169,6 +203,9 @@ CREATE TABLE IF NOT EXISTS timeline_notes (
   is_pinned_to_cloud BOOLEAN NOT NULL DEFAULT FALSE,
   seasons_note_id TEXT,
   seasons_external_id TEXT,
+  seasons_synced_at TIMESTAMPTZ,
+  seasons_account_id TEXT,
+  shared_with_group BOOLEAN NOT NULL DEFAULT FALSE,
   active_flow_session_ids TEXT[] NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -335,8 +372,8 @@ VALUES
   )
 ON CONFLICT (id) DO NOTHING;
 
--- 9. Initial Seed Data: Multiple TimeLine Boards
-INSERT INTO timeline_boards (id, slug, title, description, icon, color_theme, vibe_id, board_kind, flow_id, seasons_stream_slug, seasons_feed_slug, is_default)
+-- 9. Initial Seed Data: Multiple TimeLine Boards & Members
+INSERT INTO timeline_boards (id, slug, title, description, icon, color_theme, vibe_id, board_kind, board_mode, privacy, owner_profile_id, default_actor_id, flow_id, seasons_stream_slug, seasons_feed_slug, is_default)
 VALUES
   (
     'board-global-day',
@@ -347,6 +384,10 @@ VALUES
     'amber',
     'CHRONO_DAYFLOW',
     'GLOBAL_DAY',
+    'PARTY_CLOUD',
+    'PUBLIC',
+    '1f3e6a64-721c-4d1d-8d52-6c3f4e30d30b',
+    'actor-alexey',
     'c0000001-0000-4000-8000-000000000001',
     'lemon-universe',
     'universe-personal-feed',
@@ -361,12 +402,43 @@ VALUES
     'violet',
     'SYNTHWAVE',
     'CODING_SESSIONS',
+    'AGENT_SUMMARY',
+    'PUBLIC',
+    'a7e49c10-9100-4b22-a811-9000a6e17001',
+    'actor-antigravity-agent',
     'c0000001-0000-4000-8000-000000000002',
     'lemon-universe',
     'universe-coding-sessions',
     FALSE
+  ),
+  (
+    'board-personal-diary',
+    'personal-diary',
+    '📓 Личный Дневник (Private)',
+    'Приватный дневник размышлений и событий от имени выбранного персонажа. Виден только владельцу и добавленным участникам.',
+    'menu_book',
+    'emerald',
+    'NATURE_ZEN',
+    'CUSTOM_PROJECT',
+    'DIARY',
+    'PRIVATE',
+    '1f3e6a64-721c-4d1d-8d52-6c3f4e30d30b',
+    'actor-alexey',
+    NULL,
+    'lemon-universe',
+    'universe-personal-diary',
+    FALSE
   )
 ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO timeline_board_members (id, board_id, profile_id, role, can_post, can_cross_link, added_by_profile_id)
+VALUES
+  ('m0000001-0000-4000-8000-000000000001', 'board-global-day', '1f3e6a64-721c-4d1d-8d52-6c3f4e30d30b', 'OWNER', TRUE, TRUE, '1f3e6a64-721c-4d1d-8d52-6c3f4e30d30b'),
+  ('m0000001-0000-4000-8000-000000000002', 'board-global-day', 'a7e49c10-9100-4b22-a811-9000a6e17001', 'AGENT', TRUE, TRUE, '1f3e6a64-721c-4d1d-8d52-6c3f4e30d30b'),
+  ('m0000001-0000-4000-8000-000000000003', 'board-coding-sessions', 'a7e49c10-9100-4b22-a811-9000a6e17001', 'OWNER', TRUE, TRUE, 'a7e49c10-9100-4b22-a811-9000a6e17001'),
+  ('m0000001-0000-4000-8000-000000000004', 'board-coding-sessions', '1f3e6a64-721c-4d1d-8d52-6c3f4e30d30b', 'EDITOR', TRUE, TRUE, 'a7e49c10-9100-4b22-a811-9000a6e17001'),
+  ('m0000001-0000-4000-8000-000000000005', 'board-personal-diary', '1f3e6a64-721c-4d1d-8d52-6c3f4e30d30b', 'OWNER', TRUE, TRUE, '1f3e6a64-721c-4d1d-8d52-6c3f4e30d30b')
+ON CONFLICT (board_id, profile_id) DO NOTHING;
 
 -- 10. Initial Seed Data: Timeline Notes (Global + Coding Sessions) & Cross-Timeline Link
 INSERT INTO timeline_notes (id, board_id, date_key, time, time_minutes, type, visibility, actor_id, actor_name, actor_avatar, actor_accent, actor_title, sub_actor_id, sub_actor_name, sub_actor_avatar, sub_actor_accent, author_profile_id, author_profile_name, title, text, mood_emoji, tags, party_actor_ids, supporters, votes_count, liked_by_actors, active_flow_session_ids)
