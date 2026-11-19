@@ -1,5 +1,5 @@
 ﻿param(
-  [string]$DockerHost = "tcp://192.168.1.100:2375"
+  [string]$DockerHost = "tcp://100.72.50.18:2375"
 )
 
 $ErrorActionPreference = "Stop"

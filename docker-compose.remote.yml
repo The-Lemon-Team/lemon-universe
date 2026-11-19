@@ -39,8 +39,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-lemon}:${POSTGRES_PASSWORD:-secret}@postgres:5432/${POSTGRES_DB:-lemon_universe_db}
       LEMON_SEASONS_URL: ${LEMON_SEASONS_URL:-http://host.docker.internal:3001}
       LEMON_SEASONS_TOKEN: ${LEMON_SEASONS_TOKEN:-lenta_adm_master_permanent_7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c}
-      NO_PROXY: "localhost,127.0.0.1,postgres,host.docker.internal,192.168.1.100"
-      no_proxy: "localhost,127.0.0.1,postgres,host.docker.internal,192.168.1.100"
+      NO_PROXY: "localhost,127.0.0.1,postgres,host.docker.internal,100.72.50.18"
+      no_proxy: "localhost,127.0.0.1,postgres,host.docker.internal,100.72.50.18"
     depends_on:
       postgres:
         condition: service_healthy
