@@ -114,7 +114,7 @@ export class TimelinesService {
     return raw || DEFAULT_HUMAN_PROFILE_ID;
   }
 
-  private async fetchAllMembers(): Promise<BoardMemberPermission[]> {
+  async fetchAllMembers(): Promise<BoardMemberPermission[]> {
     const { rows } = await this.db.query<any>(`
       SELECT
         m.id,
@@ -136,7 +136,7 @@ export class TimelinesService {
     return rows;
   }
 
-  private async fetchBoardRow(boardId: string): Promise<any | null> {
+  async fetchBoardRow(boardId: string): Promise<any | null> {
     const { rows } = await this.db.query(
       `
         SELECT

@@ -79,6 +79,38 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     `);
 
     await this.pool.query(`
+      ALTER TABLE timeline_notes
+        ADD COLUMN IF NOT EXISTS origin TEXT,
+        ADD COLUMN IF NOT EXISTS external_ref TEXT;
+      CREATE UNIQUE INDEX IF NOT EXISTS timeline_notes_external_ref_idx
+        ON timeline_notes (board_id, external_ref) WHERE external_ref IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS timeline_notes_feed_idx ON timeline_notes (board_id, created_at, id);
+    `);
+
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS projectarium_links (
+        id UUID PRIMARY KEY,
+        stand_slug TEXT NOT NULL,
+        label TEXT,
+        projectarium_url TEXT,
+        token_hash TEXT NOT NULL UNIQUE,
+        token_prefix TEXT NOT NULL,
+        scopes TEXT[] NOT NULL DEFAULT ARRAY['chronicle:read'],
+        created_by_profile_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        rotated_at TIMESTAMPTZ,
+        revoked_at TIMESTAMPTZ,
+        last_used_at TIMESTAMPTZ
+      );
+      CREATE INDEX IF NOT EXISTS projectarium_links_stand_idx ON projectarium_links (stand_slug);
+      CREATE TABLE IF NOT EXISTS projectarium_link_boards (
+        link_id UUID NOT NULL REFERENCES projectarium_links(id) ON DELETE CASCADE,
+        board_id TEXT NOT NULL REFERENCES timeline_boards(id) ON DELETE CASCADE,
+        PRIMARY KEY (link_id, board_id)
+      );
+    `);
+
+    await this.pool.query(`
       ALTER TABLE profiles
         ADD COLUMN IF NOT EXISTS seasons_user_id TEXT,
         ADD COLUMN IF NOT EXISTS seasons_user_key TEXT;
