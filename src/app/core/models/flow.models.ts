@@ -693,6 +693,8 @@ export interface CloudDayNote {
   visibility?: NoteVisibility;
   isPinnedToHero?: boolean;
   isPinnedToCloud?: boolean;
+  isPinned?: boolean;
+  pinnedAt?: string | null;
   forkedFromNoteId?: string;
   forkedFromAuthorName?: string;
 

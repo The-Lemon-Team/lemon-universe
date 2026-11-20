@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#1e2227"/>
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="none" stroke="#e5c07b" stroke-opacity="0.22" stroke-width="6"/>
+  <!-- Timeline bars inspired by view_timeline -->
+  <rect x="112" y="136" width="168" height="48" rx="24" fill="#e5c07b"/>
+  <rect x="200" y="232" width="200" height="48" rx="24" fill="#98c379"/>
+  <rect x="128" y="328" width="184" height="48" rx="24" fill="#61afef"/>
+  <!-- Timeline vertical connector nodes -->
+  <circle cx="136" cy="160" r="10" fill="#1e2227"/>
+  <circle cx="224" cy="256" r="10" fill="#1e2227"/>
+  <circle cx="152" cy="352" r="10" fill="#1e2227"/>
+</svg>

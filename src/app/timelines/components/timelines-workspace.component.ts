@@ -27,6 +27,7 @@ import { SeasonsTimelineBridgeService } from '../../core/services/seasons-timeli
 import { TimelinesService } from '../services/timelines.service';
 import {
   CreateBoardSubmitPayload,
+  EditBoardSubmitPayload,
   TimelineBoardModalComponent,
 } from './timeline-board-modal.component';
 import { TimelineMembersModalComponent } from './timeline-members-modal.component';
@@ -36,9 +37,10 @@ import {
   AgentSummarySubmitPayload,
   TimelineAgentSummaryModalComponent,
 } from './timeline-agent-summary-modal.component';
+import { TimelineCloudViewComponent } from './timeline-cloud-view.component';
 
 type BoardFilterTab = 'ALL' | 'DIARY' | 'AGENT_SUMMARY' | 'PRIVATE' | 'PUBLIC';
-type TimelineViewMode = 'DIARY_FEED' | 'VISUAL_TIMELINE';
+type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
 
 @Component({
   selector: 'app-timelines-workspace',
@@ -53,6 +55,7 @@ type TimelineViewMode = 'DIARY_FEED' | 'VISUAL_TIMELINE';
     TimelineProjectariumModalComponent,
     TimelineCrossLinkModalComponent,
     TimelineAgentSummaryModalComponent,
+    TimelineCloudViewComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -113,7 +116,7 @@ type TimelineViewMode = 'DIARY_FEED' | 'VISUAL_TIMELINE';
 
             <button
               type="button"
-              (click)="isCreateBoardOpen.set(true)"
+              (click)="openCreateBoardModal()"
               class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-xs hover:opacity-95 cursor-pointer"
             >
               <span class="material-symbols-rounded text-base">add</span>
@@ -187,6 +190,18 @@ type TimelineViewMode = 'DIARY_FEED' | 'VISUAL_TIMELINE';
             </div>
 
             <div class="flex items-center gap-2 flex-wrap">
+              @if (canManageActiveBoard()) {
+                <button
+                  type="button"
+                  (click)="openEditBoardModal(board)"
+                  class="px-3 py-1.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold border border-outline-variant/30 inline-flex items-center gap-1.5 cursor-pointer"
+                  title="Редактировать название, описание и slug Lemon Seasons"
+                >
+                  <span class="material-symbols-rounded text-base text-primary">edit</span>
+                  <span>Редактировать</span>
+                </button>
+              }
+
               <button
                 type="button"
                 (click)="isMembersModalOpen.set(true)"
@@ -210,6 +225,15 @@ type TimelineViewMode = 'DIARY_FEED' | 'VISUAL_TIMELINE';
               <div class="flex items-center gap-1 bg-surface-container-low p-1 rounded-xl border border-outline-variant/30">
                 <button
                   type="button"
+                  (click)="viewMode.set('CLOUD_TIMELINE')"
+                  class="px-3 py-1 rounded-lg text-xs font-bold cursor-pointer inline-flex items-center gap-1"
+                  [class]="viewMode() === 'CLOUD_TIMELINE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant'"
+                >
+                  <span class="material-symbols-rounded text-sm">cloud</span>
+                  <span>Облачка</span>
+                </button>
+                <button
+                  type="button"
                   (click)="viewMode.set('DIARY_FEED')"
                   class="px-3 py-1 rounded-lg text-xs font-bold cursor-pointer inline-flex items-center gap-1"
                   [class]="viewMode() === 'DIARY_FEED' ? 'bg-primary text-on-primary' : 'text-on-surface-variant'"
@@ -227,12 +251,45 @@ type TimelineViewMode = 'DIARY_FEED' | 'VISUAL_TIMELINE';
                   <span>Шкала 24ч</span>
                 </button>
               </div>
+
+              <button
+                type="button"
+                (click)="pinnedSidebarOpen.set(!pinnedSidebarOpen())"
+                class="px-3 py-1.5 rounded-xl text-xs font-bold border inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                [class]="pinnedSidebarOpen()
+                  ? 'bg-primary text-on-primary border-primary'
+                  : 'bg-surface-container-low hover:bg-surface-container-high text-on-surface border-outline-variant/30'"
+                title="Закреплённые сообщения для всего TimeLine"
+              >
+                <span class="material-symbols-rounded text-base">push_pin</span>
+                <span>Закреплённые</span>
+                @if (pinnedBoardNotes().length > 0) {
+                  <span
+                    class="px-1.5 py-0.5 rounded-full text-[10px] font-black leading-none"
+                    [class]="pinnedSidebarOpen() ? 'bg-on-primary/20 text-on-primary' : 'bg-primary/15 text-primary'"
+                  >
+                    {{ pinnedBoardNotes().length }}
+                  </span>
+                }
+              </button>
             </div>
           </div>
 
           <!-- Date & Filter Toolbar -->
           <div class="flex items-center justify-between gap-3 flex-wrap">
             <div class="flex items-center gap-2 flex-wrap">
+              @if (canManageActiveBoard()) {
+                <button
+                  type="button"
+                  (click)="openEditBoardModal(board)"
+                  class="px-3 py-1.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold border border-outline-variant/30 inline-flex items-center gap-1.5 cursor-pointer"
+                  title="Редактировать название, описание и slug Lemon Seasons"
+                >
+                  <span class="material-symbols-rounded text-base text-primary">edit</span>
+                  <span>Редактировать</span>
+                </button>
+              }
+
               <button
                 type="button"
                 (click)="shiftDate(-1)"
@@ -391,7 +448,7 @@ type TimelineViewMode = 'DIARY_FEED' | 'VISUAL_TIMELINE';
               }
 
               <div class="flex items-center justify-between gap-2 flex-wrap">
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
                   <label class="px-3 py-1.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container-high border border-outline-variant/40 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer">
                     <span class="material-symbols-rounded text-base text-primary">add_photo_alternate</span>
                     <span>{{ isUploadingMedia() ? 'Загрузка...' : 'Прикрепить медиа (Media Hub)' }}</span>
@@ -402,12 +459,23 @@ type TimelineViewMode = 'DIARY_FEED' | 'VISUAL_TIMELINE';
                       class="hidden"
                     />
                   </label>
-                  <input
-                    type="time"
-                    [(ngModel)]="composerTime"
-                    aria-label="Время записи"
-                    class="px-2.5 py-1.5 rounded-xl bg-surface-container-lowest border border-outline-variant/40 text-xs font-mono text-on-surface"
-                  />
+                  <div class="inline-flex items-center gap-1">
+                    <input
+                      type="time"
+                      [(ngModel)]="composerTime"
+                      aria-label="Время записи"
+                      class="px-2.5 py-1.5 rounded-xl bg-surface-container-lowest border border-outline-variant/40 text-xs font-mono text-on-surface"
+                    />
+                    <button
+                      type="button"
+                      (click)="setCurrentTime()"
+                      title="Установить текущее время"
+                      class="px-2.5 py-1.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container-high border border-outline-variant/40 text-xs font-bold text-on-surface-variant inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <span class="material-symbols-rounded text-sm text-primary">schedule</span>
+                      <span>Сейчас</span>
+                    </button>
+                  </div>
                   @if (board.privacy === 'PRIVATE') {
                     <label
                       class="px-2.5 py-1.5 rounded-xl bg-surface-container-lowest border border-outline-variant/40 text-xs inline-flex items-center gap-1.5 cursor-pointer"
@@ -436,8 +504,21 @@ type TimelineViewMode = 'DIARY_FEED' | 'VISUAL_TIMELINE';
             </div>
           }
 
-          <!-- 4. NOTES LIST (DIARY FEED OR 24H TIMELINE) -->
-          @if (viewMode() === 'VISUAL_TIMELINE') {
+          <!-- 4. NOTES LIST (CLOUD TIMELINE, DIARY FEED OR 24H TIMELINE) -->
+          @if (viewMode() === 'CLOUD_TIMELINE') {
+            <app-timeline-cloud-view
+              [notes]="visibleNotes()"
+              [board]="board"
+              [selectedDateKey]="selectedDateKey()"
+              [showAllDates]="showAllDates()"
+              [canPost]="canPostToActiveBoard()"
+              (timeSelected)="composerTime = $event"
+              (deleteNote)="timelines.deleteNote($event)"
+              (editNote)="timelines.updateNote($event.noteId, { title: $event.title, text: $event.text })"
+              (crossLinkNote)="openCrossLinkModal($event)"
+              (jumpToCrossRef)="jumpToCrossRef($event)"
+            />
+          } @else if (viewMode() === 'VISUAL_TIMELINE') {
             <div class="relative overflow-x-auto rounded-2xl bg-surface-container-low border border-outline-variant/30 p-4 min-h-[260px]">
               <div class="min-w-[820px] flex flex-col gap-3">
                 <div class="flex items-center justify-between text-[11px] font-mono text-outline border-b border-outline-variant/20 pb-2">
@@ -533,6 +614,27 @@ type TimelineViewMode = 'DIARY_FEED' | 'VISUAL_TIMELINE';
                         <span class="material-symbols-rounded text-sm">add_link</span>
                         <span>Ссылка</span>
                       </button>
+
+                      @if (canManageActiveBoard()) {
+                        <button
+                          type="button"
+                          (click)="timelines.togglePinNote(note.id, !note.isPinned)"
+                          class="p-1.5 rounded-xl cursor-pointer transition-colors"
+                          [class]="note.isPinned
+                            ? 'text-primary bg-primary/15 hover:bg-primary/25'
+                            : 'text-outline hover:text-primary hover:bg-primary/10'"
+                          [title]="note.isPinned ? 'Открепить сообщение' : 'Закрепить сообщение в сайдбаре TimeLine'"
+                        >
+                          <span class="material-symbols-rounded text-base">push_pin</span>
+                        </button>
+                      } @else if (note.isPinned) {
+                        <span
+                          class="p-1.5 rounded-xl text-primary bg-primary/10 inline-flex items-center"
+                          title="Закреплено создателем доски"
+                        >
+                          <span class="material-symbols-rounded text-base">push_pin</span>
+                        </span>
+                      }
 
                       <button
                         type="button"
@@ -658,14 +760,96 @@ type TimelineViewMode = 'DIARY_FEED' | 'VISUAL_TIMELINE';
         </section>
       }
 
+      <!-- RIGHT SLIDE-OUT PINNED MESSAGES SIDEBAR -->
+      @if (pinnedSidebarOpen()) {
+        <div
+          class="fixed inset-0 bg-black/25 backdrop-blur-[1px] z-30 transition-opacity"
+          (click)="pinnedSidebarOpen.set(false)"
+        ></div>
+      }
+      <aside
+        class="fixed top-0 right-0 h-full w-full sm:w-96 max-w-full bg-surface-container border-l border-outline-variant/30 shadow-2xl z-40 flex flex-col transition-transform duration-300 ease-out"
+        [class.translate-x-0]="pinnedSidebarOpen()"
+        [class.translate-x-full]="!pinnedSidebarOpen()"
+        [attr.aria-hidden]="!pinnedSidebarOpen()"
+      >
+        <div class="p-4 border-b border-outline-variant/20 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="material-symbols-rounded text-primary">push_pin</span>
+            <h3 class="text-sm font-black text-on-surface truncate">Закреплённые сообщения</h3>
+            <span class="px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[11px] font-black">
+              {{ pinnedBoardNotes().length }}
+            </span>
+          </div>
+          <button
+            type="button"
+            (click)="pinnedSidebarOpen.set(false)"
+            class="p-1.5 rounded-xl text-outline hover:text-on-surface hover:bg-surface-container-high cursor-pointer"
+            title="Закрыть панель"
+          >
+            <span class="material-symbols-rounded text-lg">close</span>
+          </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+          @if (pinnedBoardNotes().length === 0) {
+            <div class="p-6 rounded-2xl bg-surface-container-low border border-outline-variant/20 text-center text-xs text-on-surface-variant">
+              <span class="material-symbols-rounded text-3xl text-outline mb-2 block">push_pin</span>
+              <p class="font-bold text-on-surface mb-1">Пока нет закреплённых сообщений</p>
+              <p>Создатель доски может закрепить важные записи для всего TimeLine.</p>
+            </div>
+          } @else {
+            @for (pinned of pinnedBoardNotes(); track pinned.id) {
+              <div class="p-3.5 rounded-2xl bg-surface-container-low border border-outline-variant/25 hover:border-primary/40 transition-colors flex flex-col gap-2">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-base leading-none">{{ pinned.actorAvatar }}</span>
+                    <span class="text-xs font-bold text-on-surface truncate">{{ pinned.actorName }}</span>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      (click)="jumpToPinnedNote(pinned)"
+                      class="px-2 py-0.5 rounded-lg bg-surface-container-high hover:bg-primary/15 text-[11px] font-bold text-on-surface-variant hover:text-primary cursor-pointer"
+                      title="Перейти к дате сообщения"
+                    >
+                      {{ pinned.dateKey }} · {{ pinned.time }}
+                    </button>
+                    @if (canManageActiveBoard()) {
+                      <button
+                        type="button"
+                        (click)="timelines.togglePinNote(pinned.id, false)"
+                        class="p-1 rounded-lg text-outline hover:text-rose-600 hover:bg-rose-500/10 cursor-pointer"
+                        title="Открепить сообщение"
+                      >
+                        <span class="material-symbols-rounded text-sm">keep_off</span>
+                      </button>
+                    }
+                  </div>
+                </div>
+
+                @if (pinned.title) {
+                  <div class="text-xs font-black text-on-surface">{{ pinned.title }}</div>
+                }
+                <p class="text-xs text-on-surface-variant whitespace-pre-wrap break-words leading-relaxed">
+                  {{ pinned.text }}
+                </p>
+              </div>
+            }
+          }
+        </div>
+      </aside>
+
       <!-- MODALS -->
       <app-timeline-board-modal
         [isOpen]="isCreateBoardOpen()"
+        [editingBoard]="editingBoard()"
         [actors]="allActors()"
         [profiles]="allProfiles()"
         [activeProfileId]="activeProfile()?.id || ''"
-        (close)="isCreateBoardOpen.set(false)"
+        (close)="closeBoardModal()"
         (create)="handleCreateBoard($event)"
+        (save)="handleEditBoard($event)"
       />
 
       <app-timeline-members-modal
@@ -859,7 +1043,7 @@ export class TimelinesWorkspaceComponent {
   readonly statusMessage = signal<string | null>(null);
 
   readonly boardFilter = signal<BoardFilterTab>('ALL');
-  readonly viewMode = signal<TimelineViewMode>('DIARY_FEED');
+  readonly viewMode = signal<TimelineViewMode>('CLOUD_TIMELINE');
   readonly selectedDateKey = signal<string>(new Date().toISOString().slice(0, 10));
   readonly showAllDates = signal<boolean>(true);
   readonly selectedActorFilter = signal<string | null>(null);
@@ -871,7 +1055,7 @@ export class TimelinesWorkspaceComponent {
   composerTitle = '';
   composerText = '';
   composerTagsRaw = '';
-  composerTime = new Date().toISOString().slice(11, 16);
+  composerTime = this.getCurrentLocalTimeString();
   composerShareWithGroup = false;
   readonly pendingMedia = signal<TimelineMediaAttachment[]>([]);
   readonly isUploadingMedia = signal<boolean>(false);
@@ -881,6 +1065,7 @@ export class TimelinesWorkspaceComponent {
 
   // Modals state
   readonly isCreateBoardOpen = signal<boolean>(false);
+  readonly editingBoard = signal<TimelineBoard | null>(null);
   readonly isMembersModalOpen = signal<boolean>(false);
   readonly isProjectariumModalOpen = signal<boolean>(false);
   readonly crossLinkSourceNote = signal<CloudDayNote | null>(null);
@@ -965,6 +1150,26 @@ export class TimelinesWorkspaceComponent {
     this.activeProfile();
     return b ? this.timelines.canManageMembers(b) : false;
   });
+
+  readonly pinnedSidebarOpen = signal(false);
+
+  readonly pinnedBoardNotes = computed<CloudDayNote[]>(() => {
+    const b = this.activeBoard();
+    if (!b) return [];
+    return this.allNotes()
+      .filter((n) => n.boardId === b.id && Boolean(n.isPinned))
+      .sort((a, bNote) => {
+        const aTime = a.pinnedAt || a.createdAt || `${a.dateKey}T${a.time}`;
+        const bTime = bNote.pinnedAt || bNote.createdAt || `${bNote.dateKey}T${bNote.time}`;
+        return bTime.localeCompare(aTime);
+      });
+  });
+
+  jumpToPinnedNote(note: CloudDayNote): void {
+    this.selectedDateKey.set(note.dateKey);
+    this.showAllDates.set(false);
+    this.pinnedSidebarOpen.set(false);
+  }
 
   readonly crossLinkCandidates = computed<CloudDayNote[]>(() => {
     const b = this.activeBoard();
@@ -1076,6 +1281,17 @@ export class TimelinesWorkspaceComponent {
     this.showAllDates.set(false);
   }
 
+  setCurrentTime(): void {
+    this.composerTime = this.getCurrentLocalTimeString();
+  }
+
+  private getCurrentLocalTimeString(): string {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  }
+
   toggleAllDates(): void {
     this.showAllDates.update((v) => !v);
   }
@@ -1118,7 +1334,7 @@ export class TimelinesWorkspaceComponent {
       board,
       actor,
       dateKey: this.selectedDateKey(),
-      time: this.composerTime || '12:00',
+      time: this.composerTime || this.getCurrentLocalTimeString(),
       type: this.composerType(),
       title: this.composerTitle,
       text,
@@ -1170,10 +1386,32 @@ export class TimelinesWorkspaceComponent {
     );
   }
 
+  openCreateBoardModal(): void {
+    this.editingBoard.set(null);
+    this.isCreateBoardOpen.set(true);
+  }
+
+  openEditBoardModal(board: TimelineBoard): void {
+    this.editingBoard.set(board);
+    this.isCreateBoardOpen.set(true);
+  }
+
+  closeBoardModal(): void {
+    this.isCreateBoardOpen.set(false);
+    this.editingBoard.set(null);
+  }
+
   handleCreateBoard(payload: CreateBoardSubmitPayload): void {
     const created = this.timelines.createBoard(payload);
-    this.isCreateBoardOpen.set(false);
+    this.closeBoardModal();
     void this.router.navigate(['/timelines', created.slug]);
+  }
+
+  handleEditBoard(payload: EditBoardSubmitPayload): void {
+    const b = this.editingBoard();
+    if (!b) return;
+    this.timelines.updateBoard(b.id, payload);
+    this.closeBoardModal();
   }
 
   handleSaveBoardSettings(payload: { privacy: BoardPrivacy; boardMode: TimelineBoardMode }): void {

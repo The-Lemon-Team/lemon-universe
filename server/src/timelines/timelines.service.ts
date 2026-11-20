@@ -21,6 +21,29 @@ import {
 export const DEFAULT_HUMAN_PROFILE_ID = '1f3e6a64-721c-4d1d-8d52-6c3f4e30d30b';
 export const DEFAULT_AGENT_PROFILE_ID = 'a7e49c10-9100-4b22-a811-9000a6e17001';
 
+const CYRILLIC_TO_LATIN: Record<string, string> = {
+  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'yo', ж: 'zh',
+  з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o',
+  п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'kh', ц: 'ts',
+  ч: 'ch', ш: 'sh', щ: 'shch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu',
+  я: 'ya',
+};
+
+/** Transliterates Cyrillic to Latin and strips non-ASCII characters for URL-safe slugs. */
+function toAsciiSlug(value: string, fallback: string): string {
+  const transliterated = value
+    .toLowerCase()
+    .split('')
+    .map((ch) => CYRILLIC_TO_LATIN[ch] ?? ch)
+    .join('');
+  return (
+    transliterated
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '') || fallback
+  );
+}
+
 export interface CreateBoardDto {
   id?: string;
   slug?: string;
@@ -49,6 +72,7 @@ export interface UpdateBoardDto {
   boardMode?: TimelineBoardMode;
   privacy?: BoardPrivacy;
   defaultActorId?: string | null;
+  seasonsFeedSlug?: string;
   isArchived?: boolean;
 }
 
@@ -218,11 +242,7 @@ export class TimelinesService {
   async createBoard(dto: CreateBoardDto, actorProfileId?: string) {
     const ownerProfileId = dto.ownerProfileId || this.resolveProfileId(actorProfileId);
     const id = dto.id || `board-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const slugBase =
-      (dto.slug || dto.title || id)
-        .toLowerCase()
-        .replace(/[^a-z0-9а-яё_-]+/gi, '-')
-        .replace(/^-+|-+$/g, '') || id;
+    const slugBase = toAsciiSlug(dto.slug || dto.title || id, id);
     const slug = dto.slug || `${slugBase}-${Math.random().toString(36).slice(2, 5)}`;
     const title = (dto.title || 'Новый TimeLine').trim();
     const description = dto.description?.trim() || '';
@@ -355,6 +375,7 @@ export class TimelinesService {
           privacy = COALESCE($8::"BoardPrivacy", privacy),
           default_actor_id = CASE WHEN $9::boolean THEN $10 ELSE default_actor_id END,
           is_archived = COALESCE($11, is_archived),
+          seasons_feed_slug = COALESCE($12, seasons_feed_slug),
           updated_at = NOW()
         WHERE id = $1
       `,
@@ -370,6 +391,7 @@ export class TimelinesService {
         dto.defaultActorId !== undefined,
         dto.defaultActorId ?? null,
         dto.isArchived !== undefined ? dto.isArchived : null,
+        dto.seasonsFeedSlug?.trim() || null,
       ],
     );
 
@@ -599,6 +621,8 @@ export class TimelinesService {
           n.reply_to_text_snippet AS "replyToTextSnippet",
           n.is_pinned_to_hero AS "isPinnedToHero",
           n.is_pinned_to_cloud AS "isPinnedToCloud",
+          n.is_pinned AS "isPinned",
+          n.pinned_at AS "pinnedAt",
           n.seasons_note_id AS "seasonsNoteId",
           n.seasons_external_id AS "seasonsExternalId",
           n.seasons_account_id AS "seasonsAccountId",
@@ -943,6 +967,33 @@ export class TimelinesService {
           seasonsSynced: syncRes.synced,
           seasonsSyncError: syncRes.error,
         };
+  }
+
+  async pinNote(noteId: string, isPinned: boolean, actorProfileId?: string) {
+    const profileId = this.resolveProfileId(actorProfileId);
+    const { rows } = await this.db.query(
+      `SELECT id, board_id AS "boardId" FROM timeline_notes WHERE id = $1 LIMIT 1`,
+      [noteId],
+    );
+    const note = rows[0];
+    if (!note) throw new NotFoundException(`Note '${noteId}' not found`);
+
+    const board = await this.fetchBoardRow(note.boardId);
+    if (!board) throw new NotFoundException(`TimeLine board '${note.boardId}' not found`);
+
+    if (!board.ownerProfileId || board.ownerProfileId !== profileId) {
+      throw new ForbiddenException('Только создатель доски может прикреплять и откреплять сообщения.');
+    }
+
+    const pinnedAt = isPinned ? new Date().toISOString() : null;
+    await this.db.query(
+      `UPDATE timeline_notes SET is_pinned = $1, pinned_at = $2 WHERE id = $3`,
+      [isPinned, pinnedAt, noteId],
+    );
+
+    const updatedNotes = await this.getNotes({ profileId, boardId: board.id });
+    const updated = updatedNotes.find((n: any) => n.id === noteId);
+    return updated ?? { id: noteId, boardId: board.id, isPinned, pinnedAt };
   }
 
   async syncNoteToSeasons(noteId: string, actorProfileId?: string) {

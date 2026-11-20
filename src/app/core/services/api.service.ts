@@ -169,6 +169,7 @@ export class ApiService {
       boardMode?: TimelineBoardMode;
       privacy?: BoardPrivacy;
       defaultActorId?: string | null;
+      seasonsFeedSlug?: string;
       isArchived?: boolean;
     },
     profileId?: string | null,
@@ -288,6 +289,18 @@ export class ApiService {
     return this.http.patch<CloudDayNote>(`${this.base}/timelines/notes/${noteId}`, dto, {
       headers: this.profileHeaders(profileId),
     });
+  }
+
+  pinTimelineNote(
+    noteId: string,
+    isPinned: boolean,
+    profileId?: string | null,
+  ): Observable<CloudDayNote> {
+    return this.http.patch<CloudDayNote>(
+      `${this.base}/timelines/notes/${noteId}/pin`,
+      { isPinned },
+      { headers: this.profileHeaders(profileId) },
+    );
   }
 
   syncNoteToSeasons(

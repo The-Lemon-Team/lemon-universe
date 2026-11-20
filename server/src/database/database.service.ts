@@ -121,7 +121,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ADD COLUMN IF NOT EXISTS media_attachments JSONB NOT NULL DEFAULT '[]'::jsonb,
         ADD COLUMN IF NOT EXISTS seasons_synced_at TIMESTAMPTZ,
         ADD COLUMN IF NOT EXISTS seasons_account_id TEXT,
-        ADD COLUMN IF NOT EXISTS shared_with_group BOOLEAN NOT NULL DEFAULT FALSE;
+        ADD COLUMN IF NOT EXISTS shared_with_group BOOLEAN NOT NULL DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN NOT NULL DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS pinned_at TIMESTAMPTZ;
     `);
 
     // Backfill default seeded boards so they are PUBLIC & owned cleanly

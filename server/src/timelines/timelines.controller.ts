@@ -126,6 +126,15 @@ export class TimelinesController {
     return this.timelinesService.updateNote(noteId, dto, headerProfileId);
   }
 
+  @Patch('notes/:noteId/pin')
+  pinNote(
+    @Param('noteId') noteId: string,
+    @Body() dto: { isPinned?: boolean },
+    @Headers('x-profile-id') headerProfileId?: string,
+  ) {
+    return this.timelinesService.pinNote(noteId, Boolean(dto?.isPinned), headerProfileId);
+  }
+
   @Post('notes/:noteId/sync-seasons')
   syncNoteToSeasons(
     @Param('noteId') noteId: string,

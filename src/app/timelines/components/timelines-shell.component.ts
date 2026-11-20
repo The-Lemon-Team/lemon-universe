@@ -5,6 +5,7 @@ import { RouterLink, RouterOutlet } from '@angular/router';
 import { ModalOverlayDirective } from '../../core/directives/modal-overlay.directive';
 import { PlayerType, Profile } from '../../core/models/flow.models';
 import { ProfileService } from '../../core/services/profile.service';
+import { PwaService } from '../../core/services/pwa.service';
 import { ThemeService } from '../../core/services/theme.service';
 
 @Component({
@@ -87,6 +88,30 @@ import { ThemeService } from '../../core/services/theme.service';
               <span class="material-symbols-rounded text-base text-primary">palette</span>
               <span class="hidden md:inline uppercase">{{ (theme.palette$ | async) === 'slate' ? 'Slate' : 'Atom' }}</span>
             </button>
+
+            @if (pwa.updateAvailable()) {
+              <button
+                type="button"
+                (click)="pwa.applyUpdate()"
+                class="h-9 px-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5 transition-colors border border-emerald-500/30 cursor-pointer text-[11px] font-label-ui font-bold"
+                title="Доступна новая версия Lemon TimeLines — нажмите для обновления"
+              >
+                <span class="material-symbols-rounded text-base">system_update</span>
+                <span class="hidden md:inline">Обновить</span>
+              </button>
+            }
+
+            @if (pwa.canInstall()) {
+              <button
+                type="button"
+                (click)="pwa.promptInstall()"
+                class="h-9 px-2.5 rounded-xl bg-primary/15 hover:bg-primary/25 text-primary flex items-center gap-1.5 transition-colors border border-primary/30 cursor-pointer text-[11px] font-label-ui font-bold"
+                title="Установить Lemon TimeLines как PWA-приложение"
+              >
+                <span class="material-symbols-rounded text-base">install_desktop</span>
+                <span class="hidden md:inline">Установить</span>
+              </button>
+            }
 
             <button
               type="button"
@@ -223,6 +248,7 @@ import { ThemeService } from '../../core/services/theme.service';
 })
 export class TimelinesShellComponent {
   protected readonly profileService = inject(ProfileService);
+  protected readonly pwa = inject(PwaService);
   protected readonly theme = inject(ThemeService);
 
   readonly isNewAccountModalOpen = signal(false);

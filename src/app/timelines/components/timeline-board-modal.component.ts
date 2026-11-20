@@ -5,6 +5,7 @@ import {
   ArenaActorCard,
   BoardPrivacy,
   Profile,
+  TimelineBoard,
   TimelineBoardMode,
 } from '../../core/models/flow.models';
 
@@ -16,6 +17,15 @@ export interface CreateBoardSubmitPayload {
   defaultActorId: string;
   seasonsFeedSlug: string;
   memberProfileIds: string[];
+}
+
+export interface EditBoardSubmitPayload {
+  title: string;
+  description: string;
+  boardMode: TimelineBoardMode;
+  privacy: BoardPrivacy;
+  defaultActorId: string;
+  seasonsFeedSlug: string;
 }
 
 @Component({
@@ -42,7 +52,7 @@ export interface CreateBoardSubmitPayload {
             <div class="flex items-center gap-2">
               <span class="material-symbols-rounded text-primary text-2xl">view_timeline</span>
               <h2 id="create-timeline-board-title" class="font-headline-sm text-base font-bold">
-                Создать Независимый TimeLine
+                {{ editingBoard() ? 'Редактировать TimeLine' : 'Создать Независимый TimeLine' }}
               </h2>
             </div>
             <button
@@ -130,7 +140,7 @@ export interface CreateBoardSubmitPayload {
             </div>
           </div>
 
-          @if (otherProfiles().length > 0) {
+          @if (!editingBoard() && otherProfiles().length > 0) {
             <div class="flex flex-col gap-1.5">
               <span class="font-label-ui text-xs font-bold text-on-surface-variant">
                 Добавить участников (members) сразу:
@@ -182,7 +192,7 @@ export interface CreateBoardSubmitPayload {
               [disabled]="!titleDraft.trim()"
               class="px-4 py-2 rounded-xl bg-primary text-on-primary font-label-ui text-xs font-bold shadow-xs hover:opacity-95 disabled:opacity-50 cursor-pointer"
             >
-              ✨ Создать TimeLine
+              {{ editingBoard() ? '💾 Сохранить' : '✨ Создать TimeLine' }}
             </button>
           </div>
         </div>
@@ -192,12 +202,14 @@ export interface CreateBoardSubmitPayload {
 })
 export class TimelineBoardModalComponent {
   readonly isOpen = input<boolean>(false);
+  readonly editingBoard = input<TimelineBoard | null>(null);
   readonly actors = input<ArenaActorCard[]>([]);
   readonly profiles = input<Profile[]>([]);
   readonly activeProfileId = input<string>('');
 
   readonly close = output<void>();
   readonly create = output<CreateBoardSubmitPayload>();
+  readonly save = output<EditBoardSubmitPayload>();
 
   titleDraft = '';
   descriptionDraft = '';
@@ -209,7 +221,17 @@ export class TimelineBoardModalComponent {
 
   constructor() {
     effect(() => {
-      if (this.isOpen() && !this.defaultActorDraft && this.actors().length > 0) {
+      if (!this.isOpen()) return;
+      const board = this.editingBoard();
+      if (board) {
+        this.titleDraft = board.title || '';
+        this.descriptionDraft = board.description || '';
+        this.modeDraft = board.boardMode || 'DIARY';
+        this.privacyDraft = board.privacy || 'PRIVATE';
+        this.defaultActorDraft = board.defaultActorId || this.actors()[0]?.id || '';
+        this.feedSlugDraft = board.seasonsFeedSlug || '';
+        this.selectedMembers.set([]);
+      } else if (!this.defaultActorDraft && this.actors().length > 0) {
         this.defaultActorDraft = this.actors()[0].id;
       }
     });
@@ -234,15 +256,27 @@ export class TimelineBoardModalComponent {
   submit(): void {
     const title = this.titleDraft.trim();
     if (!title) return;
-    this.create.emit({
-      title,
-      description: this.descriptionDraft.trim(),
-      boardMode: this.modeDraft,
-      privacy: this.privacyDraft,
-      defaultActorId: this.defaultActorDraft || this.actors()[0]?.id || 'actor-alexey',
-      seasonsFeedSlug: this.feedSlugDraft.trim(),
-      memberProfileIds: this.selectedMembers(),
-    });
+    const defaultActorId = this.defaultActorDraft || this.actors()[0]?.id || 'actor-alexey';
+    if (this.editingBoard()) {
+      this.save.emit({
+        title,
+        description: this.descriptionDraft.trim(),
+        boardMode: this.modeDraft,
+        privacy: this.privacyDraft,
+        defaultActorId,
+        seasonsFeedSlug: this.feedSlugDraft.trim(),
+      });
+    } else {
+      this.create.emit({
+        title,
+        description: this.descriptionDraft.trim(),
+        boardMode: this.modeDraft,
+        privacy: this.privacyDraft,
+        defaultActorId,
+        seasonsFeedSlug: this.feedSlugDraft.trim(),
+        memberProfileIds: this.selectedMembers(),
+      });
+    }
     this.resetForm();
   }
 

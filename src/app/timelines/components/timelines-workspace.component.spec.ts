@@ -59,4 +59,15 @@ describe('TimelinesWorkspaceComponent', () => {
     expect(compiled.textContent).toContain('Members');
     expect(compiled.textContent).toContain('Сводка Агента');
   });
+
+  it('should render cloud bubbles view with bottom timeline by default and allow switching to diary', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.textContent).toContain('Облачка');
+    expect(compiled.querySelector('app-timeline-cloud-view')).toBeTruthy();
+    expect(compiled.textContent).toContain('Хроно-Шкала: 08:00 — 24:00');
+
+    component.viewMode.set('DIARY_FEED');
+    fixture.detectChanges();
+    expect(compiled.querySelector('app-timeline-cloud-view')).toBeNull();
+  });
 });

@@ -27,6 +27,29 @@ import { ApiService } from '../../core/services/api.service';
 import { NeuronArenaService } from '../../core/services/neuron-arena.service';
 import { ProfileService } from '../../core/services/profile.service';
 import { SeasonsTimelineBridgeService } from '../../core/services/seasons-timeline-bridge.service';
+
+const CYRILLIC_TO_LATIN: Record<string, string> = {
+  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'yo', ж: 'zh',
+  з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o',
+  п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'kh', ц: 'ts',
+  ч: 'ch', ш: 'sh', щ: 'shch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu',
+  я: 'ya',
+};
+
+/** Transliterates Cyrillic to Latin and strips non-ASCII characters for URL-safe slugs. */
+function toAsciiSlug(value: string, fallback: string): string {
+  const transliterated = value
+    .toLowerCase()
+    .split('')
+    .map((ch) => CYRILLIC_TO_LATIN[ch] ?? ch)
+    .join('');
+  return (
+    transliterated
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '') || fallback
+  );
+}
 import {
   canManageBoardMembers,
   canPostToBoard,
@@ -166,11 +189,7 @@ export class TimelinesService {
   }): TimelineBoard {
     const ownerProfileId = this.profileService.currentProfileId;
     const cleanTitle = input.title.trim() || 'Новый TimeLine';
-    const slugBase =
-      cleanTitle
-        .toLowerCase()
-        .replace(/[^a-z0-9а-яё_-]+/gi, '-')
-        .replace(/^-+|-+$/g, '') || `timeline-${Date.now()}`;
+    const slugBase = toAsciiSlug(cleanTitle, `timeline-${Date.now()}`);
     const id = `board-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const slug = `${slugBase}-${Math.random().toString(36).slice(2, 5)}`;
     const mode: TimelineBoardMode = input.boardMode || 'DIARY';
@@ -260,6 +279,7 @@ export class TimelinesService {
       boardMode?: TimelineBoardMode;
       privacy?: BoardPrivacy;
       defaultActorId?: string | null;
+      seasonsFeedSlug?: string;
       isArchived?: boolean;
     },
   ): void {
@@ -472,6 +492,29 @@ export class TimelinesService {
       error: (err) => {
         this.notesSubject.next(prevNotes);
         this.setStatus(this.formatApiError(err, 'Не удалось обновить запись на сервере.'));
+      },
+    });
+  }
+
+  togglePinNote(noteId: string, isPinned: boolean): void {
+    const profileId = this.profileService.currentProfileId;
+    const prevNotes = this.notesSubject.value;
+    const optimisticPinnedAt = isPinned ? new Date().toISOString() : null;
+    this.notesSubject.next(
+      prevNotes.map((n) =>
+        n.id === noteId ? { ...n, isPinned, pinnedAt: optimisticPinnedAt } : n,
+      ),
+    );
+
+    this.api.pinTimelineNote(noteId, isPinned, profileId).subscribe({
+      next: (saved) => {
+        this.notesSubject.next(
+          this.notesSubject.value.map((n) => (n.id === noteId ? { ...n, ...saved } : n)),
+        );
+      },
+      error: (err) => {
+        this.notesSubject.next(prevNotes);
+        this.setStatus(this.formatApiError(err, 'Не удалось изменить закрепление сообщения.'));
       },
     });
   }
