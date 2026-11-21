@@ -1,5 +1,9 @@
-import { ChangeDetectionStrategy, Component, effect, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import {
+  HashtagMultiselectComponent,
+  HashtagSelectOption,
+} from '../../core/components/hashtag-multiselect.component';
 import { ModalOverlayDirective } from '../../core/directives/modal-overlay.directive';
 import {
   ArenaActorCard,
@@ -8,10 +12,12 @@ import {
   TimelineBoard,
   TimelineBoardMode,
 } from '../../core/models/flow.models';
+import { getExtraTagsNotInText, mergeNoteTags } from '../../core/utils/hashtag.utils';
 
 export interface CreateBoardSubmitPayload {
   title: string;
   description: string;
+  hashtags: string[];
   boardMode: TimelineBoardMode;
   privacy: BoardPrivacy;
   defaultActorId: string;
@@ -22,6 +28,7 @@ export interface CreateBoardSubmitPayload {
 export interface EditBoardSubmitPayload {
   title: string;
   description: string;
+  hashtags: string[];
   boardMode: TimelineBoardMode;
   privacy: BoardPrivacy;
   defaultActorId: string;
@@ -31,7 +38,7 @@ export interface EditBoardSubmitPayload {
 @Component({
   selector: 'app-timeline-board-modal',
   standalone: true,
-  imports: [FormsModule, ModalOverlayDirective],
+  imports: [FormsModule, ModalOverlayDirective, HashtagMultiselectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (isOpen()) {
@@ -171,11 +178,37 @@ export interface EditBoardSubmitPayload {
             </label>
             <textarea
               id="tl-board-desc"
-              [(ngModel)]="descriptionDraft"
+              [ngModel]="descriptionDraft()"
+              (ngModelChange)="descriptionDraft.set($event)"
               rows="2"
-              placeholder="Для чего используется этот TimeLine..."
+              placeholder="Для чего используется этот TimeLine... (можно писать #хештеги)"
               class="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface resize-none"
             ></textarea>
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <span class="font-label-ui text-xs font-bold text-on-surface-variant">
+              Хештеги TimeLine:
+            </span>
+            <app-hashtag-multiselect
+              [options]="resolvedHashtagOptions()"
+              [selectedTags]="selectedHashtags()"
+              (selectedTagsChange)="selectedHashtags.set($event)"
+              placement="up"
+              placeholder="Выбрать или создать #хештеги..."
+              searchPlaceholder="Поиск или новый #хештег..."
+              ariaLabel="Хештеги TimeLine доски"
+            />
+            @if (previewHashtags().length > 0) {
+              <div class="flex flex-wrap items-center gap-1">
+                <span class="text-[10px] font-mono text-outline">Хештеги доски:</span>
+                @for (tag of previewHashtags(); track tag) {
+                  <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-primary/15 text-primary font-semibold">
+                    #{{ tag }}
+                  </span>
+                }
+              </div>
+            }
           </div>
 
           <div class="flex items-center justify-end gap-2 pt-3 border-t border-outline-variant/20">
@@ -206,35 +239,58 @@ export class TimelineBoardModalComponent {
   readonly actors = input<ArenaActorCard[]>([]);
   readonly profiles = input<Profile[]>([]);
   readonly activeProfileId = input<string>('');
+  readonly hashtagOptions = input<HashtagSelectOption[]>([]);
 
   readonly close = output<void>();
   readonly create = output<CreateBoardSubmitPayload>();
   readonly save = output<EditBoardSubmitPayload>();
 
   titleDraft = '';
-  descriptionDraft = '';
+  readonly descriptionDraft = signal<string>('');
+  readonly selectedHashtags = signal<string[]>([]);
   modeDraft: TimelineBoardMode = 'DIARY';
   privacyDraft: BoardPrivacy = 'PRIVATE';
   defaultActorDraft = '';
   feedSlugDraft = '';
   readonly selectedMembers = signal<string[]>([]);
 
+  readonly resolvedHashtagOptions = computed<HashtagSelectOption[]>(() => {
+    const map = new Map<string, number | undefined>();
+    for (const opt of this.hashtagOptions()) {
+      map.set(opt.tag, opt.count);
+    }
+    for (const def of ['проект', 'дневник', 'работа', 'личное', 'агенты']) {
+      if (!map.has(def)) map.set(def, undefined);
+    }
+    return Array.from(map.entries()).map(([tag, count]) => ({ tag, count }));
+  });
+
+  readonly previewHashtags = computed<string[]>(() =>
+    mergeNoteTags(this.descriptionDraft(), this.selectedHashtags()),
+  );
+
   constructor() {
-    effect(() => {
-      if (!this.isOpen()) return;
-      const board = this.editingBoard();
-      if (board) {
-        this.titleDraft = board.title || '';
-        this.descriptionDraft = board.description || '';
-        this.modeDraft = board.boardMode || 'DIARY';
-        this.privacyDraft = board.privacy || 'PRIVATE';
-        this.defaultActorDraft = board.defaultActorId || this.actors()[0]?.id || '';
-        this.feedSlugDraft = board.seasonsFeedSlug || '';
-        this.selectedMembers.set([]);
-      } else if (!this.defaultActorDraft && this.actors().length > 0) {
-        this.defaultActorDraft = this.actors()[0].id;
-      }
-    });
+    effect(
+      () => {
+        if (!this.isOpen()) return;
+        const board = this.editingBoard();
+        if (board) {
+          this.titleDraft = board.title || '';
+          this.descriptionDraft.set(board.description || '');
+          this.selectedHashtags.set(
+            getExtraTagsNotInText(board.description || '', board.hashtags),
+          );
+          this.modeDraft = board.boardMode || 'DIARY';
+          this.privacyDraft = board.privacy || 'PRIVATE';
+          this.defaultActorDraft = board.defaultActorId || this.actors()[0]?.id || '';
+          this.feedSlugDraft = board.seasonsFeedSlug || '';
+          this.selectedMembers.set([]);
+        } else if (!this.defaultActorDraft && this.actors().length > 0) {
+          this.defaultActorDraft = this.actors()[0].id;
+        }
+      },
+      { allowSignalWrites: true },
+    );
   }
 
   otherProfiles(): Profile[] {
@@ -256,11 +312,14 @@ export class TimelineBoardModalComponent {
   submit(): void {
     const title = this.titleDraft.trim();
     if (!title) return;
+    const description = this.descriptionDraft().trim();
+    const hashtags = mergeNoteTags(description, this.selectedHashtags());
     const defaultActorId = this.defaultActorDraft || this.actors()[0]?.id || 'actor-alexey';
     if (this.editingBoard()) {
       this.save.emit({
         title,
-        description: this.descriptionDraft.trim(),
+        description,
+        hashtags,
         boardMode: this.modeDraft,
         privacy: this.privacyDraft,
         defaultActorId,
@@ -269,7 +328,8 @@ export class TimelineBoardModalComponent {
     } else {
       this.create.emit({
         title,
-        description: this.descriptionDraft.trim(),
+        description,
+        hashtags,
         boardMode: this.modeDraft,
         privacy: this.privacyDraft,
         defaultActorId,
@@ -282,7 +342,8 @@ export class TimelineBoardModalComponent {
 
   private resetForm(): void {
     this.titleDraft = '';
-    this.descriptionDraft = '';
+    this.descriptionDraft.set('');
+    this.selectedHashtags.set([]);
     this.modeDraft = 'DIARY';
     this.privacyDraft = 'PRIVATE';
     this.defaultActorDraft = '';

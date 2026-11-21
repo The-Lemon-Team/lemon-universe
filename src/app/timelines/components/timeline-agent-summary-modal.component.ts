@@ -1,7 +1,12 @@
-import { ChangeDetectionStrategy, Component, effect, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import {
+  HashtagMultiselectComponent,
+  HashtagSelectOption,
+} from '../../core/components/hashtag-multiselect.component';
 import { ModalOverlayDirective } from '../../core/directives/modal-overlay.directive';
 import { ArenaActorCard, Profile, TimelineBoard } from '../../core/models/flow.models';
+import { mergeNoteTags } from '../../core/utils/hashtag.utils';
 
 export interface AgentSummarySubmitPayload {
   agentProfileId: string;
@@ -16,7 +21,7 @@ export interface AgentSummarySubmitPayload {
 @Component({
   selector: 'app-timeline-agent-summary-modal',
   standalone: true,
-  imports: [FormsModule, ModalOverlayDirective],
+  imports: [FormsModule, ModalOverlayDirective, HashtagMultiselectComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (isOpen()) {
@@ -145,11 +150,35 @@ export interface AgentSummarySubmitPayload {
             </label>
             <textarea
               id="agent-sum-text"
-              [(ngModel)]="textDraft"
+              [ngModel]="textDraft()"
+              (ngModelChange)="textDraft.set($event)"
               rows="3"
-              placeholder="Что сделано, ключевые инсайты и ссылки..."
+              placeholder="Что сделано, ключевые инсайты и #хештеги..."
               class="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface resize-none"
             ></textarea>
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <span class="font-label-ui text-xs font-bold text-on-surface-variant">
+              Хештеги (необязательно):
+            </span>
+            <app-hashtag-multiselect
+              [options]="hashtagOptions()"
+              [selectedTags]="selectedTags()"
+              (selectedTagsChange)="selectedTags.set($event)"
+              placement="up"
+              placeholder="Выбрать или создать #хештеги..."
+              searchPlaceholder="Поиск или новый #хештег..."
+              ariaLabel="Хештеги сводки агента"
+            />
+            <div class="flex flex-wrap items-center gap-1">
+              <span class="text-[10px] font-mono text-outline">Теги сводки:</span>
+              @for (tag of previewTags(); track tag) {
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-700 dark:text-violet-300 font-semibold">
+                  #{{ tag }}
+                </span>
+              }
+            </div>
           </div>
 
           <div class="flex items-center justify-end gap-2 pt-3 border-t border-outline-variant/20">
@@ -163,7 +192,7 @@ export interface AgentSummarySubmitPayload {
             <button
               type="button"
               (click)="submit()"
-              [disabled]="!textDraft.trim()"
+              [disabled]="!textDraft().trim()"
               class="px-4 py-2 rounded-xl bg-violet-600 text-white font-label-ui text-xs font-bold shadow-xs hover:brightness-105 disabled:opacity-50 cursor-pointer"
             >
               🤖 Опубликовать сводку
@@ -179,6 +208,7 @@ export class TimelineAgentSummaryModalComponent {
   readonly boards = input<TimelineBoard[]>([]);
   readonly actors = input<ArenaActorCard[]>([]);
   readonly profiles = input<Profile[]>([]);
+  readonly hashtagOptions = input<HashtagSelectOption[]>([]);
   readonly errorMessage = input<string | null>(null);
 
   readonly close = output<void>();
@@ -189,25 +219,35 @@ export class TimelineAgentSummaryModalComponent {
   sourceBoardDraft = 'board-coding-sessions';
   targetBoardDraft = 'board-global-day';
   titleDraft = '';
-  textDraft = '';
+  readonly textDraft = signal<string>('');
+  readonly selectedTags = signal<string[]>([]);
+
+  readonly previewTags = computed<string[]>(() => {
+    const manualAndInline = mergeNoteTags(this.textDraft(), this.selectedTags());
+    return Array.from(new Set(['agent-summary', 'antigravity', ...manualAndInline]));
+  });
 
   constructor() {
-    effect(() => {
-      if (this.isOpen()) {
-        const agentProf = this.profiles().find((p) => p.playerType === 'AGENT');
-        if (agentProf) this.agentProfileDraft = agentProf.id;
-        if (!this.boards().some((b) => b.id === this.sourceBoardDraft) && this.boards()[0]) {
-          this.sourceBoardDraft = this.boards()[0].id;
+    effect(
+      () => {
+        if (this.isOpen()) {
+          const agentProf = this.profiles().find((p) => p.playerType === 'AGENT');
+          if (agentProf) this.agentProfileDraft = agentProf.id;
+          if (!this.boards().some((b) => b.id === this.sourceBoardDraft) && this.boards()[0]) {
+            this.sourceBoardDraft = this.boards()[0].id;
+          }
+        } else {
+          this.titleDraft = '';
+          this.textDraft.set('');
+          this.selectedTags.set([]);
         }
-      } else {
-        this.titleDraft = '';
-        this.textDraft = '';
-      }
-    });
+      },
+      { allowSignalWrites: true },
+    );
   }
 
   submit(): void {
-    const text = this.textDraft.trim();
+    const text = this.textDraft().trim();
     if (!text) return;
     this.submitSummary.emit({
       agentProfileId: this.agentProfileDraft,
@@ -216,13 +256,14 @@ export class TimelineAgentSummaryModalComponent {
       actorId: this.actorDraft,
       title: this.titleDraft.trim() || 'Сводка Агента',
       text,
-      tags: ['agent-summary', 'antigravity'],
+      tags: this.previewTags(),
     });
   }
 
   onClose(): void {
     this.titleDraft = '';
-    this.textDraft = '';
+    this.textDraft.set('');
+    this.selectedTags.set([]);
     this.close.emit();
   }
 }

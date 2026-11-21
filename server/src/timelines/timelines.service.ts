@@ -17,6 +17,7 @@ import {
   TimelineBoardMode,
   validateCrossLinkAccess,
 } from './timelines.privacy';
+import { mergeNoteTags, normalizeTag, syncTagsOnTextEdit } from './hashtag.utils';
 
 export const DEFAULT_HUMAN_PROFILE_ID = '1f3e6a64-721c-4d1d-8d52-6c3f4e30d30b';
 export const DEFAULT_AGENT_PROFILE_ID = 'a7e49c10-9100-4b22-a811-9000a6e17001';
@@ -49,6 +50,7 @@ export interface CreateBoardDto {
   slug?: string;
   title: string;
   description?: string;
+  hashtags?: string[];
   icon?: string;
   colorTheme?: string;
   vibeId?: string;
@@ -66,6 +68,7 @@ export interface CreateBoardDto {
 export interface UpdateBoardDto {
   title?: string;
   description?: string;
+  hashtags?: string[];
   icon?: string;
   colorTheme?: string;
   vibeId?: string;
@@ -168,6 +171,7 @@ export class TimelinesService {
           b.slug,
           b.title,
           b.description,
+          COALESCE(b.hashtags, '{}'::text[]) AS hashtags,
           b.icon,
           b.color_theme AS "colorTheme",
           b.vibe_id AS "vibeId",
@@ -205,6 +209,7 @@ export class TimelinesService {
           b.slug,
           b.title,
           b.description,
+          COALESCE(b.hashtags, '{}'::text[]) AS hashtags,
           b.icon,
           b.color_theme AS "colorTheme",
           b.vibe_id AS "vibeId",
@@ -246,6 +251,7 @@ export class TimelinesService {
     const slug = dto.slug || `${slugBase}-${Math.random().toString(36).slice(2, 5)}`;
     const title = (dto.title || 'Новый TimeLine').trim();
     const description = dto.description?.trim() || '';
+    const hashtags = mergeNoteTags(description, dto.hashtags);
     const icon = dto.icon || (dto.boardMode === 'DIARY' ? 'menu_book' : 'view_timeline');
     const colorTheme = dto.colorTheme || (dto.boardMode === 'DIARY' ? 'emerald' : 'amber');
     const vibeId = dto.vibeId || 'CHRONO_DAYFLOW';
@@ -283,11 +289,11 @@ export class TimelinesService {
     await this.db.query(
       `
         INSERT INTO timeline_boards (
-          id, slug, title, description, icon, color_theme, vibe_id, board_kind, board_mode,
+          id, slug, title, description, hashtags, icon, color_theme, vibe_id, board_kind, board_mode,
           privacy, owner_profile_id, default_actor_id, flow_id, seasons_stream_slug, seasons_feed_slug, is_default
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8::"TimelineBoardKind", $9::"TimelineBoardMode",
-          $10::"BoardPrivacy", $11::uuid, $12, $13::uuid, $14, $15, FALSE
+          $1, $2, $3, $4, $5, $6, $7, $8, $9::"TimelineBoardKind", $10::"TimelineBoardMode",
+          $11::"BoardPrivacy", $12::uuid, $13, $14::uuid, $15, $16, FALSE
         )
       `,
       [
@@ -295,6 +301,7 @@ export class TimelinesService {
         slug,
         title,
         description,
+        hashtags,
         icon,
         colorTheme,
         vibeId,
@@ -338,6 +345,7 @@ export class TimelinesService {
       slug,
       title,
       description,
+      hashtags,
       icon,
       privacy,
       boardKind,
@@ -362,6 +370,14 @@ export class TimelinesService {
       throw new ForbiddenException('Только владелец или редактор борда может менять его настройки и приватность.');
     }
 
+    const nextDescription = dto.description !== undefined ? dto.description : board.description;
+    const nextHashtags =
+      dto.hashtags !== undefined
+        ? mergeNoteTags(nextDescription || '', dto.hashtags)
+        : dto.description !== undefined
+          ? syncTagsOnTextEdit(board.description || '', dto.description || '', board.hashtags || [])
+          : null;
+
     await this.db.query(
       `
         UPDATE timeline_boards
@@ -376,6 +392,7 @@ export class TimelinesService {
           default_actor_id = CASE WHEN $9::boolean THEN $10 ELSE default_actor_id END,
           is_archived = COALESCE($11, is_archived),
           seasons_feed_slug = COALESCE($12, seasons_feed_slug),
+          hashtags = COALESCE($13, hashtags),
           updated_at = NOW()
         WHERE id = $1
       `,
@@ -392,10 +409,14 @@ export class TimelinesService {
         dto.defaultActorId ?? null,
         dto.isArchived !== undefined ? dto.isArchived : null,
         dto.seasonsFeedSlug?.trim() || null,
+        nextHashtags,
       ],
     );
 
     const updated = await this.fetchBoardRow(board.id);
+    if (updated) {
+      void this.seasonsBridge.ensureBoardTopology(updated);
+    }
     return {
       ...updated,
       members: members.filter((m) => m.boardId === board.id),
@@ -548,6 +569,7 @@ export class TimelinesService {
     dateKey?: string;
     actorId?: string;
     search?: string;
+    tag?: string;
   }) {
     const profileId = this.resolveProfileId(opts.profileId);
     const visibleBoards = await this.getBoards(profileId, true);
@@ -580,9 +602,32 @@ export class TimelinesService {
       conditions.push(`(n.actor_id = $${params.length} OR n.sub_actor_id = $${params.length})`);
     }
 
+    if (opts.tag?.trim()) {
+      const normalizedTag = normalizeTag(opts.tag);
+      if (normalizedTag) {
+        params.push(normalizedTag);
+        conditions.push(
+          `EXISTS (SELECT 1 FROM unnest(n.tags) AS t WHERE LOWER(t) = $${params.length})`,
+        );
+      }
+    }
+
     if (opts.search?.trim()) {
-      params.push(`%${opts.search.trim()}%`);
-      conditions.push(`(n.text ILIKE $${params.length} OR COALESCE(n.title, '') ILIKE $${params.length})`);
+      const q = opts.search.trim();
+      const tagNeedle = normalizeTag(q);
+      params.push(`%${q}%`);
+      const textParam = `$${params.length}`;
+      if (tagNeedle) {
+        params.push(`%${tagNeedle}%`);
+        const tagParam = `$${params.length}`;
+        conditions.push(
+          `(n.text ILIKE ${textParam} OR COALESCE(n.title, '') ILIKE ${textParam} OR EXISTS (SELECT 1 FROM unnest(n.tags) AS t WHERE t ILIKE ${tagParam}))`,
+        );
+      } else {
+        conditions.push(
+          `(n.text ILIKE ${textParam} OR COALESCE(n.title, '') ILIKE ${textParam})`,
+        );
+      }
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -674,6 +719,7 @@ export class TimelinesService {
     const mediaAttachments = Array.isArray(note.mediaAttachments) ? note.mediaAttachments : [];
     const noteVisibility = board.privacy === 'PUBLIC' ? note.visibility || 'PUBLIC' : 'PRIVATE';
     const sharedWithGroup = Boolean(note.sharedWithGroup);
+    const mergedTags = mergeNoteTags(note.text || '', note.tags);
 
     await this.db.query(
       `
@@ -725,7 +771,7 @@ export class TimelinesService {
         note.title || null,
         note.text || '',
         note.moodEmoji || '💭',
-        Array.isArray(note.tags) ? note.tags : [],
+        mergedTags,
         JSON.stringify(mediaAttachments),
         Array.isArray(note.partyActorIds) ? note.partyActorIds : [],
         Array.isArray(note.supporters) ? note.supporters : [],
@@ -772,7 +818,7 @@ export class TimelinesService {
         title: note.title,
         text: note.text || '',
         moodEmoji: note.moodEmoji,
-        tags: Array.isArray(note.tags) ? note.tags : [],
+        tags: mergedTags,
         mediaAttachments,
         crossRefs: note.crossRefs,
         replyToNoteId: note.replyToNoteId,
@@ -806,6 +852,7 @@ export class TimelinesService {
       visibility: noteVisibility,
       authorProfileId: profileId,
       authorProfileName: resolvedProfileName,
+      tags: mergedTags,
       mediaAttachments,
       sharedWithGroup,
       seasonsNoteId: syncRes.noteId,
@@ -909,7 +956,12 @@ export class TimelinesService {
     const nextText = dto.text !== undefined ? dto.text : existing.text;
     const nextType = dto.type !== undefined ? dto.type : existing.type;
     const nextMood = dto.moodEmoji !== undefined ? dto.moodEmoji : existing.moodEmoji;
-    const nextTags = dto.tags !== undefined ? dto.tags : existing.tags;
+    const nextTags =
+      dto.tags !== undefined
+        ? mergeNoteTags(nextText ?? '', dto.tags)
+        : dto.text !== undefined
+          ? syncTagsOnTextEdit(existing.text || '', nextText || '', existing.tags || [])
+          : existing.tags;
     const nextMedia = dto.mediaAttachments !== undefined ? dto.mediaAttachments : existing.mediaAttachments;
 
     await this.db.query(
@@ -1260,7 +1312,7 @@ export class TimelinesService {
         title: dto.title || 'Сводка Агента',
         text: dto.text,
         moodEmoji: '🤖',
-        tags: Array.from(new Set(['agent-summary', ...(dto.tags || [])])),
+        tags: mergeNoteTags(dto.text, ['agent-summary', ...(dto.tags || [])]),
         mediaAttachments: dto.mediaAttachments || [],
       },
       agentProfileId,
@@ -1302,7 +1354,7 @@ export class TimelinesService {
             title: dto.title || `Сводка из ${sourceBoard.title}`,
             text: dto.text.slice(0, 220),
             moodEmoji: '🔗',
-            tags: ['agent-cross-ref', ...(dto.tags || [])],
+            tags: mergeNoteTags(dto.text.slice(0, 220), ['agent-cross-ref', ...(dto.tags || [])]),
           },
           agentProfileId,
         );

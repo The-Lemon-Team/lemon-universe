@@ -27,6 +27,7 @@ import { ApiService } from '../../core/services/api.service';
 import { NeuronArenaService } from '../../core/services/neuron-arena.service';
 import { ProfileService } from '../../core/services/profile.service';
 import { SeasonsTimelineBridgeService } from '../../core/services/seasons-timeline-bridge.service';
+import { mergeNoteTags, syncTagsOnTextEdit } from '../../core/utils/hashtag.utils';
 
 const CYRILLIC_TO_LATIN: Record<string, string> = {
   а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'yo', ж: 'zh',
@@ -178,6 +179,7 @@ export class TimelinesService {
   createBoard(input: {
     title: string;
     description?: string;
+    hashtags?: string[];
     icon?: string;
     colorTheme?: ArenaAccentColor;
     boardKind?: TimelineBoardKind;
@@ -216,11 +218,15 @@ export class TimelinesService {
         })),
     ];
 
+    const cleanDescription = input.description?.trim() || '';
+    const mergedHashtags = mergeNoteTags(cleanDescription, input.hashtags);
+
     const newBoard: TimelineBoard = {
       id,
       slug,
       title: cleanTitle,
-      description: input.description?.trim() || '',
+      description: cleanDescription,
+      hashtags: mergedHashtags,
       icon: input.icon || (mode === 'DIARY' ? 'menu_book' : mode === 'AGENT_SUMMARY' ? 'smart_toy' : 'timeline'),
       colorTheme: input.colorTheme || (mode === 'DIARY' ? 'emerald' : mode === 'AGENT_SUMMARY' ? 'violet' : 'amber'),
       vibeId: mode === 'AGENT_SUMMARY' ? 'SYNTHWAVE' : mode === 'DIARY' ? 'NATURE_ZEN' : 'CHRONO_DAYFLOW',
@@ -276,6 +282,7 @@ export class TimelinesService {
     patch: {
       title?: string;
       description?: string;
+      hashtags?: string[];
       boardMode?: TimelineBoardMode;
       privacy?: BoardPrivacy;
       defaultActorId?: string | null;
@@ -285,9 +292,22 @@ export class TimelinesService {
   ): void {
     const profileId = this.profileService.currentProfileId;
     const prevBoards = this.boardsSubject.value;
-    const next = prevBoards.map((b) =>
-      b.id === boardId ? { ...b, ...patch, defaultActorId: patch.defaultActorId ?? b.defaultActorId } : b,
-    );
+    const next = prevBoards.map((b) => {
+      if (b.id !== boardId) return b;
+      const nextDescription = patch.description !== undefined ? patch.description : b.description;
+      const nextHashtags =
+        patch.hashtags !== undefined
+          ? mergeNoteTags(nextDescription || '', patch.hashtags)
+          : patch.description !== undefined
+            ? syncTagsOnTextEdit(b.description || '', patch.description || '', b.hashtags || [])
+            : b.hashtags;
+      return {
+        ...b,
+        ...patch,
+        hashtags: nextHashtags,
+        defaultActorId: patch.defaultActorId ?? b.defaultActorId,
+      };
+    });
     this.boardsSubject.next(next);
 
     this.api.updateTimelineBoard(boardId, patch, profileId).subscribe({
@@ -390,6 +410,7 @@ export class TimelinesService {
     const profileName = this.profileService.currentProfile?.displayName || 'Пользователь';
 
     const privacy = getBoardPrivacy(input.board);
+    const mergedTags = mergeNoteTags(input.text, input.tags);
     const newNote: CloudDayNote = {
       id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       boardId: input.board.id,
@@ -406,7 +427,7 @@ export class TimelinesService {
       authorProfileName: profileName,
       title: input.title?.trim() || undefined,
       text: input.text.trim(),
-      tags: input.tags || [],
+      tags: mergedTags,
       mediaAttachments: input.mediaAttachments || [],
       supporters: [input.actor.id],
       votesCount: 1,
@@ -460,19 +481,25 @@ export class TimelinesService {
   ): void {
     const profileId = this.profileService.currentProfileId;
     const prevNotes = this.notesSubject.value;
-    const optimistic = prevNotes.map((n) =>
-      n.id === noteId
-        ? {
-            ...n,
-            ...(dto.title !== undefined ? { title: dto.title } : {}),
-            ...(dto.text !== undefined ? { text: dto.text } : {}),
-            ...(dto.type !== undefined ? { type: dto.type } : {}),
-            ...(dto.moodEmoji !== undefined ? { moodEmoji: dto.moodEmoji } : {}),
-            ...(dto.tags !== undefined ? { tags: dto.tags } : {}),
-            ...(dto.mediaAttachments !== undefined ? { mediaAttachments: dto.mediaAttachments } : {}),
-          }
-        : n,
-    );
+    const optimistic = prevNotes.map((n) => {
+      if (n.id !== noteId) return n;
+      const nextText = dto.text !== undefined ? dto.text : n.text;
+      const nextTags =
+        dto.tags !== undefined
+          ? mergeNoteTags(nextText, dto.tags)
+          : dto.text !== undefined
+            ? syncTagsOnTextEdit(n.text || '', nextText, n.tags || [])
+            : n.tags;
+      return {
+        ...n,
+        ...(dto.title !== undefined ? { title: dto.title } : {}),
+        ...(dto.text !== undefined ? { text: dto.text } : {}),
+        ...(dto.type !== undefined ? { type: dto.type } : {}),
+        ...(dto.moodEmoji !== undefined ? { moodEmoji: dto.moodEmoji } : {}),
+        ...(nextTags !== undefined ? { tags: nextTags } : {}),
+        ...(dto.mediaAttachments !== undefined ? { mediaAttachments: dto.mediaAttachments } : {}),
+      };
+    });
     this.notesSubject.next(optimistic);
 
     this.api.updateTimelineNote(noteId, dto, profileId).subscribe({

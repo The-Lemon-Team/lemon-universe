@@ -254,7 +254,7 @@ export class ApiService {
   }
 
   getTimelineNotes(
-    opts?: string | { boardId?: string; dateKey?: string; actorId?: string; search?: string; profileId?: string | null },
+    opts?: string | { boardId?: string; dateKey?: string; actorId?: string; search?: string; tag?: string; profileId?: string | null },
   ): Observable<CloudDayNote[]> {
     const options = typeof opts === 'string' ? { boardId: opts } : opts || {};
     let params = new HttpParams();
@@ -262,6 +262,7 @@ export class ApiService {
     if (options.dateKey) params = params.set('dateKey', options.dateKey);
     if (options.actorId) params = params.set('actorId', options.actorId);
     if (options.search) params = params.set('search', options.search);
+    if (options.tag) params = params.set('tag', options.tag);
     return this.http.get<CloudDayNote[]>(`${this.base}/timelines/notes`, {
       params,
       headers: this.profileHeaders(options.profileId),

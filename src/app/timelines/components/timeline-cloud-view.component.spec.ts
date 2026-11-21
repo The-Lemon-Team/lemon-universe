@@ -77,4 +77,34 @@ describe('TimelineCloudViewComponent', () => {
     fixture.detectChanges();
     expect(el.querySelector('[role="dialog"]')).toBeNull();
   });
+
+  it('should render inline hashtags, emit tagClick, and update tags on edit', () => {
+    fixture.componentRef.setInput('notes', [
+      makeNote({ id: 'n-tag', text: 'Обсудили #релиз и #идея', tags: ['релиз', 'идея', 'diary'] }),
+    ]);
+    fixture.detectChanges();
+
+    const clickedTags: string[] = [];
+    component.tagClick.subscribe((tag) => clickedTags.push(tag));
+
+    const el = fixture.nativeElement as HTMLElement;
+    const inlineBtn = Array.from(el.querySelectorAll('button')).find(
+      (btn) => btn.textContent?.trim() === '#релиз',
+    ) as HTMLButtonElement | undefined;
+    expect(inlineBtn).toBeTruthy();
+    inlineBtn?.click();
+    expect(clickedTags).toContain('релиз');
+
+    const editedPayloads: Array<{ noteId: string; title?: string; text: string; tags?: string[] }> = [];
+    component.editNote.subscribe((p) => editedPayloads.push(p));
+
+    const note = component.notes()[0];
+    component.openInspectModal(note);
+    component.startEditInspectedNote(note);
+    expect(component.editSelectedTags()).toEqual(['diary']);
+    component.editTextDraft.set('Обсудили #релиз и #финал');
+    component.saveEditedInspectedNote(note);
+
+    expect(editedPayloads[0].tags).toEqual(['релиз', 'финал', 'diary']);
+  });
 });

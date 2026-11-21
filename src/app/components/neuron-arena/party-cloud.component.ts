@@ -15,6 +15,19 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { combineLatest } from 'rxjs';
 import { ModalOverlayDirective } from '../../core/directives/modal-overlay.directive';
 import {
+  HashtagMultiselectComponent,
+  HashtagSelectOption,
+} from '../../core/components/hashtag-multiselect.component';
+import { HashtagTextComponent } from '../../core/components/hashtag-text.component';
+import {
+  appendHashtagToText,
+  applyHashtagAutocomplete,
+  collectHashtagCounts,
+  getTrailingHashtagPrefix,
+  mergeNoteTags,
+  noteHasTag,
+} from '../../core/utils/hashtag.utils';
+import {
   ArenaAccentColor,
   ArenaActorCard,
   ArenaDesireCard,
@@ -165,6 +178,8 @@ const LEGACY_STORAGE_DAY_VIBE_KEY = 'lemon-party:day-vibe';
     ModalOverlayDirective,
     ArenaHeroNotesModalComponent,
     CloudThemedSelectComponent,
+    HashtagMultiselectComponent,
+    HashtagTextComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
@@ -472,6 +487,42 @@ const LEGACY_STORAGE_DAY_VIBE_KEY = 'lemon-party:day-vibe';
           </div>
         </div>
 
+        <!-- Hashtag Filter Bar -->
+        @if (cloudHashtagCounts().length > 0 || selectedTagFilter()) {
+          <div class="flex items-center gap-1.5 flex-wrap px-2.5 py-1.5 rounded-2xl bg-surface-container-low/70 border border-outline-variant/25">
+            <span class="text-[11px] font-bold text-on-surface-variant inline-flex items-center gap-1 mr-0.5">
+              <span class="text-primary font-mono">#</span>
+              <span>Хештеги:</span>
+            </span>
+            @for (item of cloudHashtagCounts(); track item.tag) {
+              <button
+                type="button"
+                (click)="toggleTagFilter(item.tag)"
+                class="px-2 py-0.5 rounded-full text-[10px] font-mono border transition-colors cursor-pointer inline-flex items-center gap-1"
+                [class]="
+                  selectedTagFilter() === item.tag
+                    ? 'bg-primary text-on-primary border-primary font-bold shadow-2xs'
+                    : 'bg-surface-container-lowest hover:bg-primary/10 text-on-surface-variant hover:text-primary border-outline-variant/35'
+                "
+                [title]="'Фильтровать по хештегу #' + item.tag"
+              >
+                <span>#{{ item.tag }}</span>
+                <span class="opacity-75">{{ item.count }}</span>
+              </button>
+            }
+            @if (selectedTagFilter()) {
+              <button
+                type="button"
+                (click)="selectedTagFilter.set(null)"
+                class="ml-auto px-2 py-0.5 rounded-full bg-surface-container-high hover:bg-surface-container-highest text-[10px] font-bold text-on-surface-variant cursor-pointer inline-flex items-center gap-0.5"
+              >
+                <span class="material-symbols-rounded text-xs">close</span>
+                <span>Сбросить</span>
+              </button>
+            }
+          </div>
+        }
+
         <!-- FOCUSED CHARACTER CLOUD WORKSPACE CALLOUT BANNER -->
         @if (filteredActor(); as fActor) {
           <div class="p-2.5 sm:p-3 rounded-2xl bg-primary-container/20 border border-primary/30 flex items-center justify-between gap-3 flex-wrap">
@@ -740,8 +791,32 @@ const LEGACY_STORAGE_DAY_VIBE_KEY = 'lemon-party:day-vibe';
 
                         <!-- Thought Text -->
                         <p class="text-xs font-body-sm text-on-surface leading-snug line-clamp-3 italic min-h-[2.5rem]">
-                          «{{ note.text }}»
+                          «<app-hashtag-text [text]="note.text" [activeTag]="selectedTagFilter()" (hashtagClick)="toggleTagFilter($event)" />»
                         </p>
+
+                        @if (getDisplayTags(note); as displayTags) {
+                          @if (displayTags.length > 0) {
+                            <div class="flex items-center gap-1 flex-wrap mt-1" (click)="$event.stopPropagation()">
+                              @for (tag of displayTags.slice(0, 2); track tag) {
+                                <button
+                                  type="button"
+                                  (click)="onTagChipClick(tag, $event)"
+                                  class="text-[9px] font-mono px-1.5 py-0.2 rounded-full transition-colors cursor-pointer"
+                                  [class]="
+                                    selectedTagFilter() === tag
+                                      ? 'bg-primary text-on-primary font-bold'
+                                      : 'bg-primary/10 text-primary hover:bg-primary/20'
+                                  "
+                                >
+                                  #{{ tag }}
+                                </button>
+                              }
+                              @if (displayTags.length > 2) {
+                                <span class="text-[9px] font-mono text-outline">+{{ displayTags.length - 2 }}</span>
+                              }
+                            </div>
+                          }
+                        }
 
                         <!-- Cross-Timeline Child Node Preview Card (Link to Parallel TimeLine Board) -->
                         @if (note.crossRefs && note.crossRefs.length > 0) {
@@ -1072,8 +1147,29 @@ const LEGACY_STORAGE_DAY_VIBE_KEY = 'lemon-party:day-vibe';
                           }
 
                           <p class="text-xs font-body-sm text-on-surface italic leading-snug">
-                            «{{ note.text }}»
+                            «<app-hashtag-text [text]="note.text" [activeTag]="selectedTagFilter()" (hashtagClick)="toggleTagFilter($event)" />»
                           </p>
+
+                          @if (getDisplayTags(note); as displayTags) {
+                            @if (displayTags.length > 0) {
+                              <div class="flex items-center gap-1 flex-wrap" (click)="$event.stopPropagation()">
+                                @for (tag of displayTags; track tag) {
+                                  <button
+                                    type="button"
+                                    (click)="onTagChipClick(tag, $event)"
+                                    class="text-[9px] font-mono px-1.5 py-0.2 rounded-full transition-colors cursor-pointer"
+                                    [class]="
+                                      selectedTagFilter() === tag
+                                        ? 'bg-primary text-on-primary font-bold'
+                                        : 'bg-primary/10 text-primary hover:bg-primary/20'
+                                    "
+                                  >
+                                    #{{ tag }}
+                                  </button>
+                                }
+                              </div>
+                            }
+                          }
 
                           <!-- Cross-Timeline Child Node Preview in Day Feed -->
                           @if (note.crossRefs && note.crossRefs.length > 0) {
@@ -1509,15 +1605,53 @@ const LEGACY_STORAGE_DAY_VIBE_KEY = 'lemon-party:day-vibe';
           </div>
         }
 
-        <!-- Row 2: Calm Spacious Input & Primary Submit -->
-        <div class="flex items-center gap-2">
+        @if (composerAutocompleteTags().length > 0 || composerPreviewTags().length > 0) {
+          <div class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/5 border border-primary/20 text-[11px] flex-wrap">
+            @if (composerPreviewTags().length > 0) {
+              <span class="font-mono font-bold text-primary">Хештеги:</span>
+              @for (tag of composerPreviewTags(); track tag) {
+                <span class="px-2 py-0.5 rounded-full bg-primary/15 text-primary font-mono text-[10px] font-bold">
+                  #{{ tag }}
+                </span>
+              }
+            }
+            @if (composerAutocompleteTags().length > 0) {
+              <span class="font-mono text-outline ml-1">Подсказка:</span>
+              @for (sug of composerAutocompleteTags(); track sug) {
+                <button
+                  type="button"
+                  (click)="applyComposerAutocomplete(sug)"
+                  class="px-2 py-0.5 rounded-full bg-surface-container-lowest hover:bg-primary/15 border border-primary/30 text-primary font-mono text-[10px] font-semibold cursor-pointer"
+                >
+                  #{{ sug }}
+                </button>
+              }
+            }
+          </div>
+        }
+
+        <!-- Row 2: Calm Spacious Input, Hashtags Multiselect & Primary Submit -->
+        <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <input
             type="text"
             [(ngModel)]="newIdeaTitle"
             (keyup.enter)="submitNoteOrIdea()"
             [placeholder]="inputPlaceholder()"
-            class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl bg-surface-container-low/55 hover:bg-surface-container-low/80 focus:bg-surface-container-lowest border border-outline-variant/25 focus:border-primary/45 text-[13px] text-on-surface focus:outline-none placeholder:text-on-surface-variant/70 transition-colors"
+            class="flex-1 min-w-[200px] px-3.5 py-2.5 rounded-xl bg-surface-container-low/55 hover:bg-surface-container-low/80 focus:bg-surface-container-lowest border border-outline-variant/25 focus:border-primary/45 text-[13px] text-on-surface focus:outline-none placeholder:text-on-surface-variant/70 transition-colors"
           />
+
+          <div class="w-full sm:w-60 flex-shrink-0">
+            <app-hashtag-multiselect
+              [options]="composerHashtagOptions()"
+              [selectedTags]="composerSelectedTags()"
+              (selectedTagsChange)="composerSelectedTags.set($event)"
+              placement="up"
+              align="right"
+              placeholder="#Хештеги..."
+              searchPlaceholder="Поиск или новый #тег..."
+              ariaLabel="Выбор хештегов для сообщения"
+            />
+          </div>
 
           <button
             type="button"
@@ -1859,8 +1993,28 @@ const LEGACY_STORAGE_DAY_VIBE_KEY = 'lemon-party:day-vibe';
                 <span class="text-lg">{{ note.moodEmoji }}</span>
               </div>
               <p class="font-body-lg text-sm sm:text-base text-on-surface italic leading-relaxed whitespace-pre-wrap select-text">
-                «{{ note.text }}»
+                «<app-hashtag-text [text]="note.text" [activeTag]="selectedTagFilter()" (hashtagClick)="onModalTagClick($event)" />»
               </p>
+              @if (getDisplayTags(note); as displayTags) {
+                @if (displayTags.length > 0) {
+                  <div class="flex flex-wrap gap-1.5 pt-1">
+                    @for (tag of displayTags; track tag) {
+                      <button
+                        type="button"
+                        (click)="onModalTagClick(tag)"
+                        class="text-[11px] font-mono px-2 py-0.5 rounded-full transition-colors cursor-pointer"
+                        [class]="
+                          selectedTagFilter() === tag
+                            ? 'bg-primary text-on-primary font-bold'
+                            : 'bg-primary/10 text-primary hover:bg-primary/20 font-semibold'
+                        "
+                      >
+                        #{{ tag }}
+                      </button>
+                    }
+                  </div>
+                }
+              }
             </div>
 
             <!-- Cross-Timeline Links Preview in Inspect Modal -->
@@ -2596,11 +2750,13 @@ export class PartyCloudComponent {
 
   // Character Focus in Cloud & Personal Workspace
   readonly selectedActorFilter = signal<string | null>(null);
+  readonly selectedTagFilter = signal<string | null>(null);
   readonly selectedActorForWorkspace = signal<ArenaActorCard | null>(null);
 
-  // Composer Popovers (Presets & Party Mentions)
+  // Composer Popovers (Presets & Party Mentions) & Multiselect Hashtags
   readonly activeComposerPopover = signal<'PRESETS' | 'PARTY' | null>(null);
   readonly partySearchQuery = signal<string>('');
+  readonly composerSelectedTags = signal<string[]>([]);
 
   readonly filteredPartyActors = computed<ArenaActorCard[]>(() => {
     const activeId = this.activePitchActor()?.id;
@@ -2875,6 +3031,36 @@ export class PartyCloudComponent {
     return key;
   });
 
+  readonly cloudHashtagCounts = computed(() => collectHashtagCounts(this.activeDateNotes()));
+
+  readonly composerHashtagOptions = computed<HashtagSelectOption[]>(() => {
+    const map = new Map<string, number | undefined>();
+    for (const item of this.cloudHashtagCounts()) {
+      map.set(item.tag, item.count);
+    }
+    for (const def of ['идея', 'пати', 'чилл', 'важно']) {
+      if (!map.has(def)) map.set(def, undefined);
+    }
+    return Array.from(map.entries()).map(([tag, count]) => ({ tag, count }));
+  });
+
+  readonly composerPreviewTags = computed<string[]>(() =>
+    mergeNoteTags(this.newIdeaTitle(), this.composerSelectedTags()),
+  );
+
+  readonly quickComposerHashtags = computed<string[]>(() => {
+    const existing = this.cloudHashtagCounts().map((i) => i.tag);
+    return Array.from(new Set([...existing, 'идея', 'пати', 'чилл', 'важно'])).slice(0, 8);
+  });
+
+  readonly composerAutocompleteTags = computed<string[]>(() => {
+    const prefix = getTrailingHashtagPrefix(this.newIdeaTitle());
+    if (prefix === null) return [];
+    return this.quickComposerHashtags()
+      .filter((tag) => !prefix || tag.startsWith(prefix))
+      .slice(0, 6);
+  });
+
   readonly visibleNotes = computed<CloudDayNote[]>(() => {
     let notes = this.activeDateNotes();
     const actorId = this.selectedActorFilter();
@@ -2885,6 +3071,10 @@ export class PartyCloudComponent {
           n.subActorId === actorId ||
           (n.partyActorIds?.includes(actorId) ?? false),
       );
+    }
+    const tagFilter = this.selectedTagFilter();
+    if (tagFilter) {
+      notes = notes.filter((n) => noteHasTag(n, tagFilter));
     }
     const layer = this.activeLayer();
     if (layer === 'ALL') return notes;
@@ -3331,6 +3521,8 @@ export class PartyCloudComponent {
       ];
     }
 
+    const tags = mergeNoteTags(text, this.composerSelectedTags());
+
     const newNote: CloudDayNote = {
       id: `note-${Date.now()}`,
       boardId: currentBoardId,
@@ -3351,6 +3543,7 @@ export class PartyCloudComponent {
       replyToAuthorName,
       replyToTextSnippet,
       text,
+      tags,
       supporters: Array.from(supporters),
       votesCount: supporters.size,
       moodEmoji: type === 'thought' ? '💭' : type === 'proposal' ? '💡' : '⚡',
@@ -3374,6 +3567,7 @@ export class PartyCloudComponent {
     this.arena.addCloudNote(newNote);
 
     this.newIdeaTitle.set('');
+    this.composerSelectedTags.set([]);
     this.activeSubActor.set(null);
     this.replyingToNote.set(null);
     this.spawnChildCodingNode.set(false);
@@ -3723,6 +3917,33 @@ export class PartyCloudComponent {
   closeComposerPopover(): void {
     this.activeComposerPopover.set(null);
     this.partySearchQuery.set('');
+  }
+
+  toggleTagFilter(tag: string): void {
+    this.selectedTagFilter.update((curr) => (curr === tag ? null : tag));
+    this.sound.playClick();
+  }
+
+  getDisplayTags(note: CloudDayNote): string[] {
+    return mergeNoteTags(note.text || '', note.tags);
+  }
+
+  onTagChipClick(tag: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.toggleTagFilter(tag);
+  }
+
+  onModalTagClick(tag: string): void {
+    this.closeInspectModal();
+    this.toggleTagFilter(tag);
+  }
+
+  insertComposerHashtag(tag: string): void {
+    this.newIdeaTitle.update((curr) => appendHashtagToText(curr, tag));
+  }
+
+  applyComposerAutocomplete(tag: string): void {
+    this.newIdeaTitle.update((curr) => applyHashtagAutocomplete(curr, tag));
   }
 
   selectQuickPresetFromPopover(preset: IdeaPitchPreset): void {

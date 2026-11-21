@@ -70,4 +70,51 @@ describe('TimelinesWorkspaceComponent', () => {
     fixture.detectChanges();
     expect(compiled.querySelector('app-timeline-cloud-view')).toBeNull();
   });
+
+  it('should extract inline hashtags on submit and filter notes by hashtag', () => {
+    component.composerText.set('Новая заметка с #Идея и #Релиз');
+    component.composerSelectedTags.set(['diary', 'идея']);
+    expect(component.composerPreviewTags()).toEqual(['идея', 'релиз', 'diary']);
+
+    component.submitEntry();
+    const createReqs = httpMock.match((req) => req.method === 'POST' && req.url.includes('/timelines/notes'));
+    expect(createReqs.length).toBe(1);
+    expect(createReqs[0].request.body.tags).toEqual(['идея', 'релиз', 'diary']);
+    createReqs[0].flush(createReqs[0].request.body);
+    fixture.detectChanges();
+
+    expect(component.boardHashtagCounts().map((i) => i.tag)).toContain('релиз');
+
+    component.toggleTagFilter('релиз');
+    expect(component.visibleNotes().length).toBe(1);
+
+    component.toggleTagFilter('несуществующий');
+    expect(component.visibleNotes().length).toBe(0);
+  });
+
+  it('should support board-level hashtags on TimeLine creation and filtering', () => {
+    component.handleCreateBoard({
+      title: 'Проектный Борд',
+      description: 'Задачи по #Релиз',
+      hashtags: ['архитектура', '#релиз'],
+      boardMode: 'TIMELINE',
+      privacy: 'PUBLIC',
+      defaultActorId: 'actor-alexey',
+      seasonsFeedSlug: 'universe-project',
+      memberProfileIds: [],
+    });
+
+    const createBoardReqs = httpMock.match(
+      (req) => req.method === 'POST' && req.url.includes('/timelines/boards'),
+    );
+    expect(createBoardReqs.length).toBe(1);
+    expect(createBoardReqs[0].request.body.hashtags).toEqual(['релиз', 'архитектура']);
+    createBoardReqs[0].flush(createBoardReqs[0].request.body);
+    fixture.detectChanges();
+
+    expect(component.allBoardHashtags().map((i) => i.tag)).toContain('архитектура');
+    component.toggleBoardHashtagFilter('архитектура');
+    expect(component.filteredBoards().length).toBe(1);
+    expect(component.filteredBoards()[0].title).toBe('Проектный Борд');
+  });
 });

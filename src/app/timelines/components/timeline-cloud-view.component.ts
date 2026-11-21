@@ -18,12 +18,24 @@ import {
   groupNotesIntoClusters,
 } from '../../components/neuron-arena/cloud-timeline.utils';
 import { ModalOverlayDirective } from '../../core/directives/modal-overlay.directive';
+import {
+  HashtagMultiselectComponent,
+  HashtagSelectOption,
+} from '../../core/components/hashtag-multiselect.component';
+import { HashtagTextComponent } from '../../core/components/hashtag-text.component';
 import { CloudDayNote, TimelineBoard, TimelineNodeCrossRef } from '../../core/models/flow.models';
+import { getExtraTagsNotInText, mergeNoteTags } from '../../core/utils/hashtag.utils';
 
 @Component({
   selector: 'app-timeline-cloud-view',
   standalone: true,
-  imports: [ActorAvatarComponent, FormsModule, ModalOverlayDirective],
+  imports: [
+    ActorAvatarComponent,
+    FormsModule,
+    ModalOverlayDirective,
+    HashtagMultiselectComponent,
+    HashtagTextComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
@@ -271,7 +283,7 @@ import { CloudDayNote, TimelineBoard, TimelineNodeCrossRef } from '../../core/mo
 
                     <!-- Message Text -->
                     <p class="text-xs font-body-sm text-on-surface leading-snug line-clamp-3 italic min-h-[2.4rem]">
-                      «{{ note.text }}»
+                      «<app-hashtag-text [text]="note.text" [activeTag]="activeTagFilter()" (hashtagClick)="tagClick.emit($event)" />»
                     </p>
 
                     <!-- Media Preview Strip -->
@@ -313,8 +325,29 @@ import { CloudDayNote, TimelineBoard, TimelineNodeCrossRef } from '../../core/mo
                             <span>Seasons</span>
                           </span>
                         }
-                        @if (note.tags && note.tags.length > 0) {
-                          <span class="text-[9px] font-mono text-outline truncate">#{{ note.tags[0] }}</span>
+                        @if (getDisplayTags(note); as displayTags) {
+                          @if (displayTags.length > 0) {
+                            <div class="flex items-center gap-1 min-w-0 flex-wrap" (click)="$event.stopPropagation()">
+                              @for (tag of displayTags.slice(0, 2); track tag) {
+                                <button
+                                  type="button"
+                                  (click)="onTagChipClick(tag, $event)"
+                                  class="text-[9px] font-mono px-1.5 py-0.2 rounded-full transition-colors cursor-pointer truncate max-w-[90px]"
+                                  [class]="
+                                    activeTagFilter() === tag
+                                      ? 'bg-primary text-on-primary font-bold'
+                                      : 'bg-primary/10 text-primary hover:bg-primary/20'
+                                  "
+                                  [title]="'Фильтровать по хештегу #' + tag"
+                                >
+                                  #{{ tag }}
+                                </button>
+                              }
+                              @if (displayTags.length > 2) {
+                                <span class="text-[9px] font-mono text-outline">+{{ displayTags.length - 2 }}</span>
+                              }
+                            </div>
+                          }
                         }
                       </div>
 
@@ -591,11 +624,30 @@ import { CloudDayNote, TimelineBoard, TimelineNodeCrossRef } from '../../core/mo
                   class="w-full px-3 py-1.5 rounded-lg bg-surface-container-lowest border border-outline-variant/40 text-xs font-semibold text-on-surface"
                 />
                 <textarea
-                  [(ngModel)]="editTextDraft"
+                  [ngModel]="editTextDraft()"
+                  (ngModelChange)="editTextDraft.set($event)"
                   rows="4"
-                  placeholder="Текст сообщения..."
+                  placeholder="Текст сообщения... (можно писать #хештеги)"
                   class="w-full px-3 py-2 rounded-lg bg-surface-container-lowest border border-outline-variant/40 text-[13px] text-on-surface leading-snug resize-y"
                 ></textarea>
+                <app-hashtag-multiselect
+                  [options]="hashtagOptions()"
+                  [selectedTags]="editSelectedTags()"
+                  (selectedTagsChange)="editSelectedTags.set($event)"
+                  placeholder="Доп. #хештеги..."
+                  searchPlaceholder="Поиск или новый #хештег..."
+                  ariaLabel="Редактирование хештегов сообщения"
+                />
+                @if (editPreviewTags().length > 0) {
+                  <div class="flex flex-wrap items-center gap-1">
+                    <span class="text-[10px] font-mono text-outline">Хештеги:</span>
+                    @for (tag of editPreviewTags(); track tag) {
+                      <span class="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-semibold">
+                        #{{ tag }}
+                      </span>
+                    }
+                  </div>
+                }
                 <div class="flex items-center justify-end gap-2">
                   <button
                     type="button"
@@ -607,7 +659,7 @@ import { CloudDayNote, TimelineBoard, TimelineNodeCrossRef } from '../../core/mo
                   <button
                     type="button"
                     (click)="saveEditedInspectedNote(note)"
-                    [disabled]="!editTextDraft.trim()"
+                    [disabled]="!editTextDraft().trim()"
                     class="px-3 py-1 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-50 text-on-primary text-[11px] font-bold cursor-pointer"
                   >
                     Сохранить
@@ -619,7 +671,9 @@ import { CloudDayNote, TimelineBoard, TimelineNodeCrossRef } from '../../core/mo
                 <h3 class="text-xs font-bold text-primary">{{ note.title }}</h3>
               }
 
-              <p class="text-[13px] text-on-surface leading-snug whitespace-pre-line">{{ note.text }}</p>
+              <p class="text-[13px] text-on-surface leading-snug whitespace-pre-line">
+                <app-hashtag-text [text]="note.text" [activeTag]="activeTagFilter()" (hashtagClick)="onModalTagClick($event)" />
+              </p>
             }
 
             @if (note.mediaAttachments && note.mediaAttachments.length > 0) {
@@ -644,14 +698,26 @@ import { CloudDayNote, TimelineBoard, TimelineNodeCrossRef } from '../../core/mo
               </div>
             }
 
-            @if (note.tags && note.tags.length > 0) {
-              <div class="flex flex-wrap gap-1">
-                @for (tag of note.tags; track tag) {
-                  <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant">
-                    #{{ tag }}
-                  </span>
-                }
-              </div>
+            @if (getDisplayTags(note); as displayTags) {
+              @if (displayTags.length > 0) {
+                <div class="flex flex-wrap gap-1">
+                  @for (tag of displayTags; track tag) {
+                    <button
+                      type="button"
+                      (click)="onModalTagClick(tag)"
+                      class="text-[10px] font-mono px-2 py-0.5 rounded-full transition-colors cursor-pointer"
+                      [class]="
+                        activeTagFilter() === tag
+                          ? 'bg-primary text-on-primary font-bold'
+                          : 'bg-primary/10 text-primary hover:bg-primary/20 font-semibold'
+                      "
+                      [title]="'Фильтровать по хештегу #' + tag"
+                    >
+                      #{{ tag }}
+                    </button>
+                  }
+                </div>
+              }
             }
 
             @if (note.crossRefs && note.crossRefs.length > 0) {
@@ -727,12 +793,15 @@ export class TimelineCloudViewComponent {
   readonly selectedDateKey = input.required<string>();
   readonly showAllDates = input<boolean>(false);
   readonly canPost = input<boolean>(false);
+  readonly activeTagFilter = input<string | null>(null);
+  readonly hashtagOptions = input<HashtagSelectOption[]>([]);
 
   readonly timeSelected = output<string>();
   readonly deleteNote = output<string>();
-  readonly editNote = output<{ noteId: string; title?: string; text: string }>();
+  readonly editNote = output<{ noteId: string; title?: string; text: string; tags?: string[] }>();
   readonly crossLinkNote = output<CloudDayNote>();
   readonly jumpToCrossRef = output<TimelineNodeCrossRef>();
+  readonly tagClick = output<string>();
 
   protected readonly hourMilestones = CLOUD_HOUR_MILESTONES;
   protected readonly vibes = CLOUD_DAY_VIBES;
@@ -768,7 +837,11 @@ export class TimelineCloudViewComponent {
   readonly inspectedNote = signal<CloudDayNote | null>(null);
   readonly isEditingInspectedNote = signal<boolean>(false);
   editTitleDraft = '';
-  editTextDraft = '';
+  readonly editTextDraft = signal<string>('');
+  readonly editSelectedTags = signal<string[]>([]);
+  readonly editPreviewTags = computed<string[]>(() =>
+    mergeNoteTags(this.editTextDraft(), this.editSelectedTags()),
+  );
 
   readonly currentVibe = computed<CloudDayVibe>(
     () => this.vibes.find((v) => v.id === this.selectedVibeId()) ?? this.vibes[0],
@@ -872,31 +945,50 @@ export class TimelineCloudViewComponent {
 
   startEditInspectedNote(note: CloudDayNote): void {
     this.editTitleDraft = note.title || '';
-    this.editTextDraft = note.text || '';
+    this.editTextDraft.set(note.text || '');
+    this.editSelectedTags.set(getExtraTagsNotInText(note.text || '', note.tags));
     this.isEditingInspectedNote.set(true);
   }
 
   cancelEditInspectedNote(): void {
     this.isEditingInspectedNote.set(false);
     this.editTitleDraft = '';
-    this.editTextDraft = '';
+    this.editTextDraft.set('');
+    this.editSelectedTags.set([]);
   }
 
   saveEditedInspectedNote(note: CloudDayNote): void {
-    const nextText = this.editTextDraft.trim();
+    const nextText = this.editTextDraft().trim();
     if (!nextText) return;
     const nextTitle = this.editTitleDraft.trim() || undefined;
+    const mergedTags = mergeNoteTags(nextText, this.editSelectedTags());
     this.editNote.emit({
       noteId: note.id,
       title: nextTitle,
       text: nextText,
+      tags: mergedTags,
     });
     this.inspectedNote.set({
       ...note,
       title: nextTitle,
       text: nextText,
+      tags: mergedTags,
     });
     this.cancelEditInspectedNote();
+  }
+
+  getDisplayTags(note: CloudDayNote): string[] {
+    return mergeNoteTags(note.text || '', note.tags);
+  }
+
+  onTagChipClick(tag: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.tagClick.emit(tag);
+  }
+
+  onModalTagClick(tag: string): void {
+    this.closeInspectModal();
+    this.tagClick.emit(tag);
   }
 
   getInspectedNoteCluster(): TimelineCluster | null {

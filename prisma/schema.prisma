@@ -223,6 +223,7 @@ model TimelineBoard {
   slug              String            @unique
   title             String
   description       String?
+  hashtags          String[]          @default([])
   icon              String            @default("cloud")
   colorTheme        String            @default("amber") @map("color_theme")
   vibeId            String            @default("CHRONO_DAYFLOW") @map("vibe_id")

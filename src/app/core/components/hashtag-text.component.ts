@@ -1,0 +1,54 @@
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { TextHashtagSegment, tokenizeTextWithHashtags } from '../utils/hashtag.utils';
+
+@Component({
+  selector: 'app-hashtag-text',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  styles: [
+    `
+      :host {
+        display: inline;
+      }
+    `,
+  ],
+  template: `
+    @for (seg of segments(); track $index) {
+      @if (seg.kind === 'hashtag' && seg.tag) {
+        @if (interactive()) {
+          <button
+            type="button"
+            (click)="onHashtagClick(seg.tag, $event)"
+            class="inline font-semibold rounded px-1 py-0.2 transition-colors cursor-pointer align-baseline"
+            [class]="
+              activeTag() === seg.tag
+                ? 'bg-primary text-on-primary shadow-2xs'
+                : 'text-primary bg-primary/10 hover:bg-primary/20'
+            "
+            [title]="'Фильтровать по хештегу #' + seg.tag"
+          >{{ seg.value }}</button>
+        } @else {
+          <span class="font-semibold text-primary">{{ seg.value }}</span>
+        }
+      } @else {
+        <span>{{ seg.value }}</span>
+      }
+    }
+  `,
+})
+export class HashtagTextComponent {
+  readonly text = input.required<string>();
+  readonly activeTag = input<string | null>(null);
+  readonly interactive = input<boolean>(true);
+
+  readonly hashtagClick = output<string>();
+
+  readonly segments = computed<TextHashtagSegment[]>(() =>
+    tokenizeTextWithHashtags(this.text() || ''),
+  );
+
+  onHashtagClick(tag: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.hashtagClick.emit(tag);
+  }
+}

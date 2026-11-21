@@ -680,4 +680,23 @@ describe('PartyCloudComponent', () => {
       expect(component.activeComposerPopover()).toBeNull();
     }
   });
+
+  it('should extract hashtags from message text and multiselect and filter notes by hashtag', () => {
+    component.newIdeaTitle.set('Берём пиццу #пятница #Еда');
+    component.composerSelectedTags.set(['вечеринка', 'еда']);
+    expect(component.composerPreviewTags()).toEqual(['пятница', 'еда', 'вечеринка']);
+
+    component.submitNoteOrIdea();
+    const created = component
+      .activeDateNotes()
+      .find((n) => n.text === 'Берём пиццу #пятница #Еда');
+    expect(created).toBeDefined();
+    expect(created?.tags).toEqual(['пятница', 'еда', 'вечеринка']);
+
+    component.toggleTagFilter('пятница');
+    expect(component.visibleNotes().some((n) => n.id === created?.id)).toBeTrue();
+
+    component.toggleTagFilter('несбыточный_тег');
+    expect(component.visibleNotes().length).toBe(0);
+  });
 });

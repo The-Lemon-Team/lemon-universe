@@ -595,6 +595,7 @@ export interface TimelineBoard {
   slug: string;
   title: string;
   description: string;
+  hashtags?: string[];
   icon: string;
   colorTheme: ArenaAccentColor;
   vibeId?: string;

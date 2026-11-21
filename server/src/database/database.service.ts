@@ -60,7 +60,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ADD COLUMN IF NOT EXISTS privacy "BoardPrivacy" NOT NULL DEFAULT 'PRIVATE',
         ADD COLUMN IF NOT EXISTS owner_profile_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
         ADD COLUMN IF NOT EXISTS default_actor_id TEXT,
-        ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE;
+        ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+        ADD COLUMN IF NOT EXISTS hashtags TEXT[] NOT NULL DEFAULT '{}';
     `);
 
     await this.pool.query(`

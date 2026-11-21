@@ -99,6 +99,7 @@ export class TimelinesController {
     @Query('dateKey') dateKey?: string,
     @Query('actorId') actorId?: string,
     @Query('search') search?: string,
+    @Query('tag') tag?: string,
   ) {
     return this.timelinesService.getNotes({
       profileId: this.timelinesService.resolveProfileId(headerProfileId, queryProfileId),
@@ -106,6 +107,7 @@ export class TimelinesController {
       dateKey,
       actorId,
       search,
+      tag,
     });
   }
 

@@ -10,6 +10,20 @@ import {
 } from '../../components/neuron-arena/cloud-themed-select.component';
 import { ModalOverlayDirective } from '../../core/directives/modal-overlay.directive';
 import {
+  HashtagMultiselectComponent,
+  HashtagSelectOption,
+} from '../../core/components/hashtag-multiselect.component';
+import { HashtagTextComponent } from '../../core/components/hashtag-text.component';
+import {
+  appendHashtagToText,
+  applyHashtagAutocomplete,
+  collectHashtagCounts,
+  getExtraTagsNotInText,
+  getTrailingHashtagPrefix,
+  mergeNoteTags,
+  noteHasTag,
+} from '../../core/utils/hashtag.utils';
+import {
   ArenaActorCard,
   BoardMemberRole,
   BoardPrivacy,
@@ -56,6 +70,8 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
     TimelineCrossLinkModalComponent,
     TimelineAgentSummaryModalComponent,
     TimelineCloudViewComponent,
+    HashtagMultiselectComponent,
+    HashtagTextComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -140,6 +156,13 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
             >
               <span class="material-symbols-rounded text-sm">{{ board.icon || 'timeline' }}</span>
               <span>{{ board.title }}</span>
+              @if (getBoardHashtags(board); as bTags) {
+                @if (bTags.length > 0) {
+                  <span class="text-[10px] font-mono opacity-80 hidden sm:inline">
+                    #{{ bTags[0] }}@if (bTags.length > 1) { +{{ bTags.length - 1 }} }
+                  </span>
+                }
+              }
               <span class="text-[10px] px-1 py-0.5 rounded-md bg-black/10 font-mono leading-none">
                 {{ board.privacy === 'PRIVATE' ? '🔒' : '🌐' }} {{ getBoardTotalCount(board.id) }}
               </span>
@@ -150,6 +173,37 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
             </span>
           }
         </div>
+
+        @if (allBoardHashtags().length > 0 || selectedBoardHashtag()) {
+          <div class="flex items-center gap-1.5 flex-wrap pt-1 border-t border-outline-variant/15">
+            <span class="text-[10px] font-mono font-bold text-outline mr-1"># Доски:</span>
+            @for (item of allBoardHashtags(); track item.tag) {
+              <button
+                type="button"
+                (click)="toggleBoardHashtagFilter(item.tag)"
+                class="px-2 py-0.5 rounded-full text-[10px] font-mono border transition-colors cursor-pointer inline-flex items-center gap-1"
+                [class]="
+                  selectedBoardHashtag() === item.tag
+                    ? 'bg-primary text-on-primary border-primary font-bold'
+                    : 'bg-surface-container-low hover:bg-primary/10 text-on-surface-variant hover:text-primary border-outline-variant/30'
+                "
+              >
+                <span>#{{ item.tag }}</span>
+                <span class="opacity-75">{{ item.count }}</span>
+              </button>
+            }
+            @if (selectedBoardHashtag()) {
+              <button
+                type="button"
+                (click)="selectedBoardHashtag.set(null)"
+                class="ml-auto px-2 py-0.5 rounded-full bg-surface-container-high text-[10px] font-bold text-on-surface-variant cursor-pointer inline-flex items-center gap-0.5"
+              >
+                <span class="material-symbols-rounded text-xs">close</span>
+                <span>Сбросить #{{ selectedBoardHashtag() }}</span>
+              </button>
+            }
+          </div>
+        }
       </section>
 
       <!-- 2. ACTIVE BOARD WORKSPACE -->
@@ -178,7 +232,34 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                 </span>
               </div>
               @if (board.description) {
-                <p class="text-xs text-on-surface-variant max-w-3xl">{{ board.description }}</p>
+                <p class="text-xs text-on-surface-variant max-w-3xl">
+                  <app-hashtag-text
+                    [text]="board.description"
+                    [activeTag]="selectedBoardHashtag()"
+                    (hashtagClick)="toggleBoardHashtagFilter($event)"
+                  />
+                </p>
+              }
+              @if (getBoardHashtags(board); as boardTags) {
+                @if (boardTags.length > 0) {
+                  <div class="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    @for (tag of boardTags; track tag) {
+                      <button
+                        type="button"
+                        (click)="toggleBoardHashtagFilter(tag)"
+                        class="text-[10px] font-mono px-2 py-0.5 rounded-full transition-colors cursor-pointer"
+                        [class]="
+                          selectedBoardHashtag() === tag
+                            ? 'bg-primary text-on-primary font-bold'
+                            : 'bg-primary/10 text-primary hover:bg-primary/20 font-semibold'
+                        "
+                        [title]="'Фильтровать доски по #' + tag"
+                      >
+                        #{{ tag }}
+                      </button>
+                    }
+                  </div>
+                }
               }
               <div class="flex items-center gap-3 text-[11px] font-mono text-outline flex-wrap">
                 <span>Участники (members): {{ (board.members || []).length }}</span>
@@ -355,8 +436,9 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                 <span class="material-symbols-rounded text-sm text-on-surface-variant absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">search</span>
                 <input
                   type="text"
-                  [(ngModel)]="searchQuery"
-                  placeholder="Поиск..."
+                  [ngModel]="searchQuery()"
+                  (ngModelChange)="searchQuery.set($event)"
+                  placeholder="Поиск или #тег..."
                   class="pl-8 pr-2.5 py-1 rounded-xl bg-surface-container-lowest border border-outline-variant/30 text-xs text-on-surface w-36 sm:w-44 focus:outline-none focus:border-primary/60"
                 />
               </div>
@@ -374,6 +456,47 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
             </div>
           </div>
 
+          <!-- Hashtag Filter Bar -->
+          @if (boardHashtagCounts().length > 0 || selectedTagFilter()) {
+            <div class="flex items-center gap-1.5 flex-wrap px-3 py-2 rounded-2xl bg-surface-container-low/70 border border-outline-variant/30">
+              <span class="text-[11px] font-bold text-on-surface-variant inline-flex items-center gap-1 mr-1">
+                <span class="text-primary font-mono">#</span>
+                <span>Хештеги:</span>
+              </span>
+              @for (item of boardHashtagCounts(); track item.tag) {
+                <button
+                  type="button"
+                  (click)="toggleTagFilter(item.tag)"
+                  class="px-2.5 py-0.5 rounded-full text-[11px] font-mono border transition-colors cursor-pointer inline-flex items-center gap-1"
+                  [class]="
+                    selectedTagFilter() === item.tag
+                      ? 'bg-primary text-on-primary border-primary font-bold shadow-2xs'
+                      : 'bg-surface-container-lowest hover:bg-primary/10 text-on-surface-variant hover:text-primary border-outline-variant/35'
+                  "
+                  [title]="'Фильтровать по хештегу #' + item.tag"
+                >
+                  <span>#{{ item.tag }}</span>
+                  <span
+                    class="text-[10px] opacity-75"
+                    [class.text-on-primary]="selectedTagFilter() === item.tag"
+                  >
+                    {{ item.count }}
+                  </span>
+                </button>
+              }
+              @if (selectedTagFilter()) {
+                <button
+                  type="button"
+                  (click)="selectedTagFilter.set(null)"
+                  class="ml-auto px-2 py-0.5 rounded-full bg-surface-container-high hover:bg-surface-container-highest text-[10px] font-bold text-on-surface-variant cursor-pointer inline-flex items-center gap-1"
+                >
+                  <span class="material-symbols-rounded text-xs">close</span>
+                  <span>Сбросить #{{ selectedTagFilter() }}</span>
+                </button>
+              }
+            </div>
+          }
+
           <!-- 3. COMPOSER MOVED TO BOTTOM-DOCKED ISLAND -->
 
           <!-- 4. NOTES LIST (CLOUD TIMELINE, DIARY FEED OR 24H TIMELINE) -->
@@ -384,11 +507,14 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
               [selectedDateKey]="selectedDateKey()"
               [showAllDates]="showAllDates()"
               [canPost]="canPostToActiveBoard()"
+              [activeTagFilter]="selectedTagFilter()"
+              [hashtagOptions]="composerHashtagOptions()"
               (timeSelected)="composerTime = $event"
               (deleteNote)="timelines.deleteNote($event)"
-              (editNote)="timelines.updateNote($event.noteId, { title: $event.title, text: $event.text })"
+              (editNote)="timelines.updateNote($event.noteId, { title: $event.title, text: $event.text, tags: $event.tags })"
               (crossLinkNote)="openCrossLinkModal($event)"
               (jumpToCrossRef)="jumpToCrossRef($event)"
+              (tagClick)="toggleTagFilter($event)"
             />
           } @else if (viewMode() === 'VISUAL_TIMELINE') {
             <div class="relative overflow-x-auto rounded-2xl bg-surface-container-low border border-outline-variant/30 p-4 min-h-[260px]">
@@ -404,7 +530,25 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                         <span class="text-xs font-bold">{{ note.actorName }}</span>
                         <span class="text-[10px] font-mono text-outline">{{ note.dateKey }} · {{ note.time }}</span>
                       </div>
-                      <p class="text-xs text-on-surface">{{ note.text }}</p>
+                      <p class="text-xs text-on-surface">
+                        <app-hashtag-text [text]="note.text" [activeTag]="selectedTagFilter()" (hashtagClick)="toggleTagFilter($event)" />
+                      </p>
+                      @if (getDisplayTags(note); as displayTags) {
+                        @if (displayTags.length > 0) {
+                          <div class="flex flex-wrap gap-1">
+                            @for (tag of displayTags; track tag) {
+                              <button
+                                type="button"
+                                (click)="toggleTagFilter(tag)"
+                                class="text-[10px] font-mono px-1.5 py-0.2 rounded-full cursor-pointer transition-colors"
+                                [class]="selectedTagFilter() === tag ? 'bg-primary text-on-primary font-bold' : 'bg-primary/10 text-primary hover:bg-primary/20'"
+                              >
+                                #{{ tag }}
+                              </button>
+                            }
+                          </div>
+                        }
+                      }
                     </div>
                   </div>
                 } @empty {
@@ -537,10 +681,30 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                         class="w-full px-3 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs font-semibold text-on-surface"
                       />
                       <textarea
-                        [(ngModel)]="editTextDraft"
+                        [ngModel]="editTextDraft()"
+                        (ngModelChange)="editTextDraft.set($event)"
                         rows="3"
+                        placeholder="Текст сообщения... (можно использовать #хештеги)"
                         class="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface resize-y"
                       ></textarea>
+                      <app-hashtag-multiselect
+                        [options]="composerHashtagOptions()"
+                        [selectedTags]="editSelectedTags()"
+                        (selectedTagsChange)="editSelectedTags.set($event)"
+                        placeholder="Доп. #хештеги..."
+                        searchPlaceholder="Поиск или новый #хештег..."
+                        ariaLabel="Редактирование хештегов сообщения"
+                      />
+                      @if (editPreviewTags().length > 0) {
+                        <div class="flex flex-wrap items-center gap-1">
+                          <span class="text-[10px] font-mono text-outline">Хештеги:</span>
+                          @for (tag of editPreviewTags(); track tag) {
+                            <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-primary/15 text-primary font-semibold">
+                              #{{ tag }}
+                            </span>
+                          }
+                        </div>
+                      }
                       <div class="flex items-center justify-end gap-2">
                         <button
                           type="button"
@@ -552,7 +716,7 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                         <button
                           type="button"
                           (click)="saveEditedNote(note)"
-                          [disabled]="!editTextDraft.trim()"
+                          [disabled]="!editTextDraft().trim()"
                           class="px-3 py-1 rounded-xl bg-primary text-on-primary text-xs font-bold disabled:opacity-50 cursor-pointer"
                         >
                           Сохранить
@@ -560,7 +724,9 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                       </div>
                     </div>
                   } @else {
-                    <p class="text-sm text-on-surface leading-relaxed whitespace-pre-line">{{ note.text }}</p>
+                    <p class="text-sm text-on-surface leading-relaxed whitespace-pre-line">
+                      <app-hashtag-text [text]="note.text" [activeTag]="selectedTagFilter()" (hashtagClick)="toggleTagFilter($event)" />
+                    </p>
                   }
 
                   <!-- Media Attachments -->
@@ -587,14 +753,26 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                   }
 
                   <!-- Tags -->
-                  @if (note.tags && note.tags.length > 0) {
-                    <div class="flex flex-wrap gap-1.5">
-                      @for (tag of note.tags; track tag) {
-                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-surface-container-highest text-on-surface-variant">
-                          #{{ tag }}
-                        </span>
-                      }
-                    </div>
+                  @if (getDisplayTags(note); as displayTags) {
+                    @if (displayTags.length > 0) {
+                      <div class="flex flex-wrap gap-1.5">
+                        @for (tag of displayTags; track tag) {
+                          <button
+                            type="button"
+                            (click)="toggleTagFilter(tag)"
+                            class="text-[10px] font-mono px-2 py-0.5 rounded-full transition-colors cursor-pointer"
+                            [class]="
+                              selectedTagFilter() === tag
+                                ? 'bg-primary text-on-primary font-bold'
+                                : 'bg-surface-container-highest hover:bg-primary/15 text-on-surface-variant hover:text-primary'
+                            "
+                            [title]="'Фильтровать по хештегу #' + tag"
+                          >
+                            #{{ tag }}
+                          </button>
+                        }
+                      </div>
+                    }
                   }
 
                   <!-- Cross-Timeline References -->
@@ -704,8 +882,24 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                   <div class="text-xs font-black text-on-surface">{{ pinned.title }}</div>
                 }
                 <p class="text-xs text-on-surface-variant whitespace-pre-wrap break-words leading-relaxed">
-                  {{ pinned.text }}
+                  <app-hashtag-text [text]="pinned.text" [activeTag]="selectedTagFilter()" (hashtagClick)="toggleTagFilter($event); pinnedSidebarOpen.set(false)" />
                 </p>
+                @if (getDisplayTags(pinned); as pinnedTags) {
+                  @if (pinnedTags.length > 0) {
+                    <div class="flex flex-wrap gap-1">
+                      @for (tag of pinnedTags; track tag) {
+                        <button
+                          type="button"
+                          (click)="toggleTagFilter(tag); pinnedSidebarOpen.set(false)"
+                          class="text-[10px] font-mono px-1.5 py-0.2 rounded-full cursor-pointer transition-colors"
+                          [class]="selectedTagFilter() === tag ? 'bg-primary text-on-primary font-bold' : 'bg-primary/10 text-primary hover:bg-primary/20'"
+                        >
+                          #{{ tag }}
+                        </button>
+                      }
+                    </div>
+                  }
+                }
               </div>
             }
           }
@@ -763,12 +957,46 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                       placeholder="Заголовок (опционально)..."
                       class="sm:col-span-2 px-2.5 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface"
                     />
-                    <input
-                      type="text"
-                      [(ngModel)]="composerTagsRaw"
-                      placeholder="Теги (diary, work)..."
-                      class="px-2.5 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface"
+                    <app-hashtag-multiselect
+                      [options]="composerHashtagOptions()"
+                      [selectedTags]="composerSelectedTags()"
+                      (selectedTagsChange)="composerSelectedTags.set($event)"
+                      placement="up"
+                      placeholder="Выбрать #хештеги..."
+                      searchPlaceholder="Поиск или новый #хештег..."
+                      ariaLabel="Выбор хештегов сообщения"
                     />
+                  </div>
+
+                  <!-- Live detected hashtags + quick insert chips -->
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <div class="flex items-center gap-1 flex-wrap">
+                      @if (composerPreviewTags().length > 0) {
+                        <span class="text-[10px] font-mono text-outline mr-0.5">Хештеги:</span>
+                        @for (tag of composerPreviewTags(); track tag) {
+                          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[10px] font-mono font-bold">
+                            #{{ tag }}
+                          </span>
+                        }
+                      } @else {
+                        <span class="text-[10px] font-mono text-outline">Быстро добавить #:</span>
+                      }
+                    </div>
+
+                    <div class="flex items-center gap-1 flex-wrap">
+                      @for (sug of quickComposerHashtags(); track sug) {
+                        @if (!composerPreviewTags().includes(sug)) {
+                          <button
+                            type="button"
+                            (click)="insertComposerHashtag(sug)"
+                            class="px-2 py-0.5 rounded-full bg-surface-container-low hover:bg-primary/10 border border-outline-variant/35 hover:border-primary/40 text-[10px] font-mono text-on-surface-variant hover:text-primary cursor-pointer transition-colors"
+                            [title]="'Добавить #' + sug + ' в сообщение'"
+                          >
+                            +#{{ sug }}
+                          </button>
+                        }
+                      }
+                    </div>
                   </div>
 
                   <div class="flex items-center justify-between gap-2 flex-wrap">
@@ -826,6 +1054,22 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                 </div>
               }
 
+              <!-- Inline #hashtag autocomplete dropdown -->
+              @if (composerAutocompleteTags().length > 0) {
+                <div class="flex items-center gap-1.5 flex-wrap px-2.5 py-1 rounded-xl bg-surface-container-low border border-primary/35 text-xs">
+                  <span class="text-[10px] font-mono font-bold text-primary">Подсказка #:</span>
+                  @for (sug of composerAutocompleteTags(); track sug) {
+                    <button
+                      type="button"
+                      (click)="applyComposerAutocomplete(sug)"
+                      class="px-2 py-0.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-mono font-semibold cursor-pointer transition-colors"
+                    >
+                      #{{ sug }}
+                    </button>
+                  }
+                </div>
+              }
+
               <div class="flex items-center gap-1.5 sm:gap-2">
                 <button
                   type="button"
@@ -843,10 +1087,11 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                 </span>
 
                 <textarea
-                  [(ngModel)]="composerText"
+                  [ngModel]="composerText()"
+                  (ngModelChange)="composerText.set($event)"
                   rows="1"
                   (keydown.ctrl.enter)="submitEntry()"
-                  [placeholder]="'Сообщение от «' + (activeComposerActor()?.name || 'Персонаж') + '»... (Ctrl+Enter)'"
+                  [placeholder]="'Сообщение от «' + (activeComposerActor()?.name || 'Персонаж') + '»... Пишите #хештеги прямо в тексте (Ctrl+Enter)'"
                   class="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface resize-none focus:outline-none focus:border-primary/60"
                 ></textarea>
 
@@ -866,7 +1111,7 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                 <button
                   type="button"
                   (click)="submitEntry()"
-                  [disabled]="!composerText.trim() || isUploadingMedia()"
+                  [disabled]="!composerText().trim() || isUploadingMedia()"
                   class="px-3 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-xs hover:opacity-95 disabled:opacity-45 cursor-pointer inline-flex items-center gap-1 flex-shrink-0 active:scale-[0.98]"
                 >
                   <span class="material-symbols-rounded text-base leading-none">send</span>
@@ -889,6 +1134,7 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
         [actors]="allActors()"
         [profiles]="allProfiles()"
         [activeProfileId]="activeProfile()?.id || ''"
+        [hashtagOptions]="allBoardHashtags()"
         (close)="closeBoardModal()"
         (create)="handleCreateBoard($event)"
         (save)="handleEditBoard($event)"
@@ -927,6 +1173,7 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
         [boards]="visibleBoards()"
         [actors]="allActors()"
         [profiles]="allProfiles()"
+        [hashtagOptions]="composerHashtagOptions()"
         [errorMessage]="agentSummaryError()"
         (close)="closeAgentSummaryModal()"
         (submitSummary)="handleAgentSummary($event)"
@@ -1013,7 +1260,18 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                         {{ item.privacy || 'private' }} · {{ item.type || 'SINGLE' }}
                       </span>
                     </div>
-                    <p class="text-xs text-on-surface-variant">{{ item.content || item.summary }}</p>
+                    <p class="text-xs text-on-surface-variant">
+                      <app-hashtag-text [text]="item.content || item.summary || ''" [interactive]="false" />
+                    </p>
+                    @if (item.tags?.length) {
+                      <div class="flex flex-wrap gap-1">
+                        @for (tag of item.tags; track tag) {
+                          <span class="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-primary/10 text-primary">
+                            #{{ tag }}
+                          </span>
+                        }
+                      </div>
+                    }
                   </div>
                 } @empty {
                   <div class="p-6 text-center text-xs text-outline italic">
@@ -1029,7 +1287,18 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                         {{ entry.syncedToRemote ? '✓ synced' : '⏳ local' }} · {{ entry.feedSlug }} · {{ entry.dateKey }}
                       </span>
                     </div>
-                    <p class="text-xs text-on-surface-variant">{{ entry.content }}</p>
+                    <p class="text-xs text-on-surface-variant">
+                      <app-hashtag-text [text]="entry.content" [interactive]="false" />
+                    </p>
+                    @if (entry.tags.length) {
+                      <div class="flex flex-wrap gap-1">
+                        @for (tag of entry.tags; track tag) {
+                          <span class="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-primary/10 text-primary">
+                            #{{ tag }}
+                          </span>
+                        }
+                      </div>
+                    }
                   </div>
                 }
               }
@@ -1085,6 +1354,7 @@ export class TimelinesWorkspaceComponent {
   readonly statusMessage = signal<string | null>(null);
 
   readonly boardFilter = signal<BoardFilterTab>('ALL');
+  readonly selectedBoardHashtag = signal<string | null>(null);
   readonly viewMode = signal<TimelineViewMode>('CLOUD_TIMELINE');
   readonly selectedDateKey = signal<string>(new Date().toISOString().slice(0, 10));
   readonly showAllDates = signal<boolean>(false);
@@ -1093,21 +1363,27 @@ export class TimelinesWorkspaceComponent {
     () => !this.showAllDates() && this.selectedDateKey() === new Date().toISOString().slice(0, 10),
   );
   readonly selectedActorFilter = signal<string | null>(null);
-  searchQuery = '';
+  readonly selectedTagFilter = signal<string | null>(null);
+  readonly searchQuery = signal<string>('');
 
   // Composer & Inline Edit state
   readonly selectedComposerActorId = signal<string>('actor-alexey');
   readonly composerType = signal<CloudItemType>('thought');
   composerTitle = '';
-  composerText = '';
-  composerTagsRaw = '';
+  readonly composerText = signal<string>('');
+  readonly composerSelectedTags = signal<string[]>([]);
   composerTime = this.getCurrentLocalTimeString();
   composerShareWithGroup = false;
   readonly pendingMedia = signal<TimelineMediaAttachment[]>([]);
   readonly isUploadingMedia = signal<boolean>(false);
   readonly editingNoteId = signal<string | null>(null);
   editTitleDraft = '';
-  editTextDraft = '';
+  readonly editTextDraft = signal<string>('');
+  readonly editSelectedTags = signal<string[]>([]);
+
+  readonly editPreviewTags = computed<string[]>(() =>
+    mergeNoteTags(this.editTextDraft(), this.editSelectedTags()),
+  );
 
   // Modals state
   readonly isCreateBoardOpen = signal<boolean>(false);
@@ -1120,20 +1396,69 @@ export class TimelinesWorkspaceComponent {
   readonly isPersonalFeedModalOpen = signal<boolean>(false);
   readonly seasonsModalTab = signal<'LOCAL' | 'REMOTE'>('LOCAL');
 
+  readonly allBoardHashtags = computed(() =>
+    collectHashtagCounts(
+      this.visibleBoards().map((b) => ({ text: b.description || '', tags: b.hashtags || [] })),
+    ),
+  );
+
   readonly filteredBoards = computed<TimelineBoard[]>(() => {
     const f = this.boardFilter();
-    const list = this.visibleBoards();
-    if (f === 'ALL') return list;
-    if (f === 'DIARY') return list.filter((b) => b.boardMode === 'DIARY');
-    if (f === 'AGENT_SUMMARY') return list.filter((b) => b.boardMode === 'AGENT_SUMMARY');
-    if (f === 'PRIVATE') return list.filter((b) => b.privacy === 'PRIVATE');
-    return list.filter((b) => b.privacy === 'PUBLIC');
+    const tagFilter = this.selectedBoardHashtag();
+    let list = this.visibleBoards();
+    if (f === 'DIARY') list = list.filter((b) => b.boardMode === 'DIARY');
+    else if (f === 'AGENT_SUMMARY') list = list.filter((b) => b.boardMode === 'AGENT_SUMMARY');
+    else if (f === 'PRIVATE') list = list.filter((b) => b.privacy === 'PRIVATE');
+    else if (f === 'PUBLIC') list = list.filter((b) => b.privacy === 'PUBLIC');
+
+    if (tagFilter) {
+      list = list.filter((b) =>
+        noteHasTag({ text: b.description || '', tags: b.hashtags || [] }, tagFilter),
+      );
+    }
+    return list;
   });
 
   readonly boardAllNotes = computed<CloudDayNote[]>(() => {
     const board = this.activeBoard();
     if (!board) return [];
     return this.allNotes().filter((n) => (n.boardId || 'board-global-day') === board.id);
+  });
+
+  readonly boardHashtagCounts = computed(() => collectHashtagCounts(this.boardAllNotes()));
+
+  readonly composerHashtagOptions = computed<HashtagSelectOption[]>(() => {
+    const existing = this.boardHashtagCounts();
+    const map = new Map<string, number>();
+    for (const item of existing) {
+      map.set(item.tag, item.count);
+    }
+    for (const def of ['идея', 'важно', 'дневник', 'релиз']) {
+      if (!map.has(def)) map.set(def, 0);
+    }
+    return Array.from(map.entries()).map(([tag, count]) => ({
+      tag,
+      count: count > 0 ? count : undefined,
+    }));
+  });
+
+  readonly composerPreviewTags = computed<string[]>(() =>
+    mergeNoteTags(this.composerText(), this.composerSelectedTags()),
+  );
+
+  readonly quickComposerHashtags = computed<string[]>(() => {
+    const existing = this.boardHashtagCounts().map((item) => item.tag);
+    const defaults = ['идея', 'важно', 'дневник', 'релиз'];
+    return Array.from(new Set([...existing, ...defaults])).slice(0, 6);
+  });
+
+  readonly composerAutocompleteTags = computed<string[]>(() => {
+    const prefix = getTrailingHashtagPrefix(this.composerText());
+    if (prefix === null) return [];
+    const pool = Array.from(
+      new Set([...this.boardHashtagCounts().map((i) => i.tag), 'идея', 'важно', 'дневник', 'релиз']),
+    );
+    return pool.filter((tag) => !prefix || tag.startsWith(prefix)).slice(0, 6);
   });
 
   readonly visibleNotes = computed<CloudDayNote[]>(() => {
@@ -1146,13 +1471,19 @@ export class TimelinesWorkspaceComponent {
     if (actorFilter) {
       list = list.filter((n) => n.actorId === actorFilter || n.subActorId === actorFilter);
     }
-    const q = this.searchQuery.trim().toLowerCase();
+    const tagFilter = this.selectedTagFilter();
+    if (tagFilter) {
+      list = list.filter((n) => noteHasTag(n, tagFilter));
+    }
+    const q = this.searchQuery().trim().toLowerCase();
     if (q) {
+      const tagNeedle = q.replace(/^#+/, '');
       list = list.filter(
         (n) =>
           n.text.toLowerCase().includes(q) ||
           (n.title || '').toLowerCase().includes(q) ||
-          n.actorName.toLowerCase().includes(q),
+          n.actorName.toLowerCase().includes(q) ||
+          mergeNoteTags(n.text, n.tags).some((t) => t.includes(tagNeedle)),
       );
     }
     return [...list].sort((a, b) => {
@@ -1284,8 +1615,33 @@ export class TimelinesWorkspaceComponent {
   }
 
   selectBoard(board: TimelineBoard): void {
+    this.selectedTagFilter.set(null);
     this.timelines.selectBoard(board.id);
     void this.router.navigate(['/timelines', board.slug]);
+  }
+
+  toggleTagFilter(tag: string): void {
+    this.selectedTagFilter.update((curr) => (curr === tag ? null : tag));
+  }
+
+  toggleBoardHashtagFilter(tag: string): void {
+    this.selectedBoardHashtag.update((curr) => (curr === tag ? null : tag));
+  }
+
+  getBoardHashtags(board: TimelineBoard): string[] {
+    return mergeNoteTags(board.description || '', board.hashtags || []);
+  }
+
+  getDisplayTags(note: CloudDayNote): string[] {
+    return mergeNoteTags(note.text || '', note.tags);
+  }
+
+  insertComposerHashtag(tag: string): void {
+    this.composerText.update((curr) => appendHashtagToText(curr, tag));
+  }
+
+  applyComposerAutocomplete(tag: string): void {
+    this.composerText.update((curr) => applyHashtagAutocomplete(curr, tag));
   }
 
   getBoardTotalCount(boardId: string): number {
@@ -1368,13 +1724,10 @@ export class TimelinesWorkspaceComponent {
   submitEntry(): void {
     const board = this.activeBoard();
     const actor = this.activeComposerActor();
-    const text = this.composerText.trim();
+    const text = this.composerText().trim();
     if (!board || !actor || !text) return;
 
-    const tags = this.composerTagsRaw
-      .split(',')
-      .map((t) => t.trim().replace(/^#/, ''))
-      .filter(Boolean);
+    const tags = mergeNoteTags(text, this.composerSelectedTags());
 
     const created = this.timelines.addNote({
       board,
@@ -1391,8 +1744,8 @@ export class TimelinesWorkspaceComponent {
 
     if (created) {
       this.composerTitle = '';
-      this.composerText = '';
-      this.composerTagsRaw = '';
+      this.composerText.set('');
+      this.composerSelectedTags.set([]);
       this.composerShareWithGroup = false;
       this.pendingMedia.set([]);
     }
@@ -1401,21 +1754,24 @@ export class TimelinesWorkspaceComponent {
   startEditNote(note: CloudDayNote): void {
     this.editingNoteId.set(note.id);
     this.editTitleDraft = note.title || '';
-    this.editTextDraft = note.text || '';
+    this.editTextDraft.set(note.text || '');
+    this.editSelectedTags.set(getExtraTagsNotInText(note.text || '', note.tags));
   }
 
   cancelEditNote(): void {
     this.editingNoteId.set(null);
     this.editTitleDraft = '';
-    this.editTextDraft = '';
+    this.editTextDraft.set('');
+    this.editSelectedTags.set([]);
   }
 
   saveEditedNote(note: CloudDayNote): void {
-    const nextText = this.editTextDraft.trim();
+    const nextText = this.editTextDraft().trim();
     if (!nextText) return;
     this.timelines.updateNote(note.id, {
       title: this.editTitleDraft.trim() || undefined,
       text: nextText,
+      tags: mergeNoteTags(nextText, this.editSelectedTags()),
     });
     this.cancelEditNote();
   }

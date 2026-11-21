@@ -19,6 +19,7 @@ export interface TimelineBoardSyncTarget {
   slug: string;
   title: string;
   description?: string | null;
+  hashtags?: string[];
   icon?: string;
   privacy: BoardPrivacy;
   boardKind: string;
@@ -194,6 +195,15 @@ export class SeasonsBridgeService {
     const privacy = board.privacy === 'PUBLIC' ? 'public' : 'private';
     const ctx = await this.resolveAccountContext(board.ownerProfileId);
 
+    const boardHashtags = Array.from(
+      new Set([
+        'lemon-universe',
+        `board:${board.slug}`,
+        `mode:${board.boardMode.toLowerCase()}`,
+        ...(Array.isArray(board.hashtags) ? board.hashtags : []),
+      ]),
+    );
+
     try {
       if (!this.ensuredStreams.has(`${streamSlug}:${privacy}`)) {
         await ctx.bridge.ensureTopology({
@@ -205,11 +215,7 @@ export class SeasonsBridgeService {
               title: board.title,
               icon: board.icon || 'timeline',
               privacy,
-              hashtags: [
-                'lemon-universe',
-                `board:${board.slug}`,
-                `mode:${board.boardMode.toLowerCase()}`,
-              ],
+              hashtags: boardHashtags,
             },
           ],
         });
@@ -221,7 +227,7 @@ export class SeasonsBridgeService {
           description: board.description || undefined,
           icon: board.icon || 'timeline',
           privacy,
-          hashtags: ['lemon-universe', `board:${board.slug}`],
+          hashtags: boardHashtags,
         });
       }
     } catch (err) {

@@ -137,6 +137,7 @@ CREATE TABLE IF NOT EXISTS timeline_boards (
   slug TEXT UNIQUE NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
+  hashtags TEXT[] NOT NULL DEFAULT '{}',
   icon TEXT NOT NULL DEFAULT 'cloud',
   color_theme TEXT NOT NULL DEFAULT 'amber',
   vibe_id TEXT NOT NULL DEFAULT 'CHRONO_DAYFLOW',

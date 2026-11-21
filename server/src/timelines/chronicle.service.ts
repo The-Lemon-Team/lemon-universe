@@ -12,6 +12,7 @@ import {
 } from './chronicle.mapper';
 import { ProjectariumLinksService } from './projectarium-links.service';
 import { linkAllows } from './projectarium-link.token';
+import { mergeNoteTags } from './hashtag.utils';
 
 export interface ChronicleFeedQuery {
   boardId?: string;
@@ -126,15 +127,13 @@ export class ChronicleService {
     const time = iso.slice(11, 16);
     const [hh, mm] = time.split(':').map(Number);
     const id = `note-prj-${crypto.randomUUID()}`;
-    const tags = Array.from(
-      new Set([
-        'projectarium',
-        `stand:${link.standSlug}`,
-        ...(dto.scope === 'APP' && dto.targetAppName ? [`app:${dto.targetAppName}`] : []),
-        ...tagsFromType(dto.type),
-        ...(Array.isArray(dto.tags) ? dto.tags : []),
-      ]),
-    );
+    const tags = mergeNoteTags(dto.description, [
+      'projectarium',
+      `stand:${link.standSlug}`,
+      ...(dto.scope === 'APP' && dto.targetAppName ? [`app:${dto.targetAppName}`] : []),
+      ...tagsFromType(dto.type),
+      ...(Array.isArray(dto.tags) ? dto.tags : []),
+    ]);
 
     await this.db.query(
       `

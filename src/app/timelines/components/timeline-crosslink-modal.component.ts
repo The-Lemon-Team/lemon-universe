@@ -1,13 +1,15 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActorAvatarComponent } from '../../components/neuron-arena/actor-avatar.component';
+import { HashtagTextComponent } from '../../core/components/hashtag-text.component';
 import { ModalOverlayDirective } from '../../core/directives/modal-overlay.directive';
 import { CloudDayNote, TimelineBoard } from '../../core/models/flow.models';
+import { mergeNoteTags } from '../../core/utils/hashtag.utils';
 
 @Component({
   selector: 'app-timeline-crosslink-modal',
   standalone: true,
-  imports: [FormsModule, ModalOverlayDirective, ActorAvatarComponent],
+  imports: [FormsModule, ModalOverlayDirective, ActorAvatarComponent, HashtagTextComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (sourceNote(); as src) {
@@ -51,15 +53,24 @@ import { CloudDayNote, TimelineBoard } from '../../core/models/flow.models';
             </span>
           </div>
 
-          <input
-            type="text"
-            [(ngModel)]="relationLabelDraft"
-            placeholder="Подпись связи (необязательно, напр. «Сводка агента»)"
-            class="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface"
-          />
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input
+              type="text"
+              [(ngModel)]="relationLabelDraft"
+              placeholder="Подпись связи (напр. «Сводка агента»)"
+              class="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface"
+            />
+            <input
+              type="text"
+              [ngModel]="filterQuery()"
+              (ngModelChange)="filterQuery.set($event)"
+              placeholder="Фильтр по тексту или #хештегу..."
+              class="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface"
+            />
+          </div>
 
           <div class="flex-1 overflow-y-auto flex flex-col gap-2 pr-1">
-            @for (candidate of candidates(); track candidate.id) {
+            @for (candidate of filteredCandidates(); track candidate.id) {
               <button
                 type="button"
                 (click)="pickCandidate(candidate)"
@@ -75,11 +86,28 @@ import { CloudDayNote, TimelineBoard } from '../../core/models/flow.models';
                   <app-actor-avatar [avatar]="candidate.actorAvatar" containerClass="w-5 h-5 rounded-md flex-shrink-0" />
                   <span class="text-xs font-bold text-on-surface">{{ candidate.actorName }}</span>
                 </div>
-                <p class="text-xs text-on-surface-variant line-clamp-2">{{ candidate.text }}</p>
+                <p class="text-xs text-on-surface-variant line-clamp-2">
+                  <app-hashtag-text [text]="candidate.text" [interactive]="false" />
+                </p>
+                @if (getCandidateTags(candidate); as candidateTags) {
+                  @if (candidateTags.length > 0) {
+                    <div class="flex flex-wrap gap-1">
+                      @for (tag of candidateTags.slice(0, 4); track tag) {
+                        <span class="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-violet-500/15 text-violet-700 dark:text-violet-300">
+                          #{{ tag }}
+                        </span>
+                      }
+                    </div>
+                  }
+                }
               </button>
             } @empty {
               <div class="p-6 text-center text-xs text-outline italic">
-                Нет доступных сообщений в других TimeLine с тем же уровнем приватности ({{ sourceBoard()?.privacy || 'PUBLIC' }}).
+                @if (candidates().length > 0) {
+                  Нет сообщений по фильтру «{{ filterQuery() }}».
+                } @else {
+                  Нет доступных сообщений в других TimeLine с тем же уровнем приватности ({{ sourceBoard()?.privacy || 'PUBLIC' }}).
+                }
               </div>
             }
           </div>
@@ -108,6 +136,25 @@ export class TimelineCrossLinkModalComponent {
   readonly attach = output<{ targetNote: CloudDayNote; relationLabel: string }>();
 
   relationLabelDraft = '';
+  readonly filterQuery = signal<string>('');
+
+  readonly filteredCandidates = computed<CloudDayNote[]>(() => {
+    const q = this.filterQuery().trim().toLowerCase();
+    const list = this.candidates();
+    if (!q) return list;
+    const tagNeedle = q.replace(/^#+/, '');
+    return list.filter(
+      (c) =>
+        c.text.toLowerCase().includes(q) ||
+        c.actorName.toLowerCase().includes(q) ||
+        (c.title || '').toLowerCase().includes(q) ||
+        mergeNoteTags(c.text, c.tags).some((t) => t.includes(tagNeedle)),
+    );
+  });
+
+  getCandidateTags(note: CloudDayNote): string[] {
+    return mergeNoteTags(note.text || '', note.tags);
+  }
 
   getBoardTitle(boardId: string): string {
     return this.boards().find((b) => b.id === boardId)?.title || boardId;
@@ -119,10 +166,12 @@ export class TimelineCrossLinkModalComponent {
       relationLabel: this.relationLabelDraft.trim(),
     });
     this.relationLabelDraft = '';
+    this.filterQuery.set('');
   }
 
   onClose(): void {
     this.relationLabelDraft = '';
+    this.filterQuery.set('');
     this.close.emit();
   }
 }

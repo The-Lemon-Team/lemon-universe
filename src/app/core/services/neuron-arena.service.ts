@@ -1,5 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { mergeNoteTags } from '../utils/hashtag.utils';
 import {
   BehaviorSubject,
   Observable,
@@ -1116,6 +1117,7 @@ export class NeuronArenaService {
     const enrichedNote: CloudDayNote = {
       ...note,
       boardId,
+      tags: mergeNoteTags(note.text || '', note.tags),
       seasonsFeedSlug: note.seasonsFeedSlug || board.seasonsFeedSlug,
       activeFlowSessionIds:
         note.activeFlowSessionIds ??
