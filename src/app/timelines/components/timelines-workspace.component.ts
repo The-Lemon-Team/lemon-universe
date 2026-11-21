@@ -59,7 +59,7 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="flex flex-col gap-5 pb-16">
+    <div class="flex flex-col gap-3 pb-28 sm:pb-36">
       <!-- Status / Error Banner -->
       @if (statusMessage(); as msg) {
         <div class="p-3 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-xs font-semibold flex items-center justify-between gap-2">
@@ -75,18 +75,18 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
         </div>
       }
 
-      <!-- 1. INDEPENDENT TIMELINE BOARDS BAR -->
-      <section class="bg-surface-container-lowest rounded-3xl p-4 shadow-xs border border-outline-variant/30 flex flex-col gap-3">
-        <div class="flex items-center justify-between gap-3 flex-wrap">
-          <div class="flex items-center gap-1.5 flex-wrap">
+      <!-- 1. COMPACT TIMELINE BOARDS ISLAND -->
+      <section class="bg-surface-container-lowest rounded-2xl p-2.5 sm:p-3 shadow-xs border border-outline-variant/30 flex flex-col gap-2">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <div class="flex items-center gap-1 flex-wrap">
             @for (tab of boardFilterTabs; track tab.id) {
               <button
                 type="button"
                 (click)="boardFilter.set(tab.id)"
-                class="px-3 py-1 rounded-xl text-xs font-label-ui font-bold transition-colors cursor-pointer border"
+                class="px-2.5 py-1 rounded-lg text-[11px] font-label-ui font-bold transition-colors cursor-pointer border active:scale-[0.98]"
                 [class]="
                   boardFilter() === tab.id
-                    ? 'bg-primary text-on-primary border-primary'
+                    ? 'bg-primary text-on-primary border-primary shadow-2xs'
                     : 'bg-surface-container-low text-on-surface-variant border-outline-variant/30 hover:text-on-surface'
                 "
               >
@@ -95,55 +95,53 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
             }
           </div>
 
-          <div class="flex items-center gap-2 flex-wrap">
+          <div class="flex items-center gap-1.5 flex-wrap">
             <button
               type="button"
               (click)="openAgentSummaryModal()"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-500/15 hover:bg-violet-500/25 text-violet-800 dark:text-violet-200 border border-violet-500/35 text-xs font-bold cursor-pointer transition-colors"
+              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-500/12 hover:bg-violet-500/20 text-violet-800 dark:text-violet-200 border border-violet-500/30 text-[11px] font-bold cursor-pointer transition-colors active:scale-[0.98]"
             >
-              <span class="material-symbols-rounded text-base">smart_toy</span>
-              <span>Сводка Агента</span>
+              <span class="material-symbols-rounded text-sm">smart_toy</span>
+              <span class="hidden sm:inline">Сводка Агента</span>
             </button>
 
             <button
               type="button"
               (click)="openPersonalFeedModal()"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-800 dark:text-emerald-200 border border-emerald-500/35 text-xs font-bold cursor-pointer transition-colors"
+              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/12 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 text-[11px] font-bold cursor-pointer transition-colors active:scale-[0.98]"
             >
               <span>🌿</span>
-              <span>Seasons Feed ({{ personalFeedEntries().length }})</span>
+              <span class="hidden sm:inline">Seasons</span>
+              <span class="font-mono">({{ personalFeedEntries().length }})</span>
             </button>
 
             <button
               type="button"
               (click)="openCreateBoardModal()"
-              class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-xs hover:opacity-95 cursor-pointer"
+              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-on-primary text-[11px] font-bold shadow-2xs hover:opacity-95 cursor-pointer active:scale-[0.98]"
             >
-              <span class="material-symbols-rounded text-base">add</span>
+              <span class="material-symbols-rounded text-sm">add</span>
               <span>Новый TimeLine</span>
             </button>
           </div>
         </div>
 
-        <div class="flex items-center gap-2 overflow-x-auto py-1">
+        <div class="flex items-center gap-1.5 overflow-x-auto py-0.5">
           @for (board of filteredBoards(); track board.id) {
             <button
               type="button"
               (click)="selectBoard(board)"
-              class="px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 border flex-shrink-0 cursor-pointer"
+              class="px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 border flex-shrink-0 cursor-pointer active:scale-[0.98]"
               [class]="
                 activeBoard()?.id === board.id
-                  ? 'bg-primary text-on-primary border-primary shadow-sm'
+                  ? 'bg-primary text-on-primary border-primary shadow-xs'
                   : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline-variant/30 hover:bg-surface-container-high'
               "
             >
-              <span class="material-symbols-rounded text-base">{{ board.icon || 'timeline' }}</span>
+              <span class="material-symbols-rounded text-sm">{{ board.icon || 'timeline' }}</span>
               <span>{{ board.title }}</span>
-              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-black/15 font-mono">
-                {{ board.privacy === 'PRIVATE' ? '🔒' : '🌐' }}
-              </span>
-              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-black/10 font-mono">
-                {{ getBoardTotalCount(board.id) }}
+              <span class="text-[10px] px-1 py-0.5 rounded-md bg-black/10 font-mono leading-none">
+                {{ board.privacy === 'PRIVATE' ? '🔒' : '🌐' }} {{ getBoardTotalCount(board.id) }}
               </span>
             </button>
           } @empty {
@@ -275,77 +273,93 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
             </div>
           </div>
 
-          <!-- Date & Filter Toolbar -->
-          <div class="flex items-center justify-between gap-3 flex-wrap">
-            <div class="flex items-center gap-2 flex-wrap">
+          <!-- Date & Filter Toolbar (Grouped Tactile Island) -->
+          <div class="flex items-center justify-between gap-2 flex-wrap p-2 rounded-2xl bg-surface-container-low/80 border border-outline-variant/30">
+            <!-- Left Cluster: Date Segmented Group + Edit -->
+            <div class="flex items-center gap-1.5 flex-wrap">
               @if (canManageActiveBoard()) {
                 <button
                   type="button"
                   (click)="openEditBoardModal(board)"
-                  class="px-3 py-1.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold border border-outline-variant/30 inline-flex items-center gap-1.5 cursor-pointer"
+                  class="px-2.5 py-1 rounded-xl bg-surface-container-lowest hover:bg-surface-container-high text-on-surface text-xs font-bold border border-outline-variant/30 inline-flex items-center gap-1 cursor-pointer transition-colors active:scale-[0.98]"
                   title="Редактировать название, описание и slug Lemon Seasons"
                 >
-                  <span class="material-symbols-rounded text-base text-primary">edit</span>
-                  <span>Редактировать</span>
+                  <span class="material-symbols-rounded text-sm text-primary">edit</span>
+                  <span class="hidden sm:inline">Редактировать</span>
                 </button>
               }
 
-              <button
-                type="button"
-                (click)="shiftDate(-1)"
-                [disabled]="showAllDates()"
-                class="px-2.5 py-1.5 rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 text-xs font-bold disabled:opacity-40 cursor-pointer"
-              >
-                ← Пред.
-              </button>
+              <div class="inline-flex items-center bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-0.5 gap-0.5">
+                <button
+                  type="button"
+                  (click)="shiftDate(-1)"
+                  [disabled]="showAllDates()"
+                  class="px-2 py-1 rounded-lg hover:bg-surface-container-high text-xs font-bold disabled:opacity-40 cursor-pointer transition-colors"
+                  title="Предыдущий день"
+                >
+                  ←
+                </button>
 
-              <input
-                type="date"
-                [ngModel]="selectedDateKey()"
-                (ngModelChange)="onDateInputChange($event)"
-                [disabled]="showAllDates()"
-                aria-label="Выбрать дату"
-                class="px-3 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs font-mono font-bold text-on-surface disabled:opacity-50"
-              />
+                <input
+                  type="date"
+                  [ngModel]="selectedDateKey()"
+                  (ngModelChange)="onDateInputChange($event)"
+                  [disabled]="showAllDates()"
+                  aria-label="Выбрать дату"
+                  class="px-2 py-0.5 rounded-lg bg-transparent text-xs font-mono font-bold text-on-surface disabled:opacity-50 focus:outline-none"
+                />
 
-              <button
-                type="button"
-                (click)="shiftDate(1)"
-                [disabled]="showAllDates()"
-                class="px-2.5 py-1.5 rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 text-xs font-bold disabled:opacity-40 cursor-pointer"
-              >
-                След. →
-              </button>
+                <button
+                  type="button"
+                  (click)="shiftDate(1)"
+                  [disabled]="showAllDates()"
+                  class="px-2 py-1 rounded-lg hover:bg-surface-container-high text-xs font-bold disabled:opacity-40 cursor-pointer transition-colors"
+                  title="Следующий день"
+                >
+                  →
+                </button>
+              </div>
 
-              <button
-                type="button"
-                (click)="setToday()"
-                class="px-3 py-1.5 rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 text-xs font-bold cursor-pointer"
-              >
-                Сегодня
-              </button>
+              <div class="inline-flex items-center bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-0.5 gap-0.5">
+                <button
+                  type="button"
+                  (click)="setToday()"
+                  class="px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer transition-colors active:scale-[0.98]"
+                  [class]="
+                    isTodaySelected()
+                      ? 'bg-primary text-on-primary shadow-2xs'
+                      : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+                  "
+                >
+                  Сегодня
+                </button>
 
-              <button
-                type="button"
-                (click)="toggleAllDates()"
-                class="px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-colors"
-                [class]="
-                  showAllDates()
-                    ? 'bg-primary text-on-primary border-primary'
-                    : 'bg-surface-container-low text-on-surface-variant border-outline-variant/30'
-                "
-              >
-                Все даты ({{ boardAllNotes().length }})
-              </button>
+                <button
+                  type="button"
+                  (click)="toggleAllDates()"
+                  class="px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer transition-colors active:scale-[0.98]"
+                  [class]="
+                    showAllDates()
+                      ? 'bg-primary text-on-primary shadow-2xs'
+                      : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+                  "
+                >
+                  Все ({{ boardAllNotes().length }})
+                </button>
+              </div>
             </div>
 
-            <div class="flex items-center gap-2 flex-wrap">
-              <input
-                type="text"
-                [(ngModel)]="searchQuery"
-                placeholder="Поиск по заметкам..."
-                class="px-3 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface w-48"
-              />
+            <!-- Right Cluster: Search & Actor Filter -->
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <div class="relative">
+                <span class="material-symbols-rounded text-sm text-on-surface-variant absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">search</span>
+                <input
+                  type="text"
+                  [(ngModel)]="searchQuery"
+                  placeholder="Поиск..."
+                  class="pl-8 pr-2.5 py-1 rounded-xl bg-surface-container-lowest border border-outline-variant/30 text-xs text-on-surface w-36 sm:w-44 focus:outline-none focus:border-primary/60"
+                />
+              </div>
 
               <app-cloud-themed-select
                 [options]="actorFilterOptions()"
@@ -360,149 +374,7 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
             </div>
           </div>
 
-          <!-- 3. COMPOSER: CHARACTER + ATTACHED USER + MEDIA -->
-          @if (canPostToActiveBoard()) {
-            <div class="p-4 rounded-2xl bg-surface-container-low border border-outline-variant/40 flex flex-col gap-3">
-              <div class="flex items-center justify-between gap-2 flex-wrap">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <app-cloud-themed-select
-                    [options]="composerActorOptions()"
-                    [value]="selectedComposerActorId()"
-                    [searchable]="true"
-                    prefixLabel="От имени персонажа:"
-                    panelWidthClass="w-72"
-                    (valueChange)="selectedComposerActorId.set($event)"
-                  />
-
-                  @if (activeProfile(); as prof) {
-                    <span class="px-2.5 py-1 rounded-xl bg-surface-container-highest text-[11px] font-mono text-on-surface-variant inline-flex items-center gap-1">
-                      <span class="material-symbols-rounded text-xs text-primary">{{ prof.avatarIcon || 'person' }}</span>
-                      <span>Пользователь: {{ prof.displayName }}</span>
-                    </span>
-                  }
-                </div>
-
-                <div class="flex items-center gap-1.5">
-                  @for (t of entryTypes; track t.value) {
-                    <button
-                      type="button"
-                      (click)="composerType.set(t.value)"
-                      class="px-2.5 py-1 rounded-xl text-xs font-bold border cursor-pointer"
-                      [class]="
-                        composerType() === t.value
-                          ? 'bg-primary text-on-primary border-primary'
-                          : 'bg-surface-container-lowest text-on-surface-variant border-outline-variant/30'
-                      "
-                    >
-                      {{ t.emoji }} {{ t.label }}
-                    </button>
-                  }
-                </div>
-              </div>
-
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <input
-                  type="text"
-                  [(ngModel)]="composerTitle"
-                  placeholder="Заголовок записи (опционально)..."
-                  class="sm:col-span-2 px-3 py-2 rounded-xl bg-surface-container-lowest border border-outline-variant/40 text-xs text-on-surface"
-                />
-                <input
-                  type="text"
-                  [(ngModel)]="composerTagsRaw"
-                  placeholder="Теги через запятую (diary, work)..."
-                  class="px-3 py-2 rounded-xl bg-surface-container-lowest border border-outline-variant/40 text-xs text-on-surface"
-                />
-              </div>
-
-              <textarea
-                [(ngModel)]="composerText"
-                rows="3"
-                (keydown.ctrl.enter)="submitEntry()"
-                [placeholder]="'Сообщение от имени персонажа «' + (activeComposerActor()?.name || 'Персонаж') + '»... (Ctrl+Enter для отправки)'"
-                class="w-full px-3 py-2 rounded-xl bg-surface-container-lowest border border-outline-variant/40 text-xs text-on-surface resize-y"
-              ></textarea>
-
-              <!-- Pending Media Attachments Preview -->
-              @if (pendingMedia().length > 0) {
-                <div class="flex flex-wrap gap-2">
-                  @for (media of pendingMedia(); track $index) {
-                    <div class="relative p-1.5 rounded-xl bg-surface-container-lowest border border-outline-variant/40 flex items-center gap-2">
-                      @if ((media.mimeType || '').startsWith('image/')) {
-                        <img [src]="media.thumbnailUrl || media.url" [alt]="media.filename || 'media'" class="w-12 h-12 rounded-lg object-cover" />
-                      } @else {
-                        <span class="material-symbols-rounded text-2xl text-primary">attachment</span>
-                      }
-                      <span class="text-[11px] font-mono max-w-32 truncate">{{ media.filename || 'media' }}</span>
-                      <button
-                        type="button"
-                        (click)="removePendingMedia($index)"
-                        class="p-0.5 rounded-md hover:bg-rose-500/20 text-rose-600 cursor-pointer"
-                        aria-label="Убрать файл"
-                      >
-                        <span class="material-symbols-rounded text-sm">close</span>
-                      </button>
-                    </div>
-                  }
-                </div>
-              }
-
-              <div class="flex items-center justify-between gap-2 flex-wrap">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <label class="px-3 py-1.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container-high border border-outline-variant/40 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer">
-                    <span class="material-symbols-rounded text-base text-primary">add_photo_alternate</span>
-                    <span>{{ isUploadingMedia() ? 'Загрузка...' : 'Прикрепить медиа (Media Hub)' }}</span>
-                    <input
-                      type="file"
-                      accept="image/*,audio/*,video/*"
-                      (change)="onMediaFileSelected($event)"
-                      class="hidden"
-                    />
-                  </label>
-                  <div class="inline-flex items-center gap-1">
-                    <input
-                      type="time"
-                      [(ngModel)]="composerTime"
-                      aria-label="Время записи"
-                      class="px-2.5 py-1.5 rounded-xl bg-surface-container-lowest border border-outline-variant/40 text-xs font-mono text-on-surface"
-                    />
-                    <button
-                      type="button"
-                      (click)="setCurrentTime()"
-                      title="Установить текущее время"
-                      class="px-2.5 py-1.5 rounded-xl bg-surface-container-lowest hover:bg-surface-container-high border border-outline-variant/40 text-xs font-bold text-on-surface-variant inline-flex items-center gap-1 cursor-pointer"
-                    >
-                      <span class="material-symbols-rounded text-sm text-primary">schedule</span>
-                      <span>Сейчас</span>
-                    </button>
-                  </div>
-                  @if (board.privacy === 'PRIVATE') {
-                    <label
-                      class="px-2.5 py-1.5 rounded-xl bg-surface-container-lowest border border-outline-variant/40 text-xs inline-flex items-center gap-1.5 cursor-pointer"
-                      title="Выдать NoteShare участникам этого приватного борда для доступа к заметке и медиа в Lemon Seasons"
-                    >
-                      <input type="checkbox" [(ngModel)]="composerShareWithGroup" />
-                      <span class="font-semibold text-on-surface-variant">NoteShare группе</span>
-                    </label>
-                  }
-                </div>
-
-                <button
-                  type="button"
-                  (click)="submitEntry()"
-                  [disabled]="!composerText.trim() || isUploadingMedia()"
-                  class="px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-xs hover:opacity-95 disabled:opacity-50 cursor-pointer inline-flex items-center gap-1.5"
-                >
-                  <span class="material-symbols-rounded text-base">send</span>
-                  <span>Записать в TimeLine</span>
-                </button>
-              </div>
-            </div>
-          } @else {
-            <div class="p-3 rounded-2xl bg-surface-container-low border border-outline-variant/30 text-xs text-on-surface-variant italic">
-              У текущего аккаунта режим только для чтения на этом борде.
-            </div>
-          }
+          <!-- 3. COMPOSER MOVED TO BOTTOM-DOCKED ISLAND -->
 
           <!-- 4. NOTES LIST (CLOUD TIMELINE, DIARY FEED OR 24H TIMELINE) -->
           @if (viewMode() === 'CLOUD_TIMELINE') {
@@ -840,6 +712,176 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
         </div>
       </aside>
 
+      <!-- BOTTOM-DOCKED CHAT COMPOSER ISLAND -->
+      @if (activeBoard(); as board) {
+        <div class="fixed bottom-0 inset-x-0 z-20 px-2 sm:px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pointer-events-none">
+          <div class="pointer-events-auto max-w-4xl mx-auto rounded-2xl sm:rounded-3xl bg-surface-container-lowest/95 backdrop-blur-md border border-outline-variant/50 shadow-lg p-2 sm:p-2.5 flex flex-col gap-2">
+            @if (canPostToActiveBoard()) {
+              @if (composerExpanded()) {
+                <div class="flex flex-col gap-2 pb-2 border-b border-outline-variant/30">
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <app-cloud-themed-select
+                        [options]="composerActorOptions()"
+                        [value]="selectedComposerActorId()"
+                        [searchable]="true"
+                        placement="up"
+                        prefixLabel="Персонаж:"
+                        panelWidthClass="w-64"
+                        (valueChange)="selectedComposerActorId.set($event)"
+                      />
+                      @if (activeProfile(); as prof) {
+                        <span class="px-2 py-1 rounded-lg bg-surface-container-high text-[11px] font-mono text-on-surface-variant inline-flex items-center gap-1">
+                          <span class="material-symbols-rounded text-xs text-primary">{{ prof.avatarIcon || 'person' }}</span>
+                          <span>{{ prof.displayName }}</span>
+                        </span>
+                      }
+                    </div>
+
+                    <div class="flex items-center gap-1 flex-wrap">
+                      @for (t of entryTypes; track t.value) {
+                        <button
+                          type="button"
+                          (click)="composerType.set(t.value)"
+                          class="px-2 py-1 rounded-lg text-[11px] font-bold border cursor-pointer transition-colors"
+                          [class]="
+                            composerType() === t.value
+                              ? 'bg-primary text-on-primary border-primary'
+                              : 'bg-surface-container-low text-on-surface-variant border-outline-variant/30'
+                          "
+                        >
+                          {{ t.emoji }} {{ t.label }}
+                        </button>
+                      }
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                    <input
+                      type="text"
+                      [(ngModel)]="composerTitle"
+                      placeholder="Заголовок (опционально)..."
+                      class="sm:col-span-2 px-2.5 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface"
+                    />
+                    <input
+                      type="text"
+                      [(ngModel)]="composerTagsRaw"
+                      placeholder="Теги (diary, work)..."
+                      class="px-2.5 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface"
+                    />
+                  </div>
+
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <div class="inline-flex items-center gap-1">
+                      <input
+                        type="time"
+                        [(ngModel)]="composerTime"
+                        aria-label="Время записи"
+                        class="px-2 py-1 rounded-lg bg-surface-container-low border border-outline-variant/40 text-xs font-mono text-on-surface"
+                      />
+                      <button
+                        type="button"
+                        (click)="setCurrentTime()"
+                        title="Установить текущее время"
+                        class="px-2 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/40 text-[11px] font-bold text-on-surface-variant inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <span class="material-symbols-rounded text-xs text-primary">schedule</span>
+                        <span>Сейчас</span>
+                      </button>
+                    </div>
+
+                    @if (board.privacy === 'PRIVATE') {
+                      <label
+                        class="px-2 py-1 rounded-lg bg-surface-container-low border border-outline-variant/40 text-[11px] inline-flex items-center gap-1.5 cursor-pointer"
+                        title="Выдать NoteShare участникам этого приватного борда"
+                      >
+                        <input type="checkbox" [(ngModel)]="composerShareWithGroup" />
+                        <span class="font-semibold text-on-surface-variant">NoteShare группе</span>
+                      </label>
+                    }
+                  </div>
+                </div>
+              }
+
+              @if (pendingMedia().length > 0) {
+                <div class="flex flex-wrap gap-1.5">
+                  @for (media of pendingMedia(); track $index) {
+                    <div class="relative p-1 rounded-lg bg-surface-container-low border border-outline-variant/40 flex items-center gap-1.5">
+                      @if ((media.mimeType || '').startsWith('image/')) {
+                        <img [src]="media.thumbnailUrl || media.url" [alt]="media.filename || 'media'" class="w-8 h-8 rounded object-cover" />
+                      } @else {
+                        <span class="material-symbols-rounded text-lg text-primary">attachment</span>
+                      }
+                      <span class="text-[10px] font-mono max-w-24 truncate">{{ media.filename || 'media' }}</span>
+                      <button
+                        type="button"
+                        (click)="removePendingMedia($index)"
+                        class="p-0.5 rounded hover:bg-rose-500/20 text-rose-600 cursor-pointer"
+                        aria-label="Убрать файл"
+                      >
+                        <span class="material-symbols-rounded text-xs">close</span>
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+
+              <div class="flex items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  (click)="composerExpanded.set(!composerExpanded())"
+                  class="p-2 rounded-xl border text-on-surface-variant hover:text-on-surface cursor-pointer transition-colors flex-shrink-0"
+                  [class]="composerExpanded() ? 'bg-primary/15 border-primary/40 text-primary' : 'bg-surface-container-low border-outline-variant/30'"
+                  title="Параметры записи (персонаж, тип, теги, время)"
+                  aria-label="Параметры записи"
+                >
+                  <span class="material-symbols-rounded text-base leading-none">{{ composerExpanded() ? 'expand_more' : 'tune' }}</span>
+                </button>
+
+                <span class="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-container-low border border-outline-variant/30 text-[11px] font-bold text-on-surface-variant flex-shrink-0">
+                  {{ activeComposerActor()?.name || 'Персонаж' }}
+                </span>
+
+                <textarea
+                  [(ngModel)]="composerText"
+                  rows="1"
+                  (keydown.ctrl.enter)="submitEntry()"
+                  [placeholder]="'Сообщение от «' + (activeComposerActor()?.name || 'Персонаж') + '»... (Ctrl+Enter)'"
+                  class="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface resize-none focus:outline-none focus:border-primary/60"
+                ></textarea>
+
+                <label
+                  class="p-2 rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 text-on-surface-variant hover:text-primary cursor-pointer transition-colors flex-shrink-0"
+                  title="Прикрепить медиа (Media Hub)"
+                >
+                  <span class="material-symbols-rounded text-base leading-none">{{ isUploadingMedia() ? 'hourglass_top' : 'add_photo_alternate' }}</span>
+                  <input
+                    type="file"
+                    accept="image/*,audio/*,video/*"
+                    (change)="onMediaFileSelected($event)"
+                    class="hidden"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  (click)="submitEntry()"
+                  [disabled]="!composerText.trim() || isUploadingMedia()"
+                  class="px-3 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-xs hover:opacity-95 disabled:opacity-45 cursor-pointer inline-flex items-center gap-1 flex-shrink-0 active:scale-[0.98]"
+                >
+                  <span class="material-symbols-rounded text-base leading-none">send</span>
+                  <span class="hidden sm:inline">Записать</span>
+                </button>
+              </div>
+            } @else {
+              <div class="px-2 py-1 text-xs text-on-surface-variant italic text-center">
+                У текущего аккаунта режим только для чтения на этом борде.
+              </div>
+            }
+          </div>
+        </div>
+      }
+
       <!-- MODALS -->
       <app-timeline-board-modal
         [isOpen]="isCreateBoardOpen()"
@@ -1045,7 +1087,11 @@ export class TimelinesWorkspaceComponent {
   readonly boardFilter = signal<BoardFilterTab>('ALL');
   readonly viewMode = signal<TimelineViewMode>('CLOUD_TIMELINE');
   readonly selectedDateKey = signal<string>(new Date().toISOString().slice(0, 10));
-  readonly showAllDates = signal<boolean>(true);
+  readonly showAllDates = signal<boolean>(false);
+  readonly composerExpanded = signal<boolean>(false);
+  readonly isTodaySelected = computed(
+    () => !this.showAllDates() && this.selectedDateKey() === new Date().toISOString().slice(0, 10),
+  );
   readonly selectedActorFilter = signal<string | null>(null);
   searchQuery = '';
 

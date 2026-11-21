@@ -23,8 +23,33 @@ if ($LASTEXITCODE -ne 0) {
   throw "Angular build failed with exit code $LASTEXITCODE"
 }
 
+Write-Host "🧠 Building local neuron packages & NestJS API (server/dist)..." -ForegroundColor Cyan
+$neuronPackages = @(
+  "..\lemon-actions\packages\lemon-seasons-neurons",
+  "..\lemon-actions\packages\lemon-media-hub-neurons"
+)
+$depsDir = Join-Path $PSScriptRoot "..\server\.docker-deps"
+if (Test-Path $depsDir) { Remove-Item -Recurse -Force $depsDir }
+New-Item -ItemType Directory -Path $depsDir | Out-Null
+
+foreach ($pkg in $neuronPackages) {
+  $pkgPath = Resolve-Path (Join-Path (Join-Path $PSScriptRoot "..") $pkg)
+  npm --prefix $pkgPath run build
+  if ($LASTEXITCODE -ne 0) { throw "Build failed for $pkg" }
+  Push-Location $depsDir
+  npm pack $pkgPath | Out-Null
+  Pop-Location
+  if ($LASTEXITCODE -ne 0) { throw "npm pack failed for $pkg" }
+}
+
+npm --prefix server run build
+if ($LASTEXITCODE -ne 0) {
+  throw "NestJS server build failed with exit code $LASTEXITCODE"
+}
+
 Write-Host "🚀 Building & starting Lemon Universe stack on $DockerHost ..." -ForegroundColor Cyan
 docker compose -p lemon-universe -f docker-compose.remote.yml build postgres api web
+if (Test-Path $depsDir) { Remove-Item -Recurse -Force $depsDir }
 if ($LASTEXITCODE -ne 0) { throw "docker compose build failed" }
 
 docker compose -p lemon-universe -f docker-compose.remote.yml up -d --remove-orphans

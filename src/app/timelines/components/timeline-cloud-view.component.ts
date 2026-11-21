@@ -60,20 +60,16 @@ import { CloudDayNote, TimelineBoard, TimelineNodeCrossRef } from '../../core/mo
       }
 
       .cloud-sky-canvas {
-        contain: layout paint;
+        contain: layout style paint;
       }
     `,
   ],
   template: `
-    <div class="overflow-x-auto pb-2 pt-8">
+    <div class="overflow-x-auto pb-1">
       <div
-        class="relative bg-white dark:bg-[#1b1e2a] rounded-[3.2rem] border-4 shadow-xl p-5 sm:p-7 min-h-[700px] min-w-[960px] flex flex-col justify-between transition-colors"
+        class="relative bg-surface-container-lowest dark:bg-[#1b1e2a] rounded-3xl border-2 shadow-sm p-4 sm:p-5 min-h-[620px] min-w-[920px] flex flex-col justify-between transition-colors"
         [class]="currentVibe().stageBorderClass"
       >
-        <!-- Decorative Puffy Lobes on Top of Cloud -->
-        <div class="absolute -top-6 left-12 w-20 h-14 bg-white dark:bg-[#1b1e2a] rounded-t-full border-t-4 border-l-4 border-r-4 border-amber-300 dark:border-amber-400/50 pointer-events-none"></div>
-        <div class="absolute -top-10 left-36 w-32 h-20 bg-white dark:bg-[#1b1e2a] rounded-t-full border-t-4 border-l-4 border-r-4 border-amber-300 dark:border-amber-400/50 pointer-events-none"></div>
-        <div class="absolute -top-7 right-32 w-24 h-16 bg-white dark:bg-[#1b1e2a] rounded-t-full border-t-4 border-l-4 border-r-4 border-amber-300 dark:border-amber-400/50 pointer-events-none"></div>
 
         <!-- In-Cloud Header Strip -->
         <div class="relative z-10 flex items-center justify-between gap-3 border-b border-amber-200/60 dark:border-outline-variant/30 pb-3 flex-wrap">
