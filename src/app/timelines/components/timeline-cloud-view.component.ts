@@ -1,14 +1,18 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActorAvatarComponent } from '../../components/neuron-arena/actor-avatar.component';
 import { getAccentPillClasses } from '../../components/neuron-arena/arena-ui.utils';
 import {
   CLOUD_DAY_VIBES,
   CLOUD_HOUR_MILESTONES,
+  CELESTIAL_ORB_FULL_ARC_PATH,
+  CelestialOrbState,
   CloudDayVibe,
   CloudDayVibeId,
+  CloudNowIndicatorMode,
   TimelineCluster,
   getAccentStemClasses,
+  getCelestialOrbState,
   getCloudTypeEmoji,
   getCloudTypeLabel,
   getClusterPinClasses,
@@ -16,6 +20,8 @@ import {
   getNoteStemHeight,
   getTimelinePercent,
   groupNotesIntoClusters,
+  parseTimeToMinutes,
+  resolveTimelineClickTime,
 } from '../../components/neuron-arena/cloud-timeline.utils';
 import { ModalOverlayDirective } from '../../core/directives/modal-overlay.directive';
 import {
@@ -23,7 +29,8 @@ import {
   HashtagSelectOption,
 } from '../../core/components/hashtag-multiselect.component';
 import { HashtagTextComponent } from '../../core/components/hashtag-text.component';
-import { CloudDayNote, TimelineBoard, TimelineNodeCrossRef } from '../../core/models/flow.models';
+import { TimePickerPopoverComponent } from '../../core/components/time-picker-popover.component';
+import { ArenaActorCard, CloudDayNote, CloudItemType, TimelineBoard, TimelineNodeCrossRef } from '../../core/models/flow.models';
 import { getExtraTagsNotInText, mergeNoteTags } from '../../core/utils/hashtag.utils';
 
 @Component({
@@ -35,6 +42,7 @@ import { getExtraTagsNotInText, mergeNoteTags } from '../../core/utils/hashtag.u
     ModalOverlayDirective,
     HashtagMultiselectComponent,
     HashtagTextComponent,
+    TimePickerPopoverComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
@@ -62,6 +70,27 @@ import { getExtraTagsNotInText, mergeNoteTags } from '../../core/utils/hashtag.u
         }
       }
 
+      @keyframes spinSlow {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @keyframes twinkleStar {
+        0%,
+        100% {
+          opacity: 0.45;
+          transform: scale(0.85);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1.15);
+        }
+      }
+
       .thought-pop {
         animation: thoughtPopIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
       }
@@ -69,6 +98,15 @@ import { getExtraTagsNotInText, mergeNoteTags } from '../../core/utils/hashtag.u
       .now-sun-glow {
         animation: pulseGlowRing 2.8s ease-in-out infinite;
         will-change: transform, opacity;
+      }
+
+      .orb-rays-spin {
+        transform-origin: 32px 32px;
+        animation: spinSlow 24s linear infinite;
+      }
+
+      .orb-star-twinkle {
+        animation: twinkleStar 2.4s ease-in-out infinite;
       }
 
       .cloud-sky-canvas {
@@ -100,6 +138,42 @@ import { getExtraTagsNotInText, mergeNoteTags } from '../../core/utils/hashtag.u
           </div>
 
           <div class="flex items-center gap-2 flex-wrap">
+            <!-- NOW Indicator Mode Switcher -->
+            <div
+              class="inline-flex items-center p-0.5 rounded-full bg-surface-container-high/90 border border-outline-variant/30 shadow-2xs"
+              role="group"
+              aria-label="Стиль индикатора «Сейчас»"
+            >
+              <button
+                type="button"
+                (click)="setNowIndicatorMode('beam')"
+                class="px-2.5 py-1 rounded-full text-[11px] font-bold font-label-ui flex items-center gap-1 transition-all cursor-pointer"
+                [class]="
+                  nowIndicatorMode() === 'beam'
+                    ? 'bg-amber-400/25 text-amber-900 dark:text-amber-200 shadow-2xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                "
+                title="Классический вертикальный луч времени"
+              >
+                <span>☀️</span>
+                <span>Луч</span>
+              </button>
+              <button
+                type="button"
+                (click)="setNowIndicatorMode('orb')"
+                class="px-2.5 py-1 rounded-full text-[11px] font-bold font-label-ui flex items-center gap-1 transition-all cursor-pointer"
+                [class]="
+                  nowIndicatorMode() === 'orb'
+                    ? 'bg-indigo-500/20 text-indigo-900 dark:text-indigo-200 shadow-2xs'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                "
+                title="Небесный шар: идёт по дуге дня и превращается между луной и солнцем"
+              >
+                <span>🌗</span>
+                <span>Светило</span>
+              </button>
+            </div>
+
             <!-- Vibe Selector Button -->
             <button
               type="button"
@@ -120,45 +194,64 @@ import { getExtraTagsNotInText, mergeNoteTags } from '../../core/utils/hashtag.u
         </div>
 
         <!-- CENTRAL IN-CLOUD TIMELINE SKY -->
-        <div class="cloud-sky-canvas relative z-10 flex-1 my-4 min-h-[540px] flex flex-col justify-end min-w-[900px] px-8 pb-4 pt-4 rounded-3xl overflow-hidden border border-outline-variant/20 shadow-inner isolate">
+        <div
+          #skyCanvas
+          (click)="onSkyCanvasClick($event)"
+          (mousemove)="onSkyMouseMove($event)"
+          (mouseleave)="hoverTimePreview.set(null)"
+          [class.cursor-crosshair]="canPost()"
+          class="cloud-sky-canvas relative z-10 flex-1 my-4 min-h-[540px] flex flex-col justify-end min-w-[900px] px-8 pb-4 pt-4 rounded-3xl overflow-hidden border border-outline-variant/20 shadow-inner isolate"
+        >
           <!-- 1. DYNAMIC SKY GRADIENT & TIME-OF-DAY ATMOSPHERIC SECTORS -->
           <div class="absolute inset-0 pointer-events-none -z-10" [class]="currentVibe().skyGradient">
             <div class="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/40 dark:to-slate-950/50"></div>
 
             <!-- Sector 1: Morning (08:00 — 12:00 = 25% width) -->
-            <div class="absolute inset-y-0 left-0 w-[25%] flex flex-col justify-between p-3 border-r-2 border-dashed border-amber-500/35 pointer-events-none">
-              <div class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-900 dark:text-amber-200 border border-amber-400/40 text-[10px] font-bold font-label-code-sm self-start shadow-2xs">
-                <span>🌅</span>
-                <span>Утро (08:00 — 12:00)</span>
-              </div>
+            <div class="absolute inset-y-0 left-0 w-[25%] flex flex-col justify-end p-3 border-r-2 border-dashed border-amber-500/35 pointer-events-none">
               <div class="text-3xl opacity-15 self-center mb-16 select-none">{{ currentVibe().atmosphereEmoji[0] }}</div>
             </div>
 
             <!-- Sector 2: Midday / Afternoon (12:00 — 17:00 = 31.25% width) -->
-            <div class="absolute inset-y-0 left-[25%] w-[31.25%] flex flex-col justify-between p-3 border-r-2 border-dashed border-sky-500/35 pointer-events-none">
-              <div class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-400/20 text-sky-900 dark:text-sky-200 border border-sky-400/40 text-[10px] font-bold font-label-code-sm self-start shadow-2xs">
-                <span>☀️</span>
-                <span>День (12:00 — 17:00)</span>
-              </div>
+            <div class="absolute inset-y-0 left-[25%] w-[31.25%] flex flex-col justify-end p-3 border-r-2 border-dashed border-sky-500/35 pointer-events-none">
               <div class="text-3xl opacity-15 self-center mb-16 select-none">{{ currentVibe().atmosphereEmoji[1] }}</div>
             </div>
 
             <!-- Sector 3: Evening / Sunset (17:00 — 21:00 = 25% width) -->
-            <div class="absolute inset-y-0 left-[56.25%] w-[25%] flex flex-col justify-between p-3 border-r-2 border-dashed border-purple-500/35 pointer-events-none">
-              <div class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-400/20 text-purple-900 dark:text-purple-200 border border-purple-400/40 text-[10px] font-bold font-label-code-sm self-start shadow-2xs">
-                <span>🌆</span>
-                <span>Вечер (17:00 — 21:00)</span>
-              </div>
+            <div class="absolute inset-y-0 left-[56.25%] w-[25%] flex flex-col justify-end p-3 border-r-2 border-dashed border-purple-500/35 pointer-events-none">
               <div class="text-3xl opacity-15 self-center mb-16 select-none">{{ currentVibe().atmosphereEmoji[2] }}</div>
             </div>
 
             <!-- Sector 4: Night / Starlight (21:00 — 24:00 = 18.75% width) -->
-            <div class="absolute inset-y-0 left-[81.25%] right-0 flex flex-col justify-between p-3 pointer-events-none">
-              <div class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-900 dark:text-indigo-200 border border-indigo-400/40 text-[10px] font-bold font-label-code-sm self-start shadow-2xs">
+            <div class="absolute inset-y-0 left-[81.25%] right-0 flex flex-col justify-end p-3 pointer-events-none">
+              <div class="text-3xl opacity-15 self-center mb-16 select-none">{{ currentVibe().atmosphereEmoji[3] }}</div>
+            </div>
+          </div>
+
+          <!-- SECTOR LABELS OVERLAY (above NOW beam z-[2], below message cards z-10) -->
+          <div class="absolute inset-x-0 top-0 pointer-events-none z-[5]">
+            <div class="absolute top-0 left-0 w-[25%] p-3">
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-100/95 dark:bg-amber-950/90 text-amber-900 dark:text-amber-200 border border-amber-400/40 text-[10px] font-bold font-label-code-sm shadow-2xs">
+                <span>🌅</span>
+                <span>Утро (08:00 — 12:00)</span>
+              </div>
+            </div>
+            <div class="absolute top-0 left-[25%] w-[31.25%] p-3">
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-100/95 dark:bg-sky-950/90 text-sky-900 dark:text-sky-200 border border-sky-400/40 text-[10px] font-bold font-label-code-sm shadow-2xs">
+                <span>☀️</span>
+                <span>День (12:00 — 17:00)</span>
+              </div>
+            </div>
+            <div class="absolute top-0 left-[56.25%] w-[25%] p-3">
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-100/95 dark:bg-purple-950/90 text-purple-900 dark:text-purple-200 border border-purple-400/40 text-[10px] font-bold font-label-code-sm shadow-2xs">
+                <span>🌆</span>
+                <span>Вечер (17:00 — 21:00)</span>
+              </div>
+            </div>
+            <div class="absolute top-0 left-[81.25%] right-0 p-3">
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-100/95 dark:bg-indigo-950/90 text-indigo-900 dark:text-indigo-200 border border-indigo-400/40 text-[10px] font-bold font-label-code-sm shadow-2xs">
                 <span>🌙</span>
                 <span>Ночь (21:00 — 24:00)</span>
               </div>
-              <div class="text-3xl opacity-15 self-center mb-16 select-none">{{ currentVibe().atmosphereEmoji[3] }}</div>
             </div>
           </div>
 
@@ -171,12 +264,174 @@ import { getExtraTagsNotInText, mergeNoteTags } from '../../core/utils/hashtag.u
             }
           </div>
 
-          @if (clusters().length === 0) {
-            <div class="my-auto mx-auto px-6 py-5 rounded-3xl bg-white/85 dark:bg-slate-900/80 border border-outline-variant/40 shadow-md text-center max-w-md z-10">
+          <!-- CELESTIAL ORB SKY ARC ("Светило": Moon ↔ Sun travelling across the day) -->
+          @if (isTodaySelected() && nowIndicatorMode() === 'orb') {
+            @if (celestialOrb(); as orb) {
+              <div class="absolute inset-x-8 top-11 bottom-6 pointer-events-none z-[4]">
+                <!-- Parabolic day orbit trail -->
+                <svg
+                  viewBox="0 0 1000 400"
+                  preserveAspectRatio="none"
+                  class="absolute inset-0 w-full h-full overflow-visible"
+                  aria-hidden="true"
+                >
+                  <defs>
+                    <linearGradient [attr.id]="orbTrailGradId" gradientUnits="userSpaceOnUse" x1="-50" y1="0" x2="1050" y2="0">
+                      <stop offset="0%" stop-color="#cbd5e1" stop-opacity="0" />
+                      <stop offset="8%" stop-color="#cbd5e1" stop-opacity="0.55" />
+                      <stop offset="30%" stop-color="#fbbf24" stop-opacity="0.75" />
+                      <stop offset="65%" stop-color="#f97316" stop-opacity="0.75" />
+                      <stop offset="92%" stop-color="#818cf8" stop-opacity="0.6" />
+                      <stop offset="100%" stop-color="#818cf8" stop-opacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <!-- Stretched endless sky arc resting along the horizon line at both canvas edges -->
+                  <path
+                    [attr.d]="celestialFullArcPath"
+                    fill="none"
+                    [attr.stroke]="'url(#' + orbTrailGradId + ')'"
+                    stroke-width="2"
+                    stroke-dasharray="6 8"
+                    opacity="0.35"
+                  />
+                  <!-- Traveled arc from off-canvas edge right up to the orb -->
+                  <path
+                    [attr.d]="orb.traveledArcPath"
+                    fill="none"
+                    [attr.stroke]="'url(#' + orbTrailGradId + ')'"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                  />
+                </svg>
+
+                <!-- Subtle tether line down to road bar -->
+                <div
+                  class="absolute bottom-0 -translate-x-1/2 w-0.5 border-l-2 border-dashed border-amber-500/40 dark:border-indigo-300/35"
+                  [style.left.%]="orb.leftPercent"
+                  [style.height.%]="orb.bottomPercent"
+                ></div>
+
+                <!-- Morphing Moon ↔ Sun Celestial Orb -->
+                <div
+                  class="absolute -translate-x-1/2 translate-y-1/2 pointer-events-auto group/orb cursor-default"
+                  [style.left.%]="orb.leftPercent"
+                  [style.bottom.%]="orb.bottomPercent"
+                >
+                  <div
+                    class="relative w-14 h-14 flex items-center justify-center transition-transform duration-300 group-hover/orb:scale-110"
+                    [style.filter]="'drop-shadow(0 0 12px ' + orb.glowColor + ')'"
+                  >
+                    <svg viewBox="0 0 64 64" class="w-14 h-14 overflow-visible" aria-hidden="true">
+                      <defs>
+                        <radialGradient [attr.id]="orbCoreGradId" cx="35%" cy="35%" r="70%">
+                          <stop offset="0%" [attr.stop-color]="orb.coreColor" />
+                          <stop offset="100%" [attr.stop-color]="orb.edgeColor" />
+                        </radialGradient>
+                        <mask [attr.id]="orbMaskId">
+                          <rect x="0" y="0" width="64" height="64" fill="black" />
+                          <circle cx="32" cy="32" r="18" fill="white" />
+                          <circle [attr.cx]="orb.maskCx" [attr.cy]="orb.maskCy" r="16.5" fill="black" />
+                        </mask>
+                      </defs>
+
+                      <!-- Soft outer halo -->
+                      <circle cx="32" cy="32" r="23" [attr.fill]="orb.glowColor" opacity="0.35" />
+
+                      <!-- Cartoon sun rays (fade in for morning/day, out for sunset/night) -->
+                      @if (orb.sunRaysOpacity > 0.02) {
+                        <g class="orb-rays-spin" [style.opacity]="orb.sunRaysOpacity">
+                          @for (angle of [0, 45, 90, 135, 180, 225, 270, 315]; track angle) {
+                            <rect
+                              x="30.2"
+                              y="4"
+                              width="3.6"
+                              height="7"
+                              rx="1.8"
+                              [attr.fill]="orb.edgeColor"
+                              stroke="#ffffff"
+                              stroke-width="1"
+                              [attr.transform]="'rotate(' + angle + ' 32 32)'"
+                            />
+                          }
+                        </g>
+                      }
+
+                      <!-- Night twinkling stars -->
+                      @if (orb.starsOpacity > 0.02) {
+                        <g [style.opacity]="orb.starsOpacity">
+                          <path
+                            d="M 10 14 L 11.5 18 L 15.5 19.5 L 11.5 21 L 10 25 L 8.5 21 L 4.5 19.5 L 8.5 18 Z"
+                            fill="#fef08a"
+                            class="orb-star-twinkle"
+                          />
+                          <path
+                            d="M 54 12 L 55 15 L 58 16 L 55 17 L 54 20 L 53 17 L 50 16 L 53 15 Z"
+                            fill="#e0e7ff"
+                            class="orb-star-twinkle"
+                          />
+                          <circle cx="52" cy="50" r="1.8" fill="#fef08a" class="orb-star-twinkle" />
+                        </g>
+                      }
+
+                      <!-- White sticker backing border behind masked Moon/Sun -->
+                      <circle
+                        cx="32"
+                        cy="32"
+                        r="19.5"
+                        fill="#ffffff"
+                        opacity="0.9"
+                        [attr.mask]="'url(#' + orbMaskId + ')'"
+                      />
+
+                      <!-- Main Moon ↔ Sun disc -->
+                      <g [attr.mask]="'url(#' + orbMaskId + ')'">
+                        <circle cx="32" cy="32" r="18" [attr.fill]="'url(#' + orbCoreGradId + ')'" />
+                        <!-- Playful highlight -->
+                        <ellipse cx="25" cy="24" rx="5" ry="3" fill="#ffffff" opacity="0.45" transform="rotate(-25 25 24)" />
+                        <!-- Subtle cartoon moon craters when in crescent phase -->
+                        @if (orb.moonFactor > 0.2) {
+                          <g [style.opacity]="orb.moonFactor * 0.45">
+                            <circle cx="23" cy="36" r="2.8" fill="#94a3b8" />
+                            <circle cx="38" cy="39" r="2" fill="#94a3b8" />
+                            <circle cx="29" cy="22" r="1.6" fill="#94a3b8" />
+                          </g>
+                        }
+                      </g>
+                    </svg>
+                  </div>
+
+                  <!-- Hover info pill -->
+                  <div class="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2.5 py-1 rounded-full bg-surface-container-lowest/95 dark:bg-slate-900/95 border border-outline-variant/40 shadow-md text-[10px] font-bold font-label-code-sm text-on-surface whitespace-nowrap opacity-0 group-hover/orb:opacity-100 transition-opacity pointer-events-none">
+                    {{ orb.phaseEmoji }} {{ orb.phaseLabel }} · {{ nowTimeText() }} · {{ orbDayProgressPercent() }}% дня
+                  </div>
+                </div>
+              </div>
+            }
+          }
+
+          <!-- HOVER TIME GUIDE LINE -->
+          @if (canPost() && hoverTimePreview(); as preview) {
+            <div
+              class="absolute top-12 bottom-10 -translate-x-1/2 pointer-events-none z-[3] flex flex-col items-center justify-end"
+              [style.left.%]="preview.leftPercent"
+            >
+              <div class="w-0 flex-1 border-l-2 border-dashed border-primary/45"></div>
+              <span class="px-2 py-0.5 rounded-full bg-primary text-on-primary text-[10px] font-mono font-bold shadow-md whitespace-nowrap mb-1">
+                + {{ preview.time }}
+              </span>
+            </div>
+          }
+
+          @if (clusters().length === 0 && !draftTime()) {
+            <div class="my-auto mx-auto px-6 py-5 rounded-3xl bg-white/85 dark:bg-slate-900/80 border border-outline-variant/40 shadow-md text-center max-w-md z-10 pointer-events-none">
               <div class="text-3xl mb-2">☁️</div>
               <p class="text-xs font-bold text-on-surface mb-1">Облако пока пустое</p>
               <p class="text-[11px] text-on-surface-variant">
-                Добавьте запись в форме выше или кликните по нижней шкале времени, чтобы выбрать час для нового сообщения.
+                @if (canPost()) {
+                  Кликните в любое место графика или по нижней шкале времени, чтобы сразу создать и отредактировать сообщение.
+                } @else {
+                  Записей за выбранный период пока нет.
+                }
               </p>
             </div>
           }
@@ -190,6 +445,7 @@ import { getExtraTagsNotInText, mergeNoteTags } from '../../core/utils/hashtag.u
               >
                 <!-- 1. MESSAGE BUBBLE CARD WITH STACK -->
                 <div
+                  data-cloud-interactive="true"
                   class="relative w-[230px] sm:w-[265px] pointer-events-auto thought-pop"
                   [style.translate]="getBubbleShiftPercent(cluster.timeMinutes) + '% 0'"
                 >
@@ -206,7 +462,7 @@ import { getExtraTagsNotInText, mergeNoteTags } from '../../core/utils/hashtag.u
                   }
 
                   <div
-                    (click)="openInspectModal(note)"
+                    (click)="openInspectModal(note, $event)"
                     class="relative p-3 rounded-2xl bg-white dark:bg-slate-800 shadow-md group-hover:shadow-lg group-hover:-translate-y-0.5 group-hover:scale-[1.03] transition-transform duration-150 ease-out will-change-transform border-2 w-full cursor-pointer"
                     [class]="getNoteBorderClass(note.actorAccent)"
                   >
@@ -395,7 +651,11 @@ import { getExtraTagsNotInText, mergeNoteTags } from '../../core/utils/hashtag.u
                 ></div>
 
                 <!-- 3. BASE PIN ON THE TIMELINE ROAD -->
-                <div class="flex flex-col items-center pointer-events-auto cursor-pointer" (click)="openInspectModal(note)">
+                <div
+                  data-cloud-interactive="true"
+                  class="flex flex-col items-center pointer-events-auto cursor-pointer"
+                  (click)="openInspectModal(note, $event)"
+                >
                   <div
                     class="rounded-full ring-2 ring-white dark:ring-slate-900 shadow-xs flex items-center justify-center transition-transform duration-150 group-hover:scale-125"
                     [class]="getClusterPinClasses(cluster.isCluster, note.actorAccent)"
@@ -414,12 +674,185 @@ import { getExtraTagsNotInText, mergeNoteTags } from '../../core/utils/hashtag.u
             }
           }
 
+          <!-- INTERACTIVE DRAFT BUBBLE (CREATED ON CHART CLICK & IMMEDIATELY EDITABLE) -->
+          @if (draftTime(); as activeDraftTime) {
+            @if (draftActorView(); as actorView) {
+              <div
+                data-cloud-interactive="true"
+                (click)="$event.stopPropagation()"
+                (keydown.escape)="onDraftEscape($event)"
+                class="absolute bottom-14 -translate-x-1/2 flex flex-col items-center z-40 pointer-events-none"
+                [style.left.%]="getTimelinePercent(draftTimeMinutes())"
+              >
+                <!-- 1. LIVE EDITABLE BUBBLE CARD -->
+                <div
+                  class="relative w-[290px] sm:w-[340px] pointer-events-auto thought-pop"
+                  [style.translate]="getBubbleShiftPercent(draftTimeMinutes(), 22, 48) + '% 0'"
+                >
+                  <div
+                    class="relative p-3 rounded-2xl bg-white dark:bg-slate-800 shadow-2xl border-2 border-primary ring-4 ring-primary/15 w-full flex flex-col gap-2"
+                  >
+                    <!-- Draft Header -->
+                    <div class="flex items-center justify-between gap-1.5 flex-wrap">
+                      <div class="flex items-center gap-1.5 min-w-0">
+                        <app-actor-avatar
+                          [avatar]="actorView.avatarIcon"
+                          containerClass="w-7 h-7 rounded-xl shadow-xs ring-2 ring-primary/30 flex-shrink-0"
+                        />
+                        <div class="flex flex-col min-w-0">
+                          <div class="flex items-center gap-1">
+                            <span class="text-xs font-bold text-on-surface truncate max-w-[110px]">
+                              {{ actorView.name }}
+                            </span>
+                            <span class="px-1.5 py-0.2 rounded-full bg-primary/15 text-primary text-[9px] font-mono font-bold">
+                              Новая
+                            </span>
+                          </div>
+                          @if (showAllDates()) {
+                            <span class="text-[9px] font-mono text-outline">{{ selectedDateKey() }}</span>
+                          }
+                        </div>
+                      </div>
+
+                      <div class="flex items-center gap-1 flex-shrink-0">
+                        <app-time-picker-popover
+                          [time]="activeDraftTime"
+                          (timeChange)="draftTime.set($event)"
+                          placement="up"
+                          ariaLabel="Время новой записи"
+                        />
+                        <button
+                          type="button"
+                          (click)="cancelDraftNote()"
+                          aria-label="Отменить создание записи"
+                          title="Отменить (Esc)"
+                          class="p-1 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container-high cursor-pointer transition-colors"
+                        >
+                          <span class="material-symbols-rounded text-base leading-none">close</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Type Switcher + Optional Title -->
+                    <div class="flex items-center gap-1.5">
+                      <div class="inline-flex items-center p-0.5 rounded-lg bg-surface-container-low border border-outline-variant/30 flex-shrink-0">
+                        @for (t of draftEntryTypes; track t.value) {
+                          <button
+                            type="button"
+                            (click)="draftType.set(t.value)"
+                            class="px-1.5 py-0.5 rounded-md text-xs transition-colors cursor-pointer"
+                            [class]="
+                              draftType() === t.value
+                                ? 'bg-primary text-on-primary shadow-2xs'
+                                : 'text-on-surface-variant hover:text-on-surface'
+                            "
+                            [title]="t.label"
+                            [attr.aria-label]="t.label"
+                          >
+                            {{ t.emoji }}
+                          </button>
+                        }
+                      </div>
+
+                      <input
+                        type="text"
+                        [ngModel]="draftTitle()"
+                        (ngModelChange)="draftTitle.set($event)"
+                        placeholder="Заголовок (опционально)"
+                        class="flex-1 min-w-0 px-2.5 py-1 rounded-lg bg-surface-container-low border border-outline-variant/40 text-xs font-semibold text-on-surface focus:outline-none focus:border-primary/60"
+                      />
+                    </div>
+
+                    <!-- Autofocused Message Textarea -->
+                    <textarea
+                      #draftTextarea
+                      [ngModel]="draftText()"
+                      (ngModelChange)="draftText.set($event)"
+                      (keydown)="onDraftKeydown($event)"
+                      rows="3"
+                      placeholder="Напишите сообщение... (можно #хештеги, Enter — сохранить)"
+                      class="w-full px-2.5 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface leading-snug resize-y focus:outline-none focus:border-primary/60"
+                    ></textarea>
+
+                    <!-- Hashtag Selector -->
+                    <app-hashtag-multiselect
+                      [options]="hashtagOptions()"
+                      [selectedTags]="draftSelectedTags()"
+                      (selectedTagsChange)="draftSelectedTags.set($event)"
+                      placement="up"
+                      placeholder="Хештеги (#тег)..."
+                      searchPlaceholder="Поиск или новый #хештег..."
+                      ariaLabel="Хештеги новой записи"
+                    />
+
+                    @if (draftPreviewTags().length > 0) {
+                      <div class="flex flex-wrap items-center gap-1">
+                        @for (tag of draftPreviewTags(); track tag) {
+                          <span class="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-primary/15 text-primary font-semibold">
+                            #{{ tag }}
+                          </span>
+                        }
+                      </div>
+                    }
+
+                    <!-- Footer Actions -->
+                    <div class="flex items-center justify-between gap-2 pt-1 border-t border-outline-variant/20">
+                      <span class="text-[10px] font-mono text-outline">
+                        Enter — сохранить · Esc — отмена
+                      </span>
+                      <div class="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          (click)="cancelDraftNote()"
+                          class="px-2.5 py-1 rounded-lg bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-[11px] font-bold cursor-pointer"
+                        >
+                          Отмена
+                        </button>
+                        <button
+                          type="button"
+                          (click)="saveDraftNote()"
+                          [disabled]="!draftText().trim()"
+                          class="px-2.5 py-1 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-45 text-on-primary text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
+                        >
+                          <span class="material-symbols-rounded text-xs leading-none">check</span>
+                          <span>Сохранить</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Triangular bottom tail pointing to candlestick column -->
+                    <div
+                      class="absolute -bottom-1.5 -translate-x-1/2 w-3 h-3 bg-white dark:bg-slate-800 rotate-45 border-b-2 border-r-2 border-primary"
+                      [style.left]="'calc(50% - ' + getBubbleShiftPercent(draftTimeMinutes(), 22, 48) + '%)'"
+                    ></div>
+                  </div>
+                </div>
+
+                <!-- 2. DRAFT CANDLESTICK STEM -->
+                <div class="w-1.5 h-12 rounded-full bg-gradient-to-t from-primary via-primary/70 to-primary/40 shadow-xs my-0.5 pointer-events-none"></div>
+
+                <!-- 3. DRAFT BASE PIN ON THE TIMELINE ROAD -->
+                <div class="flex flex-col items-center pointer-events-auto">
+                  <div class="w-3.5 h-3.5 rounded-full bg-primary ring-4 ring-primary/30 border-2 border-white dark:border-slate-900 shadow-sm flex items-center justify-center">
+                    <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+                  </div>
+                  <span class="text-[9px] font-mono font-bold text-on-primary bg-primary px-1.5 py-0.2 rounded shadow-xs mt-0.5 whitespace-nowrap">
+                    {{ activeDraftTime }}
+                  </span>
+                </div>
+              </div>
+            }
+          }
+
           <!-- THE BOTTOM TIMELINE AXIS (ROAD BAR) -->
           <div class="relative w-full mt-auto pt-8 pb-1">
             <div
+              #timelineRoadBar
               (click)="onTimelineRoadClick($event)"
-              class="relative w-full h-5 rounded-full bg-gradient-to-r from-amber-400 via-orange-300 via-sky-400 to-indigo-500 shadow-inner flex items-center cursor-pointer group"
-              title="Кликните в любую точку шкалы, чтобы выбрать время для новой записи"
+              (mousemove)="onTimelineRoadMouseMove($event)"
+              [class.cursor-pointer]="canPost()"
+              class="relative w-full h-5 rounded-full bg-gradient-to-r from-amber-400 via-orange-300 via-sky-400 to-indigo-500 shadow-inner flex items-center group"
+              [title]="canPost() ? 'Кликните в любую точку графика или шкалы, чтобы создать и отредактировать сообщение' : 'Шкала времени (08:00 — 24:00)'"
             >
               <!-- Dashed Center Lane -->
               <div class="absolute inset-x-2 border-t-2 border-dashed border-white/70 pointer-events-none"></div>
@@ -439,18 +872,45 @@ import { getExtraTagsNotInText, mergeNoteTags } from '../../core/utils/hashtag.u
 
               <!-- "СЕЙЧАС" (NOW) INDICATOR PIN -->
               @if (isTodaySelected()) {
-                <div
-                  class="absolute -translate-x-1/2 flex flex-col items-center pointer-events-none z-20"
-                  [style.left.%]="nowTimePercent()"
-                >
-                  <div class="w-0.5 h-80 border-l-2 border-dashed border-amber-500/50 -mb-2"></div>
-                  <div class="w-6 h-6 rounded-full bg-amber-400 border-2 border-white shadow-md flex items-center justify-center text-xs now-sun-glow">
-                    ☀️
+                @if (nowIndicatorMode() === 'beam') {
+                  <!-- Vertical NOW beam (behind sector pills z-[5] and message cards z-10) -->
+                  <div
+                    class="absolute bottom-2.5 -translate-x-1/2 w-1.5 h-[1200px] rounded-full bg-gradient-to-t from-amber-500 via-amber-400/80 to-amber-300/20 ring-1 ring-white/40 shadow-[0_0_10px_rgba(245,158,11,0.45)] pointer-events-none z-[2]"
+                    [style.left.%]="nowTimePercent()"
+                  ></div>
+
+                  <!-- Sun & badge pin on the road bar -->
+                  <div
+                    class="absolute bottom-[-16px] -translate-x-1/2 flex flex-col items-center pointer-events-none z-20"
+                    [style.left.%]="nowTimePercent()"
+                  >
+                    <div class="w-6 h-6 rounded-full bg-amber-400 border-2 border-white shadow-md flex items-center justify-center text-xs now-sun-glow relative z-10">
+                      ☀️
+                    </div>
+                    <span class="text-[9px] font-label-code-sm font-extrabold text-amber-900 dark:text-amber-200 bg-amber-300 dark:bg-amber-600 px-1.5 py-0.2 rounded-full shadow-xs -mt-1 whitespace-nowrap relative z-10">
+                      Сейчас {{ nowTimeText() }}
+                    </span>
                   </div>
-                  <span class="text-[9px] font-label-code-sm font-extrabold text-amber-900 dark:text-amber-200 bg-amber-300 dark:bg-amber-600 px-1.5 py-0.2 rounded-full shadow-xs -mt-1 whitespace-nowrap">
-                    Сейчас {{ nowTimeText() }}
-                  </span>
-                </div>
+                } @else {
+                  <!-- Compact road-bar anchor pin for Celestial Orb mode -->
+                  @if (celestialOrb(); as orb) {
+                    <div
+                      class="absolute bottom-[-16px] -translate-x-1/2 flex flex-col items-center pointer-events-none z-20"
+                      [style.left.%]="orb.leftPercent"
+                    >
+                      <div
+                        class="w-4 h-4 rounded-full border-2 border-white shadow-md now-sun-glow relative z-10"
+                        [style.background]="'radial-gradient(circle at 35% 35%, ' + orb.coreColor + ', ' + orb.edgeColor + ')'"
+                      ></div>
+                      <span
+                        class="text-[9px] font-label-code-sm font-extrabold px-1.5 py-0.2 rounded-full shadow-xs mt-0.5 whitespace-nowrap relative z-10"
+                        [class]="orb.badgeClasses"
+                      >
+                        {{ orb.phaseEmoji }} {{ nowTimeText() }}
+                      </span>
+                    </div>
+                  }
+                }
               }
             </div>
           </div>
@@ -460,7 +920,13 @@ import { getExtraTagsNotInText, mergeNoteTags } from '../../core/utils/hashtag.u
         <div class="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-2 pt-3 border-t border-amber-200/50 dark:border-outline-variant/30 text-xs text-on-surface-variant">
           <div class="flex items-center gap-2">
             <span class="text-base">✨</span>
-            <span>Каждое сообщение прикреплено столбцом ко времени на нижней шкале. Кликните по шкале для выбора времени или по облачку для деталей.</span>
+            <span>
+              @if (canPost()) {
+                Кликните в любую точку графика или шкалы, чтобы сразу создать и отредактировать сообщение, или по облачку для деталей.
+              } @else {
+                Каждое сообщение прикреплено столбцом ко времени на нижней шкале. Кликните по облачку для деталей.
+              }
+            </span>
           </div>
           <div class="flex items-center gap-2 font-mono text-[11px] font-bold text-amber-800 dark:text-amber-300">
             <span>Хроно-Шкала: 08:00 — 24:00</span>
@@ -795,8 +1261,16 @@ export class TimelineCloudViewComponent {
   readonly canPost = input<boolean>(false);
   readonly activeTagFilter = input<string | null>(null);
   readonly hashtagOptions = input<HashtagSelectOption[]>([]);
+  readonly defaultActor = input<ArenaActorCard | null>(null);
 
   readonly timeSelected = output<string>();
+  readonly createNote = output<{
+    time: string;
+    type: CloudItemType;
+    title?: string;
+    text: string;
+    tags?: string[];
+  }>();
   readonly deleteNote = output<string>();
   readonly editNote = output<{ noteId: string; title?: string; text: string; tags?: string[] }>();
   readonly crossLinkNote = output<CloudDayNote>();
@@ -811,10 +1285,8 @@ export class TimelineCloudViewComponent {
    * Horizontal shift (%) for the bubble card near timeline edges so it isn't clipped.
    * Returns 0 for centered bubbles, positive near the left edge, negative near the right edge.
    */
-  getBubbleShiftPercent(timeMinutes: number): number {
+  getBubbleShiftPercent(timeMinutes: number, edgeThreshold = 14, maxShift = 44): number {
     const percent = getTimelinePercent(timeMinutes);
-    const edgeThreshold = 14;
-    const maxShift = 44;
     if (percent < edgeThreshold) {
       return Math.round(((edgeThreshold - percent) / edgeThreshold) * maxShift * 10) / 10;
     }
@@ -843,6 +1315,31 @@ export class TimelineCloudViewComponent {
     mergeNoteTags(this.editTextDraft(), this.editSelectedTags()),
   );
 
+  // Interactive click-to-create draft bubble state
+  readonly hoverTimePreview = signal<{ time: string; leftPercent: number } | null>(null);
+  readonly draftTime = signal<string | null>(null);
+  readonly draftType = signal<CloudItemType>('thought');
+  readonly draftTitle = signal<string>('');
+  readonly draftText = signal<string>('');
+  readonly draftSelectedTags = signal<string[]>([]);
+  readonly draftTimeMinutes = computed<number>(() => parseTimeToMinutes(this.draftTime()));
+  readonly draftPreviewTags = computed<string[]>(() =>
+    mergeNoteTags(this.draftText(), this.draftSelectedTags()),
+  );
+  readonly draftActorView = computed(() => {
+    const actor = this.defaultActor();
+    return {
+      name: actor?.name || 'Новая запись',
+      avatarIcon: actor?.avatarIcon || 'edit_note',
+    };
+  });
+  protected readonly draftEntryTypes: Array<{ value: CloudItemType; emoji: string; label: string }> = [
+    { value: 'thought', emoji: '💭', label: 'Мысль' },
+    { value: 'proposal', emoji: '💡', label: 'Идея' },
+    { value: 'action', emoji: '⚡', label: 'Экшен' },
+  ];
+  private readonly draftTextareaRef = viewChild<ElementRef<HTMLTextAreaElement>>('draftTextarea');
+
   readonly currentVibe = computed<CloudDayVibe>(
     () => this.vibes.find((v) => v.id === this.selectedVibeId()) ?? this.vibes[0],
   );
@@ -862,15 +1359,31 @@ export class TimelineCloudViewComponent {
     return this.selectedDateKey() === today;
   });
 
-  readonly nowTimePercent = computed<number>(() => {
-    const now = new Date();
-    return getTimelinePercent(now.getHours() * 60 + now.getMinutes());
-  });
+  private readonly destroyRef = inject(DestroyRef);
+  private static readonly NOW_MODE_STORAGE_KEY = 'lemon.timeline.nowIndicatorMode';
+  private static nextOrbUid = 0;
+
+  protected readonly orbUid = ++TimelineCloudViewComponent.nextOrbUid;
+  protected readonly orbMaskId = `celestial-orb-mask-${this.orbUid}`;
+  protected readonly orbCoreGradId = `celestial-orb-core-${this.orbUid}`;
+  protected readonly orbTrailGradId = `celestial-orb-trail-${this.orbUid}`;
+  protected readonly celestialFullArcPath = CELESTIAL_ORB_FULL_ARC_PATH;
+
+  readonly nowIndicatorMode = signal<CloudNowIndicatorMode>(this.loadNowIndicatorMode());
+  readonly nowMinutes = signal<number>(this.getCurrentMinutes());
+
+  readonly nowTimePercent = computed<number>(() => getTimelinePercent(this.nowMinutes()));
 
   readonly nowTimeText = computed<string>(() => {
-    const now = new Date();
-    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const mins = this.nowMinutes();
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   });
+
+  readonly celestialOrb = computed<CelestialOrbState>(() => getCelestialOrbState(this.nowMinutes()));
+
+  readonly orbDayProgressPercent = computed<number>(() => Math.round(this.celestialOrb().progress * 100));
 
   constructor() {
     effect(
@@ -882,6 +1395,54 @@ export class TimelineCloudViewComponent {
       },
       { allowSignalWrites: true },
     );
+
+    effect(() => {
+      const textarea = this.draftTextareaRef();
+      if (textarea) {
+        queueMicrotask(() => textarea.nativeElement.focus());
+      }
+    });
+
+    effect(
+      () => {
+        this.board()?.id;
+        this.selectedDateKey();
+        const postAllowed = this.canPost();
+        if (!postAllowed || untracked(() => this.draftTime() !== null)) {
+          this.cancelDraftNote();
+        }
+      },
+      { allowSignalWrites: true },
+    );
+
+    const timer = setInterval(() => {
+      this.nowMinutes.set(this.getCurrentMinutes());
+    }, 30_000);
+    this.destroyRef.onDestroy(() => clearInterval(timer));
+  }
+
+  setNowIndicatorMode(mode: CloudNowIndicatorMode): void {
+    this.nowIndicatorMode.set(mode);
+    try {
+      localStorage.setItem(TimelineCloudViewComponent.NOW_MODE_STORAGE_KEY, mode);
+    } catch {
+      // Ignore storage errors in restricted environments
+    }
+  }
+
+  private loadNowIndicatorMode(): CloudNowIndicatorMode {
+    try {
+      const saved = localStorage.getItem(TimelineCloudViewComponent.NOW_MODE_STORAGE_KEY);
+      if (saved === 'beam' || saved === 'orb') return saved;
+    } catch {
+      // Ignore storage errors
+    }
+    return 'orb';
+  }
+
+  private getCurrentMinutes(): number {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
   }
 
   selectVibe(id: CloudDayVibeId): void {
@@ -918,22 +1479,119 @@ export class TimelineCloudViewComponent {
     this.clusterActiveIndices.update((map) => ({ ...map, [clusterId]: next }));
   }
 
-  onTimelineRoadClick(event: MouseEvent): void {
-    const target = event.currentTarget as HTMLElement | null;
-    if (!target) return;
-    const rect = target.getBoundingClientRect();
-    if (!rect.width) return;
-    const clickX = event.clientX - rect.left;
-    const rawRatio = Math.max(0, Math.min(1, clickX / rect.width));
-    const normalized = Math.max(0, Math.min(1, (rawRatio - 0.06) / 0.88));
-    const mins = Math.round(480 + normalized * (1440 - 480));
-    const h = Math.min(23, Math.floor(mins / 60));
-    const m = Math.round((mins % 60) / 15) * 15;
-    const formatted = `${String(h).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-    this.timeSelected.emit(formatted);
+  onSkyMouseMove(event: MouseEvent): void {
+    const rawTarget = event.target as HTMLElement | null;
+    if (rawTarget?.closest('[data-cloud-interactive="true"]')) {
+      this.hoverTimePreview.set(null);
+      return;
+    }
+    this.updateHoverPreview(event.clientX, event.currentTarget as HTMLElement | null);
   }
 
-  openInspectModal(note: CloudDayNote): void {
+  onTimelineRoadMouseMove(event: MouseEvent): void {
+    event.stopPropagation();
+    this.updateHoverPreview(event.clientX, event.currentTarget as HTMLElement | null);
+  }
+
+  private updateHoverPreview(clientX: number, container: HTMLElement | null): void {
+    if (!this.canPost() || this.draftTime() !== null || !container) {
+      this.hoverTimePreview.set(null);
+      return;
+    }
+    const resolved = resolveTimelineClickTime(clientX, container.getBoundingClientRect());
+    if (!resolved) {
+      this.hoverTimePreview.set(null);
+      return;
+    }
+    this.hoverTimePreview.set({
+      time: resolved.time,
+      leftPercent: getTimelinePercent(resolved.timeMinutes),
+    });
+  }
+
+  onSkyCanvasClick(event: MouseEvent): void {
+    const rawTarget = event.target as HTMLElement | null;
+    if (rawTarget?.closest('[data-cloud-interactive="true"]')) return;
+    const container = event.currentTarget as HTMLElement | null;
+    if (!container) return;
+    const resolved = resolveTimelineClickTime(event.clientX, container.getBoundingClientRect());
+    if (!resolved) return;
+    this.startOrMoveDraftAt(resolved.time);
+  }
+
+  onTimelineRoadClick(event: MouseEvent): void {
+    event.stopPropagation();
+    const target = event.currentTarget as HTMLElement | null;
+    if (!target) return;
+    const resolved = resolveTimelineClickTime(event.clientX, target.getBoundingClientRect());
+    if (!resolved) return;
+    this.startOrMoveDraftAt(resolved.time);
+  }
+
+  private startOrMoveDraftAt(formattedTime: string): void {
+    this.timeSelected.emit(formattedTime);
+    if (!this.canPost()) return;
+    this.hoverTimePreview.set(null);
+    this.closeInspectModal();
+    if (this.draftTime() !== null) {
+      this.draftTime.set(formattedTime);
+      return;
+    }
+    this.draftType.set('thought');
+    this.draftTitle.set('');
+    this.draftText.set('');
+    this.draftSelectedTags.set([]);
+    this.draftTime.set(formattedTime);
+  }
+
+  cancelDraftNote(): void {
+    this.draftTime.set(null);
+    this.draftType.set('thought');
+    this.draftTitle.set('');
+    this.draftText.set('');
+    this.draftSelectedTags.set([]);
+  }
+
+  saveDraftNote(): void {
+    const time = this.draftTime();
+    const text = this.draftText().trim();
+    if (!time || !text || !this.canPost()) return;
+    const title = this.draftTitle().trim() || undefined;
+    const tags = mergeNoteTags(text, this.draftSelectedTags());
+    this.createNote.emit({
+      time,
+      type: this.draftType(),
+      title,
+      text,
+      tags,
+    });
+    this.cancelDraftNote();
+  }
+
+  onDraftKeydown(event: KeyboardEvent): void {
+    if (event.isComposing) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.cancelDraftNote();
+      return;
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      this.saveDraftNote();
+    }
+  }
+
+  onDraftEscape(event: Event): void {
+    event.stopPropagation();
+    this.cancelDraftNote();
+  }
+
+  openInspectModal(note: CloudDayNote, event?: MouseEvent): void {
+    event?.stopPropagation();
+    if (this.draftTime() !== null && !this.draftText().trim() && !this.draftTitle().trim()) {
+      this.cancelDraftNote();
+    }
     this.cancelEditInspectedNote();
     this.inspectedNote.set(note);
   }

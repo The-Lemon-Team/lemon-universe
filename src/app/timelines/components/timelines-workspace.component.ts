@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -77,7 +77,7 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="flex flex-col gap-3 pb-28 sm:pb-36">
+    <div class="flex flex-col gap-3 pb-4 sm:pb-6">
       <!-- Status / Error Banner -->
       @if (statusMessage(); as msg) {
         <div class="p-3 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-xs font-semibold flex items-center justify-between gap-2">
@@ -511,7 +511,9 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
               [canPost]="canPostToActiveBoard()"
               [activeTagFilter]="selectedTagFilter()"
               [hashtagOptions]="composerHashtagOptions()"
+              [defaultActor]="activeComposerActor()"
               (timeSelected)="composerTime.set($event)"
+              (createNote)="handleCloudCreateNote($event)"
               (deleteNote)="timelines.deleteNote($event)"
               (editNote)="timelines.updateNote($event.noteId, { title: $event.title, text: $event.text, tags: $event.tags })"
               (crossLinkNote)="openCrossLinkModal($event)"
@@ -1072,7 +1074,7 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                 </div>
               }
 
-              <div class="flex items-center gap-1.5 sm:gap-2">
+              <div class="flex items-end gap-1.5 sm:gap-2">
                 <button
                   type="button"
                   (click)="composerExpanded.set(!composerExpanded())"
@@ -1089,13 +1091,14 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                 </span>
 
                 <textarea
+                  #composerTextarea
                   [ngModel]="composerText()"
                   (ngModelChange)="composerText.set($event)"
                   rows="1"
                   (keydown)="onComposerKeydown($event)"
                   [placeholder]="'Сообщение от «' + (activeComposerActor()?.name || 'Персонаж') + '»... Пишите #хештеги прямо в тексте (Enter)'"
                   title="Enter — отправить, Shift+Enter — новая строка"
-                  class="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface resize-none focus:outline-none focus:border-primary/60"
+                  class="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface resize-none max-h-44 overflow-y-auto focus:outline-none focus:border-primary/60"
                 ></textarea>
 
                 <label
@@ -1374,6 +1377,15 @@ export class TimelinesWorkspaceComponent {
   readonly composerType = signal<CloudItemType>('thought');
   composerTitle = '';
   readonly composerText = signal<string>('');
+  readonly composerTextarea = viewChild<ElementRef<HTMLTextAreaElement>>('composerTextarea');
+
+  private readonly composerResizeEffect = effect(() => {
+    this.composerText();
+    const el = this.composerTextarea()?.nativeElement;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 176)}px`;
+  });
   readonly composerSelectedTags = signal<string[]>([]);
   readonly composerTime = signal<string>(this.getCurrentLocalTimeString());
   composerShareWithGroup = false;
@@ -1762,6 +1774,34 @@ export class TimelinesWorkspaceComponent {
       this.composerShareWithGroup = false;
       this.pendingMedia.set([]);
     }
+  }
+
+  handleCloudCreateNote(payload: {
+    time: string;
+    type: CloudItemType;
+    title?: string;
+    text: string;
+    tags?: string[];
+  }): void {
+    const board = this.activeBoard();
+    const actor = this.activeComposerActor();
+    if (!board || !actor) return;
+
+    const text = payload.text.trim();
+    if (!text) return;
+
+    this.composerTime.set(payload.time);
+    this.timelines.addNote({
+      board,
+      actor,
+      dateKey: this.selectedDateKey(),
+      time: payload.time,
+      type: payload.type,
+      title: payload.title,
+      text,
+      tags: payload.tags,
+      sharedWithGroup: board.privacy === 'PRIVATE' ? this.composerShareWithGroup : false,
+    });
   }
 
   startEditNote(note: CloudDayNote): void {

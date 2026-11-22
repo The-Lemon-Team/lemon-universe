@@ -154,6 +154,37 @@ export function getTimelinePercent(timeMinutes: number): number {
   return Math.round(pct * 10) / 10;
 }
 
+/** Parses an `HH:MM` string into total minutes from midnight. */
+export function parseTimeToMinutes(time: string | null | undefined, fallbackMinutes = 720): number {
+  if (!time) return fallbackMinutes;
+  const [hh, mm] = time.split(':').map(Number);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return fallbackMinutes;
+  return Math.max(0, Math.min(1440, hh * 60 + mm));
+}
+
+/**
+ * Resolves a click X coordinate inside the 08:00–24:00 timeline span (6%..94% width)
+ * into a 15-minute-snapped `HH:MM` timestamp and minute offset.
+ */
+export function resolveTimelineClickTime(
+  clientX: number,
+  rect: { left: number; width: number },
+): { time: string; timeMinutes: number } | null {
+  if (!rect.width || rect.width <= 0) return null;
+  const clickX = clientX - rect.left;
+  const rawRatio = Math.max(0, Math.min(1, clickX / rect.width));
+  const normalized = Math.max(0, Math.min(1, (rawRatio - 0.06) / 0.88));
+  const rawMinutes = 480 + normalized * (1440 - 480);
+  const snapped = Math.round(rawMinutes / 15) * 15;
+  const clamped = Math.max(480, Math.min(23 * 60 + 45, snapped));
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return {
+    time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+    timeMinutes: clamped,
+  };
+}
+
 /** Staggered candlestick stem height across 3 tiers. */
 export function getNoteStemHeight(index: number): number {
   return (index % 3) * 105 + 85;
@@ -233,4 +264,156 @@ export function getCloudTypeEmoji(type: CloudItemType): string {
   if (type === 'thought') return '💭';
   if (type === 'proposal') return '💡';
   return '⚡';
+}
+
+export type CloudNowIndicatorMode = 'beam' | 'orb';
+
+export interface CelestialOrbState {
+  /** 0 (08:00) .. 1 (24:00) */
+  progress: number;
+  /** Timeline horizontal position in % (6..94) */
+  leftPercent: number;
+  /** Parabolic sky height in % above road bar (aligned with stretched sky arc) */
+  bottomPercent: number;
+  /** Exact SVG quadratic Bezier path from off-canvas left edge up to the orb center */
+  traveledArcPath: string;
+  /** 0 = full sun, 1 = thin crescent moon */
+  moonFactor: number;
+  sunRaysOpacity: number;
+  starsOpacity: number;
+  /** SVG mask circle coordinates inside 64x64 viewBox */
+  maskCx: number;
+  maskCy: number;
+  coreColor: string;
+  edgeColor: string;
+  glowColor: string;
+  badgeClasses: string;
+  phaseLabel: string;
+  phaseEmoji: string;
+}
+
+const ORB_ARC_P0 = { x: -50, y: 296 };
+const ORB_ARC_P1 = { x: 500, y: -184 };
+const ORB_ARC_P2 = { x: 1050, y: 296 };
+
+export const CELESTIAL_ORB_FULL_ARC_PATH = `M ${ORB_ARC_P0.x} ${ORB_ARC_P0.y} Q ${ORB_ARC_P1.x} ${ORB_ARC_P1.y} ${ORB_ARC_P2.x} ${ORB_ARC_P2.y}`;
+
+/**
+ * Computes position, Moon↔Sun morphing state, and palette for the Celestial Orb indicator
+ * across the 08:00 (480m) — 24:00 (1440m) cloud timeline.
+ */
+export function getCelestialOrbState(timeMinutes: number): CelestialOrbState {
+  const startMins = 480;
+  const endMins = 1440;
+  const clamped = Math.max(startMins, Math.min(endMins, timeMinutes));
+  const progress = (clamped - startMins) / (endMins - startMins);
+  const leftPercent = getTimelinePercent(clamped);
+
+  // Map 6%..94% timeline span onto stretched arc u in [0.1..0.9] so ends extend past canvas edges
+  const u = (leftPercent * 10 - ORB_ARC_P0.x) / (ORB_ARC_P2.x - ORB_ARC_P0.x);
+  const oneMinusU = 1 - u;
+  const q0x = oneMinusU * ORB_ARC_P0.x + u * ORB_ARC_P1.x;
+  const q0y = oneMinusU * ORB_ARC_P0.y + u * ORB_ARC_P1.y;
+  const orbX = Math.round(leftPercent * 10 * 10) / 10;
+  const orbY = Math.round((oneMinusU * oneMinusU * ORB_ARC_P0.y + 2 * oneMinusU * u * ORB_ARC_P1.y + u * u * ORB_ARC_P2.y) * 10) / 10;
+  const bottomPercent = Math.round(((400 - orbY) / 400) * 100 * 10) / 10;
+  const traveledArcPath = `M ${ORB_ARC_P0.x} ${ORB_ARC_P0.y} Q ${Math.round(q0x * 10) / 10} ${Math.round(q0y * 10) / 10} ${orbX} ${orbY}`;
+
+  let moonFactor = 0;
+  if (clamped < 570) {
+    // 08:00 — 09:30: dawn crescent moon melts into full morning sun
+    moonFactor = 0.85 * (1 - (clamped - 480) / 90);
+  } else if (clamped >= 1050 && clamped < 1260) {
+    // 17:30 — 21:00: sunset sun gradually turns into dusk crescent
+    moonFactor = 0.65 * ((clamped - 1050) / 210);
+  } else if (clamped >= 1260) {
+    // 21:00 — 24:00: night crescent moon
+    moonFactor = 0.65 + 0.27 * ((clamped - 1260) / 180);
+  }
+  moonFactor = Math.round(Math.max(0, Math.min(1, moonFactor)) * 100) / 100;
+
+  const sunRaysOpacity =
+    clamped < 540
+      ? 0
+      : clamped < 720
+        ? Math.round(((clamped - 540) / 180) * 100) / 100
+        : clamped <= 1020
+          ? 1
+          : clamped < 1140
+            ? Math.round((1 - (clamped - 1020) / 120) * 100) / 100
+            : 0;
+
+  const starsOpacity =
+    clamped < 1200 ? 0 : Math.round(Math.min(1, (clamped - 1200) / 150) * 100) / 100;
+
+  const shadowSign = clamped < 720 ? 1 : -1;
+  const maskDist = 37 - moonFactor * 25;
+  const maskCx = Math.round((32 + shadowSign * maskDist * 0.78) * 10) / 10;
+  const maskCy = Math.round((32 - maskDist * 0.625) * 10) / 10;
+
+  const base = {
+    progress,
+    leftPercent,
+    bottomPercent,
+    traveledArcPath,
+    moonFactor,
+    sunRaysOpacity,
+    starsOpacity,
+    maskCx,
+    maskCy,
+  };
+
+  if (clamped < 570) {
+    return {
+      ...base,
+      coreColor: '#fef3c7',
+      edgeColor: '#fdba74',
+      glowColor: 'rgba(251, 191, 36, 0.5)',
+      badgeClasses: 'bg-amber-200 dark:bg-amber-700 text-amber-950 dark:text-amber-100',
+      phaseLabel: 'Рассвет',
+      phaseEmoji: '🌅',
+    };
+  }
+  if (clamped < 720) {
+    return {
+      ...base,
+      coreColor: '#fef08a',
+      edgeColor: '#f59e0b',
+      glowColor: 'rgba(245, 158, 11, 0.55)',
+      badgeClasses: 'bg-amber-300 dark:bg-amber-600 text-amber-950 dark:text-amber-100',
+      phaseLabel: 'Утреннее солнце',
+      phaseEmoji: '🌤️',
+    };
+  }
+  if (clamped < 1020) {
+    return {
+      ...base,
+      coreColor: '#fef9c3',
+      edgeColor: '#f97316',
+      glowColor: 'rgba(245, 158, 11, 0.65)',
+      badgeClasses: 'bg-amber-300 dark:bg-amber-600 text-amber-900 dark:text-amber-100',
+      phaseLabel: 'Солнце в зените',
+      phaseEmoji: '☀️',
+    };
+  }
+  if (clamped < 1260) {
+    return {
+      ...base,
+      coreColor: '#fed7aa',
+      edgeColor: '#e11d48',
+      glowColor: 'rgba(244, 63, 94, 0.5)',
+      badgeClasses: 'bg-rose-200 dark:bg-rose-800 text-rose-950 dark:text-rose-100',
+      phaseLabel: 'Закат',
+      phaseEmoji: '🌆',
+    };
+  }
+  return {
+    ...base,
+    coreColor: '#f8fafc',
+    edgeColor: '#818cf8',
+    glowColor: 'rgba(129, 140, 248, 0.6)',
+    badgeClasses: 'bg-indigo-200 dark:bg-indigo-800 text-indigo-950 dark:text-indigo-100',
+    phaseLabel: 'Ночная луна',
+    phaseEmoji: '🌙',
+  };
 }

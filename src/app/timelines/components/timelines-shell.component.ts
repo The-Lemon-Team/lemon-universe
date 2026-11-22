@@ -126,44 +126,6 @@ import { TimelinesService } from '../services/timelines.service';
             </button>
           </div>
         </div>
-
-        <!-- Quick Timeline Switcher Bar (Primary Header Accent) -->
-        <div class="border-t border-outline-variant/25 bg-surface-container-low/80">
-          <div class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-1.5 flex items-center gap-2">
-            <div class="shrink-0 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary/12 text-primary border border-primary/25">
-              <span class="material-symbols-rounded text-sm">view_timeline</span>
-              <span class="font-label-ui text-[11px] font-extrabold uppercase tracking-wider hidden sm:inline">Timelines</span>
-            </div>
-
-            <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 flex-1">
-              @for (board of (timelinesService.visibleBoards$ | async) ?? []; track board.id) {
-                <button
-                  type="button"
-                  (click)="selectTimeline(board.id)"
-                  class="shrink-0 px-2.5 py-1 rounded-xl font-label-ui text-[11px] font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer border"
-                  [class]="
-                    (timelinesService.activeBoardId$ | async) === board.id
-                      ? board.boardMode === 'AGENT_SUMMARY'
-                        ? 'bg-violet-600 text-white border-violet-500 shadow-sm ring-2 ring-violet-500/25'
-                        : 'bg-primary text-on-primary border-primary shadow-sm ring-2 ring-primary/25'
-                      : 'bg-surface hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface border-outline-variant/30'
-                  "
-                  [title]="board.title + (board.privacy === 'PRIVATE' ? ' (Приватный)' : ' (Публичный)')"
-                >
-                  <span class="material-symbols-rounded text-[14px]">
-                    {{ board.boardMode === 'AGENT_SUMMARY' ? 'smart_toy' : board.privacy === 'PRIVATE' ? 'lock' : 'auto_stories' }}
-                  </span>
-                  <span class="truncate max-w-[140px]">{{ board.title }}</span>
-                  @if ((timelinesService.activeBoardId$ | async) === board.id) {
-                    <span class="w-1.5 h-1.5 rounded-full bg-current opacity-90"></span>
-                  }
-                </button>
-              } @empty {
-                <span class="text-[11px] text-on-surface-variant px-2">Нет доступных Timelines</span>
-              }
-            </div>
-          </div>
-        </div>
       </header>
 
       <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">

@@ -147,4 +147,26 @@ describe('TimelinesWorkspaceComponent', () => {
     fixture.detectChanges();
     expect(timePickerEl.textContent).toContain('18:30');
   });
+
+  it('should persist a note created interactively from the cloud view via handleCloudCreateNote', () => {
+    component.handleCloudCreateNote({
+      time: '15:30',
+      type: 'proposal',
+      title: 'Точка на графике',
+      text: 'Создано кликом по графику #идея',
+      tags: ['идея'],
+    });
+
+    const createReqs = httpMock.match((req) => req.method === 'POST' && req.url.includes('/timelines/notes'));
+    expect(createReqs.length).toBe(1);
+    expect(createReqs[0].request.body.time).toBe('15:30');
+    expect(createReqs[0].request.body.type).toBe('proposal');
+    expect(createReqs[0].request.body.title).toBe('Точка на графике');
+    expect(createReqs[0].request.body.text).toBe('Создано кликом по графику #идея');
+    createReqs[0].flush(createReqs[0].request.body);
+    fixture.detectChanges();
+
+    expect(component.composerTime()).toBe('15:30');
+    expect(component.visibleNotes().some((n) => n.text.includes('Создано кликом по графику'))).toBeTrue();
+  });
 });

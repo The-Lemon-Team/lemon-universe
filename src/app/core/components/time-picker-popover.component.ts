@@ -68,7 +68,7 @@ import { FormsModule } from '@angular/forms';
           role="dialog"
           aria-modal="false"
           [attr.aria-label]="ariaLabel()"
-          class="fixed z-[75] w-72 rounded-2xl bg-surface-container-lowest/98 backdrop-blur-md border border-outline-variant/50 shadow-2xl p-3 flex flex-col gap-2.5 select-none"
+          class="fixed z-[75] w-72 rounded-2xl bg-white border border-outline-variant/50 shadow-2xl p-3 flex flex-col gap-2.5 select-none"
           [style.left]="panelStyle()['left']"
           [style.top]="panelStyle()['top']"
           [style.bottom]="panelStyle()['bottom']"
