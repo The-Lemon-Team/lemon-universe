@@ -117,4 +117,34 @@ describe('TimelinesWorkspaceComponent', () => {
     expect(component.filteredBoards().length).toBe(1);
     expect(component.filteredBoards()[0].title).toBe('Проектный Борд');
   });
+
+  it('should trigger submitEntry on Enter keydown in composer and ignore Shift+Enter', () => {
+    spyOn(component, 'submitEntry');
+
+    const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
+    spyOn(enterEvent, 'preventDefault');
+    component.onComposerKeydown(enterEvent);
+
+    expect(enterEvent.preventDefault).toHaveBeenCalled();
+    expect(component.submitEntry).toHaveBeenCalledTimes(1);
+
+    const shiftEnterEvent = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true });
+    spyOn(shiftEnterEvent, 'preventDefault');
+    component.onComposerKeydown(shiftEnterEvent);
+
+    expect(shiftEnterEvent.preventDefault).not.toHaveBeenCalled();
+    expect(component.submitEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it('should render TimePickerPopoverComponent when composer is expanded and update composerTime', () => {
+    component.composerExpanded.set(true);
+    fixture.detectChanges();
+
+    const timePickerEl = fixture.nativeElement.querySelector('app-time-picker-popover');
+    expect(timePickerEl).toBeTruthy();
+
+    component.composerTime.set('18:30');
+    fixture.detectChanges();
+    expect(timePickerEl.textContent).toContain('18:30');
+  });
 });

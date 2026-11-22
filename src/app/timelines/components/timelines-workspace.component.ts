@@ -14,6 +14,7 @@ import {
   HashtagSelectOption,
 } from '../../core/components/hashtag-multiselect.component';
 import { HashtagTextComponent } from '../../core/components/hashtag-text.component';
+import { TimePickerPopoverComponent } from '../../core/components/time-picker-popover.component';
 import {
   appendHashtagToText,
   applyHashtagAutocomplete,
@@ -72,6 +73,7 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
     TimelineCloudViewComponent,
     HashtagMultiselectComponent,
     HashtagTextComponent,
+    TimePickerPopoverComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -509,7 +511,7 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
               [canPost]="canPostToActiveBoard()"
               [activeTagFilter]="selectedTagFilter()"
               [hashtagOptions]="composerHashtagOptions()"
-              (timeSelected)="composerTime = $event"
+              (timeSelected)="composerTime.set($event)"
               (deleteNote)="timelines.deleteNote($event)"
               (editNote)="timelines.updateNote($event.noteId, { title: $event.title, text: $event.text, tags: $event.tags })"
               (crossLinkNote)="openCrossLinkModal($event)"
@@ -1001,17 +1003,17 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
 
                   <div class="flex items-center justify-between gap-2 flex-wrap">
                     <div class="inline-flex items-center gap-1">
-                      <input
-                        type="time"
-                        [(ngModel)]="composerTime"
-                        aria-label="Время записи"
-                        class="px-2 py-1 rounded-lg bg-surface-container-low border border-outline-variant/40 text-xs font-mono text-on-surface"
+                      <app-time-picker-popover
+                        [time]="composerTime()"
+                        (timeChange)="composerTime.set($event)"
+                        placement="up"
+                        ariaLabel="Время записи"
                       />
                       <button
                         type="button"
                         (click)="setCurrentTime()"
                         title="Установить текущее время"
-                        class="px-2 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/40 text-[11px] font-bold text-on-surface-variant inline-flex items-center gap-1 cursor-pointer"
+                        class="px-2 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/40 text-[11px] font-bold text-on-surface-variant inline-flex items-center gap-1 cursor-pointer transition-colors"
                       >
                         <span class="material-symbols-rounded text-xs text-primary">schedule</span>
                         <span>Сейчас</span>
@@ -1090,8 +1092,9 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
                   [ngModel]="composerText()"
                   (ngModelChange)="composerText.set($event)"
                   rows="1"
-                  (keydown.ctrl.enter)="submitEntry()"
-                  [placeholder]="'Сообщение от «' + (activeComposerActor()?.name || 'Персонаж') + '»... Пишите #хештеги прямо в тексте (Ctrl+Enter)'"
+                  (keydown)="onComposerKeydown($event)"
+                  [placeholder]="'Сообщение от «' + (activeComposerActor()?.name || 'Персонаж') + '»... Пишите #хештеги прямо в тексте (Enter)'"
+                  title="Enter — отправить, Shift+Enter — новая строка"
                   class="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface resize-none focus:outline-none focus:border-primary/60"
                 ></textarea>
 
@@ -1372,7 +1375,7 @@ export class TimelinesWorkspaceComponent {
   composerTitle = '';
   readonly composerText = signal<string>('');
   readonly composerSelectedTags = signal<string[]>([]);
-  composerTime = this.getCurrentLocalTimeString();
+  readonly composerTime = signal<string>(this.getCurrentLocalTimeString());
   composerShareWithGroup = false;
   readonly pendingMedia = signal<TimelineMediaAttachment[]>([]);
   readonly isUploadingMedia = signal<boolean>(false);
@@ -1684,7 +1687,7 @@ export class TimelinesWorkspaceComponent {
   }
 
   setCurrentTime(): void {
-    this.composerTime = this.getCurrentLocalTimeString();
+    this.composerTime.set(this.getCurrentLocalTimeString());
   }
 
   private getCurrentLocalTimeString(): string {
@@ -1721,6 +1724,16 @@ export class TimelinesWorkspaceComponent {
     this.pendingMedia.update((list) => list.filter((_, i) => i !== index));
   }
 
+  onComposerKeydown(event: KeyboardEvent): void {
+    if (event.isComposing) {
+      return;
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      this.submitEntry();
+    }
+  }
+
   submitEntry(): void {
     const board = this.activeBoard();
     const actor = this.activeComposerActor();
@@ -1733,7 +1746,7 @@ export class TimelinesWorkspaceComponent {
       board,
       actor,
       dateKey: this.selectedDateKey(),
-      time: this.composerTime || this.getCurrentLocalTimeString(),
+      time: this.composerTime() || this.getCurrentLocalTimeString(),
       type: this.composerType(),
       title: this.composerTitle,
       text,

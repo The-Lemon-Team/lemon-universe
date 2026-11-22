@@ -65,4 +65,46 @@ describe('HashtagMultiselectComponent', () => {
     expect(emitted[0]).toEqual([]);
     expect(component.isOpen()).toBeFalse();
   });
+
+  it('should close on Escape key and stop event propagation so modal is not closed', () => {
+    component.toggle();
+    fixture.detectChanges();
+    expect(component.isOpen()).toBeTrue();
+
+    const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    spyOn(escapeEvent, 'stopPropagation');
+    spyOn(escapeEvent, 'stopImmediatePropagation');
+
+    component.onEscapeKey(escapeEvent);
+    fixture.detectChanges();
+
+    expect(component.isOpen()).toBeFalse();
+    expect(escapeEvent.stopPropagation).toHaveBeenCalled();
+    expect(escapeEvent.stopImmediatePropagation).toHaveBeenCalled();
+  });
+
+  it('should close when clicking on the outside backdrop', () => {
+    component.toggle();
+    fixture.detectChanges();
+    expect(component.isOpen()).toBeTrue();
+
+    const el = fixture.nativeElement as HTMLElement;
+    const backdrop = el.querySelector('.fixed.inset-0') as HTMLElement;
+    expect(backdrop).toBeTruthy();
+
+    backdrop.click();
+    fixture.detectChanges();
+
+    expect(component.isOpen()).toBeFalse();
+  });
+
+  it('should calculate fixed overlay styles and adjust for available space', () => {
+    component.toggle();
+    fixture.detectChanges();
+
+    expect(component.panelStyle()['position']).toBe('fixed');
+    expect(component.panelStyle()['zIndex']).toBe('75');
+    expect(component.panelStyle()['width']).toBeDefined();
+    expect(component.panelStyle()['maxHeight']).toBeDefined();
+  });
 });

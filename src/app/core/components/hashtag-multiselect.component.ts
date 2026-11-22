@@ -1,7 +1,11 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   HostListener,
+  OnDestroy,
+  OnInit,
+  ViewChild,
   computed,
   input,
   output,
@@ -17,6 +21,7 @@ export interface HashtagSelectOption {
 
 /**
  * Reusable multiselect input with search and optional inline creation of new `#hashtags`.
+ * Uses viewport-aware fixed overlay positioning so it never gets clipped by parent overflow containers.
  */
 @Component({
   selector: 'app-hashtag-multiselect',
@@ -27,6 +32,7 @@ export interface HashtagSelectOption {
     <div class="relative w-full">
       <!-- Trigger Field -->
       <div
+        #triggerRef
         role="combobox"
         tabindex="0"
         [attr.aria-expanded]="isOpen()"
@@ -97,23 +103,31 @@ export interface HashtagSelectOption {
       <!-- Click-outside Backdrop & Floating Multiselect Panel -->
       @if (isOpen()) {
         <div
-          class="fixed inset-0 z-40"
-          (click)="close()"
+          class="fixed inset-0 z-[70]"
+          (click)="close($event)"
+          (mousedown)="$event.stopPropagation()"
           aria-hidden="true"
         ></div>
 
         <div
+          #panelRef
           role="listbox"
           aria-multiselectable="true"
           [attr.aria-label]="ariaLabel()"
-          class="absolute z-50 rounded-2xl bg-surface-container-lowest border border-outline-variant/40 shadow-xl p-2 flex flex-col gap-1.5 max-w-[calc(100vw-2rem)]"
-          [class]="panelPositionClass() + ' ' + panelWidthClass()"
+          class="fixed z-[75] rounded-2xl bg-surface-container-lowest border border-outline-variant/40 shadow-2xl p-2 flex flex-col gap-1.5"
+          [style.left]="panelStyle()['left']"
+          [style.top]="panelStyle()['top']"
+          [style.bottom]="panelStyle()['bottom']"
+          [style.width]="panelStyle()['width']"
+          [style.max-height]="panelStyle()['maxHeight']"
           (click)="$event.stopPropagation()"
+          (mousedown)="$event.stopPropagation()"
         >
           <!-- Search / Create Input -->
-          <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/30 focus-within:border-primary/50 transition-colors">
+          <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/30 focus-within:border-primary/50 transition-colors flex-shrink-0">
             <span class="material-symbols-rounded text-sm text-on-surface-variant">search</span>
             <input
+              #searchInput
               type="text"
               [ngModel]="searchQuery()"
               (ngModelChange)="searchQuery.set($event)"
@@ -138,7 +152,7 @@ export interface HashtagSelectOption {
             <button
               type="button"
               (click)="createAndSelectQueryTag()"
-              class="w-full px-2.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary text-xs font-bold flex items-center justify-between gap-2 cursor-pointer transition-colors"
+              class="w-full px-2.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/30 text-primary text-xs font-bold flex items-center justify-between gap-2 cursor-pointer transition-colors flex-shrink-0"
             >
               <span class="inline-flex items-center gap-1.5 truncate">
                 <span class="material-symbols-rounded text-sm">add_circle</span>
@@ -149,14 +163,14 @@ export interface HashtagSelectOption {
           }
 
           <!-- Options List -->
-          <div class="flex flex-col gap-0.5 max-h-52 overflow-y-auto pr-0.5">
+          <div class="flex flex-col gap-0.5 flex-1 min-h-0 overflow-y-auto pr-0.5 max-h-52">
             @for (opt of filteredOptions(); track opt.tag) {
               <button
                 type="button"
                 role="option"
                 [attr.aria-selected]="isSelected(opt.tag)"
                 (click)="toggleTag(opt.tag)"
-                class="w-full text-left px-2.5 py-1.5 rounded-xl transition-colors flex items-center justify-between gap-2 cursor-pointer"
+                class="w-full text-left px-2.5 py-1.5 rounded-xl transition-colors flex items-center justify-between gap-2 cursor-pointer flex-shrink-0"
                 [class]="
                   isSelected(opt.tag)
                     ? 'bg-primary-container/35 text-on-surface font-bold border border-primary/30'
@@ -197,11 +211,11 @@ export interface HashtagSelectOption {
           </div>
 
           <!-- Footer -->
-          <div class="pt-1 border-t border-outline-variant/20 flex items-center justify-between gap-2 text-[10px] font-mono text-outline px-1">
+          <div class="pt-1 border-t border-outline-variant/20 flex items-center justify-between gap-2 text-[10px] font-mono text-outline px-1 flex-shrink-0">
             <span>Выбрано: {{ normalizedSelected().length }}</span>
             <button
               type="button"
-              (click)="close()"
+              (click)="close($event)"
               class="px-2 py-0.5 rounded-lg bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-sans font-bold text-[11px] cursor-pointer"
             >
               Готово
@@ -212,13 +226,17 @@ export interface HashtagSelectOption {
     </div>
   `,
 })
-export class HashtagMultiselectComponent {
+export class HashtagMultiselectComponent implements OnInit, OnDestroy {
+  @ViewChild('triggerRef') triggerRef?: ElementRef<HTMLElement>;
+  @ViewChild('panelRef') panelRef?: ElementRef<HTMLElement>;
+  @ViewChild('searchInput') searchInput?: ElementRef<HTMLInputElement>;
+
   readonly options = input<HashtagSelectOption[]>([]);
   readonly selectedTags = input<string[]>([]);
   readonly placeholder = input<string>('Выбрать #хештеги...');
   readonly searchPlaceholder = input<string>('Поиск или новый #хештег...');
   readonly prefixLabel = input<string>('');
-  readonly placement = input<'down' | 'up'>('down');
+  readonly placement = input<'auto' | 'down' | 'up'>('auto');
   readonly align = input<'left' | 'right'>('left');
   readonly allowCreate = input<boolean>(true);
   readonly panelWidthClass = input<string>('w-full min-w-[240px]');
@@ -228,6 +246,14 @@ export class HashtagMultiselectComponent {
 
   readonly isOpen = signal<boolean>(false);
   readonly searchQuery = signal<string>('');
+  readonly panelStyle = signal<Record<string, string>>({
+    position: 'fixed',
+    zIndex: '75',
+    left: '0px',
+    top: '0px',
+    width: '280px',
+    maxHeight: '320px',
+  });
 
   readonly normalizedSelected = computed<string[]>(() => {
     const seen = new Set<string>();
@@ -276,15 +302,25 @@ export class HashtagMultiselectComponent {
     return !this.mergedOptions().some((opt) => opt.tag === tag);
   });
 
-  readonly panelPositionClass = computed<string>(() => {
-    const vertical = this.placement() === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1.5';
-    const horizontal = this.align() === 'right' ? 'right-0' : 'left-0';
-    return `${vertical} ${horizontal}`;
-  });
+  ngOnInit(): void {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('scroll', this.onWindowScroll, { capture: true, passive: true });
+      window.addEventListener('resize', this.onWindowResize, { passive: true });
+    }
+  }
 
-  @HostListener('document:keydown.escape')
-  onEscapeKey(): void {
+  ngOnDestroy(): void {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('scroll', this.onWindowScroll, { capture: true });
+      window.removeEventListener('resize', this.onWindowResize);
+    }
+  }
+
+  @HostListener('document:keydown.escape', ['$event'])
+  onEscapeKey(event?: KeyboardEvent): void {
     if (this.isOpen()) {
+      event?.stopPropagation();
+      event?.stopImmediatePropagation();
       this.close();
     }
   }
@@ -293,7 +329,20 @@ export class HashtagMultiselectComponent {
     event?.stopPropagation();
     const next = !this.isOpen();
     this.isOpen.set(next);
-    if (!next) {
+    if (next) {
+      this.updatePosition();
+      if (typeof requestAnimationFrame !== 'undefined') {
+        requestAnimationFrame(() => {
+          this.updatePosition();
+          this.searchInput?.nativeElement?.focus();
+        });
+      } else {
+        setTimeout(() => {
+          this.updatePosition();
+          this.searchInput?.nativeElement?.focus();
+        }, 0);
+      }
+    } else {
       this.searchQuery.set('');
     }
   }
@@ -303,7 +352,8 @@ export class HashtagMultiselectComponent {
     this.toggle(event);
   }
 
-  close(): void {
+  close(event?: Event): void {
+    event?.stopPropagation();
     this.isOpen.set(false);
     this.searchQuery.set('');
   }
@@ -356,4 +406,87 @@ export class HashtagMultiselectComponent {
       this.createAndSelectQueryTag();
     }
   }
+
+  updatePosition(): void {
+    const trigger = this.triggerRef?.nativeElement;
+    if (!trigger || typeof window === 'undefined') return;
+
+    const rect = trigger.getBoundingClientRect();
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+
+    // If trigger scrolled completely out of view, close dropdown
+    if ((rect.bottom < 0 || rect.top > vh) && rect.height > 0) {
+      this.close();
+      return;
+    }
+
+    const spaceBelow = vh - rect.bottom;
+    const spaceAbove = rect.top;
+
+    let openUp = false;
+    const placementMode = this.placement();
+    if (placementMode === 'up') {
+      openUp = true;
+    } else if (placementMode === 'down') {
+      openUp = spaceBelow < 150 && spaceAbove > spaceBelow;
+    } else {
+      // In 'auto' mode: prefer downwards if comfortable space (>= 260px),
+      // otherwise upwards if spaceAbove is larger or spaceBelow is constrained (< 260px)
+      if (spaceBelow < 260 && spaceAbove > spaceBelow) {
+        openUp = true;
+      } else if (spaceBelow >= 260) {
+        openUp = false;
+      } else {
+        openUp = spaceAbove > spaceBelow;
+      }
+    }
+
+    const triggerWidth = rect.width || 240;
+    const panelWidth = Math.min(Math.max(triggerWidth, 240), Math.max(vw - 16, 240));
+
+    let left = this.align() === 'right' ? rect.right - panelWidth : rect.left;
+    left = Math.max(8, Math.min(left, vw - panelWidth - 8));
+
+    const margin = 6;
+    const availableHeight = openUp ? spaceAbove - margin - 12 : spaceBelow - margin - 12;
+    const maxHeight = Math.max(160, Math.min(320, availableHeight > 0 ? availableHeight : 320));
+
+    let parentOffsetLeft = 0;
+    let parentOffsetTop = 0;
+    let parentOffsetBottom = vh;
+
+    const panel = this.panelRef?.nativeElement;
+    if (panel && panel.offsetParent && panel.offsetParent !== document.body) {
+      const pRect = panel.offsetParent.getBoundingClientRect();
+      parentOffsetLeft = pRect.left;
+      parentOffsetTop = pRect.top;
+      parentOffsetBottom = pRect.bottom;
+    }
+
+    this.panelStyle.set({
+      position: 'fixed',
+      zIndex: '75',
+      left: `${Math.round(left - parentOffsetLeft)}px`,
+      width: `${Math.round(panelWidth)}px`,
+      maxHeight: `${Math.round(maxHeight)}px`,
+      top: openUp ? 'auto' : `${Math.round(rect.bottom - parentOffsetTop + margin)}px`,
+      bottom: openUp ? `${Math.round(parentOffsetBottom - rect.top + margin)}px` : 'auto',
+    });
+  }
+
+  private onWindowScroll = (event: Event): void => {
+    if (!this.isOpen()) return;
+    const panel = this.panelRef?.nativeElement;
+    if (panel && event.target && panel.contains(event.target as Node)) {
+      return;
+    }
+    this.updatePosition();
+  };
+
+  private onWindowResize = (): void => {
+    if (this.isOpen()) {
+      this.updatePosition();
+    }
+  };
 }
