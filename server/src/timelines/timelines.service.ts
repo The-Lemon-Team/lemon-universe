@@ -93,6 +93,8 @@ export interface UpdateNoteDto {
   moodEmoji?: string;
   tags?: string[];
   mediaAttachments?: any[];
+  weather?: Record<string, any> | null;
+  worldMoment?: Record<string, any> | null;
 }
 
 export interface ShareNoteGroupDto {
@@ -674,6 +676,8 @@ export class TimelinesService {
           n.seasons_synced_at AS "seasonsSyncedAt",
           n.shared_with_group AS "sharedWithGroup",
           n.active_flow_session_ids AS "activeFlowSessionIds",
+          n.weather AS weather,
+          n.world_moment AS "worldMoment",
           n.created_at AS "createdAt",
           COALESCE(
             (SELECT json_agg(cl.preview_cache) FROM timeline_cross_links cl WHERE cl.source_note_id = n.id),
@@ -730,7 +734,7 @@ export class TimelinesService {
           author_profile_id, author_profile_name,
           title, text, mood_emoji, tags, media_attachments, party_actor_ids, supporters,
           votes_count, liked_by_actors, reply_to_note_id, reply_to_author_name, reply_to_text_snippet,
-          active_flow_session_ids, shared_with_group
+          active_flow_session_ids, shared_with_group, weather, world_moment
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7,
           $8, $9, $10, $11, $12,
@@ -738,7 +742,7 @@ export class TimelinesService {
           $17::uuid, $18,
           $19, $20, $21, $22, $23::jsonb, $24, $25,
           $26, $27::jsonb, $28, $29, $30,
-          $31, $32
+          $31, $32, $33::jsonb, $34::jsonb
         )
         ON CONFLICT (id) DO UPDATE SET
           title = EXCLUDED.title,
@@ -747,7 +751,9 @@ export class TimelinesService {
           tags = EXCLUDED.tags,
           votes_count = EXCLUDED.votes_count,
           liked_by_actors = EXCLUDED.liked_by_actors,
-          shared_with_group = EXCLUDED.shared_with_group
+          shared_with_group = EXCLUDED.shared_with_group,
+          weather = EXCLUDED.weather,
+          world_moment = EXCLUDED.world_moment
       `,
       [
         id,
@@ -782,6 +788,8 @@ export class TimelinesService {
         note.replyToTextSnippet || null,
         Array.isArray(note.activeFlowSessionIds) ? note.activeFlowSessionIds : [],
         sharedWithGroup,
+        note.weather ? JSON.stringify(note.weather) : null,
+        note.worldMoment ? JSON.stringify(note.worldMoment) : null,
       ],
     );
 
@@ -892,7 +900,9 @@ export class TimelinesService {
           reply_to_note_id AS "replyToNoteId",
           active_flow_session_ids AS "activeFlowSessionIds",
           seasons_note_id AS "seasonsNoteId",
-          shared_with_group AS "sharedWithGroup"
+          shared_with_group AS "sharedWithGroup",
+          weather,
+          world_moment AS "worldMoment"
         FROM timeline_notes
         WHERE id = $1
       `,
@@ -963,6 +973,8 @@ export class TimelinesService {
           ? syncTagsOnTextEdit(existing.text || '', nextText || '', existing.tags || [])
           : existing.tags;
     const nextMedia = dto.mediaAttachments !== undefined ? dto.mediaAttachments : existing.mediaAttachments;
+    const nextWeather = dto.weather !== undefined ? dto.weather : existing.weather;
+    const nextWorldMoment = dto.worldMoment !== undefined ? dto.worldMoment : existing.worldMoment;
 
     await this.db.query(
       `
@@ -972,8 +984,10 @@ export class TimelinesService {
             type = $3,
             mood_emoji = $4,
             tags = $5,
-            media_attachments = $6::jsonb
-        WHERE id = $7
+            media_attachments = $6::jsonb,
+            weather = $7::jsonb,
+            world_moment = $8::jsonb
+        WHERE id = $9
       `,
       [
         nextTitle ?? null,
@@ -982,6 +996,8 @@ export class TimelinesService {
         nextMood || '💭',
         Array.isArray(nextTags) ? nextTags : [],
         JSON.stringify(Array.isArray(nextMedia) ? nextMedia : []),
+        nextWeather ? JSON.stringify(nextWeather) : null,
+        nextWorldMoment ? JSON.stringify(nextWorldMoment) : null,
         noteId,
       ],
     );

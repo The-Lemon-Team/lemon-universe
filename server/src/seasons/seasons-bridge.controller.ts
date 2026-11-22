@@ -19,6 +19,25 @@ export class SeasonsBridgeController {
     });
   }
 
+  @Get('stream')
+  getStream(
+    @Query('streamSlug') streamSlug?: string,
+    @Headers('x-profile-id') profileId?: string,
+  ) {
+    return this.seasonsBridge.fetchSeasonsStream(streamSlug, profileId);
+  }
+
+  @Post('stream/ensure')
+  ensureStream(
+    @Body() body: { streamSlug?: string },
+    @Headers('x-profile-id') profileId?: string,
+  ) {
+    return this.seasonsBridge.ensureTimelinesStream({
+      streamSlug: body?.streamSlug,
+      profileId,
+    });
+  }
+
   @Post('ingest')
   ingest(@Body() payload: IngestSeasonNoteInput & { metadata?: Record<string, any> }) {
     return this.seasonsBridge.ingestRawNotePayload(payload);

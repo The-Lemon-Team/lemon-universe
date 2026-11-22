@@ -14,6 +14,8 @@ import {
   FlowSessionRecord,
   FlowStatus,
   Folder,
+  NoteWeatherSnapshot,
+  NoteWorldMomentSnapshot,
   PlayerType,
   Profile,
   TimelineBoard,
@@ -284,6 +286,8 @@ export class ApiService {
       moodEmoji?: string;
       tags?: string[];
       mediaAttachments?: TimelineMediaAttachment[];
+      weather?: NoteWeatherSnapshot | null;
+      worldMoment?: NoteWorldMomentSnapshot | null;
     },
     profileId?: string | null,
   ): Observable<CloudDayNote> {
@@ -457,5 +461,50 @@ export class ApiService {
       feedSlug?: string;
       streamSlug?: string;
     }>(`${this.base}/seasons-bridge/ingest`, payload);
+  }
+
+  getSeasonsStream(opts?: {
+    streamSlug?: string;
+    profileId?: string | null;
+  }): Observable<{
+    connected: boolean;
+    stream?: any;
+    error?: string;
+  }> {
+    let params = new HttpParams();
+    if (opts?.streamSlug) params = params.set('streamSlug', opts.streamSlug);
+    return this.http.get<{
+      connected: boolean;
+      stream?: any;
+      error?: string;
+    }>(`${this.base}/seasons-bridge/stream`, {
+      params,
+      headers: this.profileHeaders(opts?.profileId),
+    });
+  }
+
+  ensureSeasonsStream(opts?: {
+    streamSlug?: string;
+    profileId?: string | null;
+  }): Observable<{
+    success: boolean;
+    stream?: any;
+    streamSlug: string;
+    attachedFeedsCount: number;
+    feeds: Array<{ slug: string; title: string; attached: boolean }>;
+    error?: string;
+  }> {
+    return this.http.post<{
+      success: boolean;
+      stream?: any;
+      streamSlug: string;
+      attachedFeedsCount: number;
+      feeds: Array<{ slug: string; title: string; attached: boolean }>;
+      error?: string;
+    }>(
+      `${this.base}/seasons-bridge/stream/ensure`,
+      { streamSlug: opts?.streamSlug },
+      { headers: this.profileHeaders(opts?.profileId) },
+    );
   }
 }

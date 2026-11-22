@@ -16,6 +16,8 @@ import {
   CloudItemType,
   FlowStatus,
   FlowType,
+  NoteWeatherSnapshot,
+  NoteWorldMomentSnapshot,
   TimelineBoard,
   TimelineBoardKind,
   TimelineBoardMember,
@@ -398,6 +400,8 @@ export class TimelinesService {
     mediaAttachments?: TimelineMediaAttachment[];
     replyToNote?: CloudDayNote | null;
     sharedWithGroup?: boolean;
+    weather?: NoteWeatherSnapshot | null;
+    worldMoment?: NoteWorldMomentSnapshot | null;
   }): CloudDayNote | null {
     const profileId = this.profileService.currentProfileId;
     if (!canPostToBoard(input.board, profileId)) {
@@ -439,6 +443,8 @@ export class TimelinesService {
       replyToTextSnippet: input.replyToNote?.text.slice(0, 60),
       seasonsFeedSlug: input.board.seasonsFeedSlug,
       sharedWithGroup: Boolean(input.sharedWithGroup),
+      ...(input.weather ? { weather: input.weather } : {}),
+      ...(input.worldMoment ? { worldMoment: input.worldMoment } : {}),
     };
 
     const prevNotes = this.notesSubject.value;
@@ -477,6 +483,8 @@ export class TimelinesService {
       moodEmoji?: string;
       tags?: string[];
       mediaAttachments?: TimelineMediaAttachment[];
+      weather?: NoteWeatherSnapshot | null;
+      worldMoment?: NoteWorldMomentSnapshot | null;
     },
   ): void {
     const profileId = this.profileService.currentProfileId;
@@ -498,6 +506,8 @@ export class TimelinesService {
         ...(dto.moodEmoji !== undefined ? { moodEmoji: dto.moodEmoji } : {}),
         ...(nextTags !== undefined ? { tags: nextTags } : {}),
         ...(dto.mediaAttachments !== undefined ? { mediaAttachments: dto.mediaAttachments } : {}),
+        ...(dto.weather !== undefined ? { weather: dto.weather } : {}),
+        ...(dto.worldMoment !== undefined ? { worldMoment: dto.worldMoment } : {}),
       };
     });
     this.notesSubject.next(optimistic);

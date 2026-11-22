@@ -30,6 +30,8 @@ export class SeasonsTimelineBridgeService {
   private readonly remoteFeedNotesSubject = new BehaviorSubject<any[]>([]);
   private readonly remoteFeedAccountSubject = new BehaviorSubject<string | null>(null);
   private readonly lastSyncStatusSubject = new BehaviorSubject<'SYNCED' | 'LOCAL_QUEUE'>('SYNCED');
+  private readonly streamInfoSubject = new BehaviorSubject<any | null>(null);
+  private readonly isEnsuringStreamSubject = new BehaviorSubject<boolean>(false);
 
   readonly personalFeedEntries$: Observable<SeasonsPersonalFeedEntry[]> =
     this.feedEntriesSubject.asObservable();
@@ -37,6 +39,8 @@ export class SeasonsTimelineBridgeService {
   readonly remoteFeedAccount$: Observable<string | null> = this.remoteFeedAccountSubject.asObservable();
   readonly syncStatus$: Observable<'SYNCED' | 'LOCAL_QUEUE'> =
     this.lastSyncStatusSubject.asObservable();
+  readonly streamInfo$: Observable<any | null> = this.streamInfoSubject.asObservable();
+  readonly isEnsuringStream$: Observable<boolean> = this.isEnsuringStreamSubject.asObservable();
 
   /**
    * Формирует совместимый с `lemon-seasons-neurons` payload (cloudDayNoteToIngestInput / CodingMemoryAxon)
@@ -147,6 +151,57 @@ export class SeasonsTimelineBridgeService {
           this.remoteFeedNotesSubject.next(res.items);
         }
       });
+  }
+
+  fetchStreamInfo(streamSlug = 'lemon-universe', profileId?: string): void {
+    this.api
+      .getSeasonsStream({
+        streamSlug,
+        profileId: profileId || this.profileService.currentProfileId,
+      })
+      .pipe(catchError(() => of({ connected: false, stream: undefined, error: 'Network error' })))
+      .subscribe((res) => {
+        if (res.connected && res.stream) {
+          this.streamInfoSubject.next(res.stream);
+        }
+      });
+  }
+
+  ensureTimelinesStream(streamSlug = 'lemon-universe', profileId?: string): Observable<any> {
+    this.isEnsuringStreamSubject.next(true);
+    return new Observable((subscriber) => {
+      this.api
+        .ensureSeasonsStream({
+          streamSlug,
+          profileId: profileId || this.profileService.currentProfileId,
+        })
+        .pipe(
+          catchError((err) =>
+            of({
+              success: false,
+              stream: undefined,
+              streamSlug,
+              attachedFeedsCount: 0,
+              feeds: [],
+              error: err?.message || String(err),
+            }),
+          ),
+        )
+        .subscribe({
+          next: (res) => {
+            this.isEnsuringStreamSubject.next(false);
+            if (res.success && res.stream) {
+              this.streamInfoSubject.next(res.stream);
+            }
+            subscriber.next(res);
+            subscriber.complete();
+          },
+          error: (err) => {
+            this.isEnsuringStreamSubject.next(false);
+            subscriber.error(err);
+          },
+        });
+    });
   }
 
   private buildIngestSeasonNoteInput(

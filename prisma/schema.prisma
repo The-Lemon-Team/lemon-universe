@@ -311,6 +311,8 @@ model TimelineNote {
   seasonsAccountId     String?   @map("seasons_account_id")
   sharedWithGroup      Boolean   @default(false) @map("shared_with_group")
   activeFlowSessionIds String[]  @default([]) @map("active_flow_session_ids")
+  weather              Json?     @map("weather")
+  worldMoment          Json?     @map("world_moment")
   createdAt            DateTime @default(now()) @map("created_at")
 
   board         TimelineBoard       @relation(fields: [boardId], references: [id], onDelete: Cascade)

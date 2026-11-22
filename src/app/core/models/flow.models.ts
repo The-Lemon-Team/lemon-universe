@@ -1,4 +1,8 @@
 import { Observable } from 'rxjs';
+import { NoteWeatherSnapshot } from '../weather/weather.models';
+import { NoteWorldMomentSnapshot } from '../watchers/watchers.models';
+
+export type { NoteWeatherSnapshot, NoteWorldMomentSnapshot };
 
 export type AppMode = 'party' | 'arena' | 'home' | 'code' | 'core';
 export type PlayerType = 'HUMAN' | 'AGENT' | 'GM';
@@ -736,6 +740,10 @@ export interface CloudDayNote {
   sharedWithGroup?: boolean;
   mediaAttachments?: TimelineMediaAttachment[];
   activeFlowSessionIds?: string[];
+  /** Immutable weather snapshot captured once when the note was recorded. */
+  weather?: NoteWeatherSnapshot | null;
+  /** Immutable world moment snapshot (Lemon Watchers) captured once when the note was recorded. */
+  worldMoment?: NoteWorldMomentSnapshot | null;
 }
 
 export interface CloudDateTab {

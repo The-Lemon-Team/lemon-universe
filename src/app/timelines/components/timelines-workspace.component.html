@@ -1,0 +1,1230 @@
+    <div class="flex flex-col gap-3 pb-32 sm:pb-40">
+      <!-- Status / Error Banner -->
+      @if (statusMessage(); as msg) {
+        <div class="p-3 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-xs font-semibold flex items-center justify-between gap-2">
+          <span>{{ msg }}</span>
+          <button
+            type="button"
+            (click)="timelines.clearStatus()"
+            class="p-1 rounded-lg hover:bg-black/10 cursor-pointer"
+            aria-label="Скрыть уведомление"
+          >
+            <span class="material-symbols-rounded text-base">close</span>
+          </button>
+        </div>
+      }
+
+      <!-- 1. COMPACT TIMELINE BOARDS ISLAND -->
+      <section class="bg-surface-container-lowest rounded-2xl p-2.5 sm:p-3 shadow-xs border border-outline-variant/30 flex flex-col gap-2">
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <div class="flex items-center gap-1 flex-wrap">
+            @for (tab of boardFilterTabs; track tab.id) {
+              <button
+                type="button"
+                (click)="boardFilter.set(tab.id)"
+                class="px-2.5 py-1 rounded-lg text-[11px] font-label-ui font-bold transition-colors cursor-pointer border active:scale-[0.98]"
+                [class]="
+                  boardFilter() === tab.id
+                    ? 'bg-primary text-on-primary border-primary shadow-2xs'
+                    : 'bg-surface-container-low text-on-surface-variant border-outline-variant/30 hover:text-on-surface'
+                "
+              >
+                {{ tab.label }}
+              </button>
+            }
+          </div>
+
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              (click)="openAgentSummaryModal()"
+              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-500/12 hover:bg-violet-500/20 text-violet-800 dark:text-violet-200 border border-violet-500/30 text-[11px] font-bold cursor-pointer transition-colors active:scale-[0.98]"
+            >
+              <span class="material-symbols-rounded text-sm">smart_toy</span>
+              <span class="hidden sm:inline">Сводка Агента</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="openPersonalFeedModal()"
+              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/12 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 text-[11px] font-bold cursor-pointer transition-colors active:scale-[0.98]"
+            >
+              <span>🌿</span>
+              <span class="hidden sm:inline">Seasons</span>
+              <span class="font-mono">({{ personalFeedEntries().length }})</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="openCreateBoardModal()"
+              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-on-primary text-[11px] font-bold shadow-2xs hover:opacity-95 cursor-pointer active:scale-[0.98]"
+            >
+              <span class="material-symbols-rounded text-sm">add</span>
+              <span>Новый TimeLine</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 overflow-x-auto py-0.5">
+          @for (board of filteredBoards(); track board.id) {
+            <button
+              type="button"
+              (click)="selectBoard(board)"
+              class="px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 border flex-shrink-0 cursor-pointer active:scale-[0.98]"
+              [class]="
+                activeBoard()?.id === board.id
+                  ? 'bg-primary text-on-primary border-primary shadow-xs'
+                  : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline-variant/30 hover:bg-surface-container-high'
+              "
+            >
+              <span class="material-symbols-rounded text-sm">{{ board.icon || 'timeline' }}</span>
+              <span>{{ board.title }}</span>
+              @if (getBoardHashtags(board); as bTags) {
+                @if (bTags.length > 0) {
+                  <span class="text-[10px] font-mono opacity-80 hidden sm:inline">
+                    #{{ bTags[0] }}@if (bTags.length > 1) { +{{ bTags.length - 1 }} }
+                  </span>
+                }
+              }
+              <span class="text-[10px] px-1 py-0.5 rounded-md bg-black/10 font-mono leading-none">
+                {{ board.privacy === 'PRIVATE' ? '🔒' : '🌐' }} {{ getBoardTotalCount(board.id) }}
+              </span>
+            </button>
+          } @empty {
+            <span class="text-xs text-outline italic py-2">
+              Нет TimeLine-бордов по выбранному фильтру для текущего профиля.
+            </span>
+          }
+        </div>
+
+        @if (allBoardHashtags().length > 0 || selectedBoardHashtag()) {
+          <div class="flex items-center gap-1.5 flex-wrap pt-1 border-t border-outline-variant/15">
+            <span class="text-[10px] font-mono font-bold text-outline mr-1"># Доски:</span>
+            @for (item of allBoardHashtags(); track item.tag) {
+              <button
+                type="button"
+                (click)="toggleBoardHashtagFilter(item.tag)"
+                class="px-2 py-0.5 rounded-full text-[10px] font-mono border transition-colors cursor-pointer inline-flex items-center gap-1"
+                [class]="
+                  selectedBoardHashtag() === item.tag
+                    ? 'bg-primary text-on-primary border-primary font-bold'
+                    : 'bg-surface-container-low hover:bg-primary/10 text-on-surface-variant hover:text-primary border-outline-variant/30'
+                "
+              >
+                <span>#{{ item.tag }}</span>
+                <span class="opacity-75">{{ item.count }}</span>
+              </button>
+            }
+            @if (selectedBoardHashtag()) {
+              <button
+                type="button"
+                (click)="selectedBoardHashtag.set(null)"
+                class="ml-auto px-2 py-0.5 rounded-full bg-surface-container-high text-[10px] font-bold text-on-surface-variant cursor-pointer inline-flex items-center gap-0.5"
+              >
+                <span class="material-symbols-rounded text-xs">close</span>
+                <span>Сбросить #{{ selectedBoardHashtag() }}</span>
+              </button>
+            }
+          </div>
+        }
+      </section>
+
+      <!-- 2. ACTIVE BOARD WORKSPACE -->
+      @if (activeBoard(); as board) {
+        <section class="bg-surface-container-lowest rounded-3xl p-4 sm:p-5 shadow-xs border border-outline-variant/30 flex flex-col gap-4">
+          <!-- Board Header -->
+          <div class="flex items-start justify-between gap-4 flex-wrap border-b border-outline-variant/20 pb-3">
+            <div class="flex flex-col gap-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="material-symbols-rounded text-2xl text-primary">{{ board.icon || 'timeline' }}</span>
+                <h1 class="font-headline-sm text-lg sm:text-xl font-black text-on-surface">
+                  {{ board.title }}
+                </h1>
+                <span
+                  class="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-bold border"
+                  [class]="
+                    board.privacy === 'PRIVATE'
+                      ? 'bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-500/35'
+                      : 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-500/35'
+                  "
+                >
+                  {{ board.privacy === 'PRIVATE' ? '🔒 PRIVATE' : '🌐 PUBLIC' }}
+                </span>
+                <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-mono font-semibold">
+                  {{ getModeLabel(board.boardMode) }}
+                </span>
+              </div>
+              @if (board.description) {
+                <p class="text-xs text-on-surface-variant max-w-3xl">
+                  <app-hashtag-text
+                    [text]="board.description"
+                    [activeTag]="selectedBoardHashtag()"
+                    (hashtagClick)="toggleBoardHashtagFilter($event)"
+                  />
+                </p>
+              }
+              @if (getBoardHashtags(board); as boardTags) {
+                @if (boardTags.length > 0) {
+                  <div class="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    @for (tag of boardTags; track tag) {
+                      <button
+                        type="button"
+                        (click)="toggleBoardHashtagFilter(tag)"
+                        class="text-[10px] font-mono px-2 py-0.5 rounded-full transition-colors cursor-pointer"
+                        [class]="
+                          selectedBoardHashtag() === tag
+                            ? 'bg-primary text-on-primary font-bold'
+                            : 'bg-primary/10 text-primary hover:bg-primary/20 font-semibold'
+                        "
+                        [title]="'Фильтровать доски по #' + tag"
+                      >
+                        #{{ tag }}
+                      </button>
+                    }
+                  </div>
+                }
+              }
+              <div class="flex items-center gap-3 text-[11px] font-mono text-outline flex-wrap">
+                <span>Участники (members): {{ (board.members || []).length }}</span>
+                <span>·</span>
+                <span>Seasons Feed: {{ board.seasonsFeedSlug }}</span>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 flex-wrap">
+              @if (canManageActiveBoard()) {
+                <button
+                  type="button"
+                  (click)="openEditBoardModal(board)"
+                  class="px-3 py-1.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold border border-outline-variant/30 inline-flex items-center gap-1.5 cursor-pointer"
+                  title="Редактировать название, описание и slug Lemon Seasons"
+                >
+                  <span class="material-symbols-rounded text-base text-primary">edit</span>
+                  <span>Редактировать</span>
+                </button>
+              }
+
+              <button
+                type="button"
+                (click)="isMembersModalOpen.set(true)"
+                class="px-3 py-1.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold border border-outline-variant/30 inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <span class="material-symbols-rounded text-base text-primary">group_add</span>
+                <span>Members &amp; Приватность ({{ (board.members || []).length }})</span>
+              </button>
+
+              <button
+                type="button"
+                (click)="isProjectariumModalOpen.set(true)"
+                class="px-3 py-1.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-bold border border-outline-variant/30 inline-flex items-center gap-1.5 cursor-pointer"
+                title="Привязка к Projectarium и выдача токена"
+              >
+                <span class="material-symbols-rounded text-base text-primary">hub</span>
+                <span>Projectarium</span>
+              </button>
+
+              <!-- View Switcher -->
+              <div class="flex items-center gap-1 bg-surface-container-low p-1 rounded-xl border border-outline-variant/30">
+                <button
+                  type="button"
+                  (click)="viewMode.set('CLOUD_TIMELINE')"
+                  class="px-3 py-1 rounded-lg text-xs font-bold cursor-pointer inline-flex items-center gap-1"
+                  [class]="viewMode() === 'CLOUD_TIMELINE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant'"
+                >
+                  <span class="material-symbols-rounded text-sm">cloud</span>
+                  <span>Облачка</span>
+                </button>
+                <button
+                  type="button"
+                  (click)="viewMode.set('DIARY_FEED')"
+                  class="px-3 py-1 rounded-lg text-xs font-bold cursor-pointer inline-flex items-center gap-1"
+                  [class]="viewMode() === 'DIARY_FEED' ? 'bg-primary text-on-primary' : 'text-on-surface-variant'"
+                >
+                  <span class="material-symbols-rounded text-sm">menu_book</span>
+                  <span>Дневник</span>
+                </button>
+                <button
+                  type="button"
+                  (click)="viewMode.set('VISUAL_TIMELINE')"
+                  class="px-3 py-1 rounded-lg text-xs font-bold cursor-pointer inline-flex items-center gap-1"
+                  [class]="viewMode() === 'VISUAL_TIMELINE' ? 'bg-primary text-on-primary' : 'text-on-surface-variant'"
+                >
+                  <span class="material-symbols-rounded text-sm">timeline</span>
+                  <span>Шкала 24ч</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                (click)="pinnedSidebarOpen.set(!pinnedSidebarOpen())"
+                class="px-3 py-1.5 rounded-xl text-xs font-bold border inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                [class]="pinnedSidebarOpen()
+                  ? 'bg-primary text-on-primary border-primary'
+                  : 'bg-surface-container-low hover:bg-surface-container-high text-on-surface border-outline-variant/30'"
+                title="Закреплённые сообщения для всего TimeLine"
+              >
+                <span class="material-symbols-rounded text-base">push_pin</span>
+                <span>Закреплённые</span>
+                @if (pinnedBoardNotes().length > 0) {
+                  <span
+                    class="px-1.5 py-0.5 rounded-full text-[10px] font-black leading-none"
+                    [class]="pinnedSidebarOpen() ? 'bg-on-primary/20 text-on-primary' : 'bg-primary/15 text-primary'"
+                  >
+                    {{ pinnedBoardNotes().length }}
+                  </span>
+                }
+              </button>
+            </div>
+          </div>
+
+          <!-- Date & Filter Toolbar (Grouped Tactile Island) -->
+          <div class="flex items-center justify-between gap-2 flex-wrap p-2 rounded-2xl bg-surface-container-low/80 border border-outline-variant/30">
+            <!-- Left Cluster: Date Segmented Group + Edit -->
+            <div class="flex items-center gap-1.5 flex-wrap">
+              @if (canManageActiveBoard()) {
+                <button
+                  type="button"
+                  (click)="openEditBoardModal(board)"
+                  class="px-2.5 py-1 rounded-xl bg-surface-container-lowest hover:bg-surface-container-high text-on-surface text-xs font-bold border border-outline-variant/30 inline-flex items-center gap-1 cursor-pointer transition-colors active:scale-[0.98]"
+                  title="Редактировать название, описание и slug Lemon Seasons"
+                >
+                  <span class="material-symbols-rounded text-sm text-primary">edit</span>
+                  <span class="hidden sm:inline">Редактировать</span>
+                </button>
+              }
+
+              <div class="inline-flex items-center bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-0.5 gap-0.5">
+                <button
+                  type="button"
+                  (click)="shiftDate(-1)"
+                  [disabled]="showAllDates()"
+                  class="px-2 py-1 rounded-lg hover:bg-surface-container-high text-xs font-bold disabled:opacity-40 cursor-pointer transition-colors"
+                  title="Предыдущий день"
+                >
+                  ←
+                </button>
+
+                <input
+                  type="date"
+                  [ngModel]="selectedDateKey()"
+                  (ngModelChange)="onDateInputChange($event)"
+                  [disabled]="showAllDates()"
+                  aria-label="Выбрать дату"
+                  class="px-2 py-0.5 rounded-lg bg-transparent text-xs font-mono font-bold text-on-surface disabled:opacity-50 focus:outline-none"
+                />
+
+                <button
+                  type="button"
+                  (click)="shiftDate(1)"
+                  [disabled]="showAllDates()"
+                  class="px-2 py-1 rounded-lg hover:bg-surface-container-high text-xs font-bold disabled:opacity-40 cursor-pointer transition-colors"
+                  title="Следующий день"
+                >
+                  →
+                </button>
+              </div>
+
+              <div class="inline-flex items-center bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-0.5 gap-0.5">
+                <button
+                  type="button"
+                  (click)="setToday()"
+                  class="px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer transition-colors active:scale-[0.98]"
+                  [class]="
+                    isTodaySelected()
+                      ? 'bg-primary text-on-primary shadow-2xs'
+                      : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+                  "
+                >
+                  Сегодня
+                </button>
+
+                <button
+                  type="button"
+                  (click)="toggleAllDates()"
+                  class="px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer transition-colors active:scale-[0.98]"
+                  [class]="
+                    showAllDates()
+                      ? 'bg-primary text-on-primary shadow-2xs'
+                      : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+                  "
+                >
+                  Все ({{ boardAllNotes().length }})
+                </button>
+              </div>
+            </div>
+
+            <!-- Right Cluster: Search & Actor Filter -->
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <div class="relative">
+                <span class="material-symbols-rounded text-sm text-on-surface-variant absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">search</span>
+                <input
+                  type="text"
+                  [ngModel]="searchQuery()"
+                  (ngModelChange)="searchQuery.set($event)"
+                  placeholder="Поиск или #тег..."
+                  class="pl-8 pr-2.5 py-1 rounded-xl bg-surface-container-lowest border border-outline-variant/30 text-xs text-on-surface w-36 sm:w-44 focus:outline-none focus:border-primary/60"
+                />
+              </div>
+
+              <app-cloud-themed-select
+                [options]="actorFilterOptions()"
+                [value]="selectedActorFilter()"
+                [clearable]="true"
+                [clearValue]="null"
+                [searchable]="true"
+                prefixLabel="Персонаж:"
+                panelWidthClass="w-64"
+                (valueChange)="selectedActorFilter.set($event)"
+              />
+            </div>
+          </div>
+
+          <!-- Hashtag Filter Bar -->
+          @if (boardHashtagCounts().length > 0 || selectedTagFilter()) {
+            <div class="flex items-center gap-1.5 flex-wrap px-3 py-2 rounded-2xl bg-surface-container-low/70 border border-outline-variant/30">
+              <span class="text-[11px] font-bold text-on-surface-variant inline-flex items-center gap-1 mr-1">
+                <span class="text-primary font-mono">#</span>
+                <span>Хештеги:</span>
+              </span>
+              @for (item of boardHashtagCounts(); track item.tag) {
+                <button
+                  type="button"
+                  (click)="toggleTagFilter(item.tag)"
+                  class="px-2.5 py-0.5 rounded-full text-[11px] font-mono border transition-colors cursor-pointer inline-flex items-center gap-1"
+                  [class]="
+                    selectedTagFilter() === item.tag
+                      ? 'bg-primary text-on-primary border-primary font-bold shadow-2xs'
+                      : 'bg-surface-container-lowest hover:bg-primary/10 text-on-surface-variant hover:text-primary border-outline-variant/35'
+                  "
+                  [title]="'Фильтровать по хештегу #' + item.tag"
+                >
+                  <span>#{{ item.tag }}</span>
+                  <span
+                    class="text-[10px] opacity-75"
+                    [class.text-on-primary]="selectedTagFilter() === item.tag"
+                  >
+                    {{ item.count }}
+                  </span>
+                </button>
+              }
+              @if (selectedTagFilter()) {
+                <button
+                  type="button"
+                  (click)="selectedTagFilter.set(null)"
+                  class="ml-auto px-2 py-0.5 rounded-full bg-surface-container-high hover:bg-surface-container-highest text-[10px] font-bold text-on-surface-variant cursor-pointer inline-flex items-center gap-1"
+                >
+                  <span class="material-symbols-rounded text-xs">close</span>
+                  <span>Сбросить #{{ selectedTagFilter() }}</span>
+                </button>
+              }
+            </div>
+          }
+
+          <!-- 3. COMPOSER MOVED TO BOTTOM-DOCKED ISLAND -->
+
+          <!-- 4. NOTES LIST (CLOUD TIMELINE, DIARY FEED OR 24H TIMELINE) -->
+          @if (viewMode() === 'CLOUD_TIMELINE') {
+            <app-timeline-cloud-view
+              [notes]="visibleNotes()"
+              [board]="board"
+              [selectedDateKey]="selectedDateKey()"
+              [showAllDates]="showAllDates()"
+              [canPost]="canPostToActiveBoard()"
+              [activeTagFilter]="selectedTagFilter()"
+              [hashtagOptions]="composerHashtagOptions()"
+              [defaultActor]="activeComposerActor()"
+              (timeSelected)="composerTime.set($event)"
+              (createNote)="handleCloudCreateNote($event)"
+              (deleteNote)="timelines.deleteNote($event)"
+              (editNote)="timelines.updateNote($event.noteId, { title: $event.title, text: $event.text, tags: $event.tags, weather: $event.weather, worldMoment: $event.worldMoment })"
+              (crossLinkNote)="openCrossLinkModal($event)"
+              (jumpToCrossRef)="jumpToCrossRef($event)"
+              (tagClick)="toggleTagFilter($event)"
+            />
+          } @else if (viewMode() === 'VISUAL_TIMELINE') {
+            <div class="relative overflow-x-auto rounded-2xl bg-surface-container-low border border-outline-variant/30 p-4 min-h-[260px]">
+              <div class="min-w-[820px] flex flex-col gap-3">
+                <div class="flex items-center justify-between text-[11px] font-mono text-outline border-b border-outline-variant/20 pb-2">
+                  <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span>
+                </div>
+                @for (note of visibleNotes(); track note.id) {
+                  <div class="relative flex items-center" [style.padding-left.%]="getTimelineOffset(note.timeMinutes)">
+                    <div class="max-w-md p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/40 shadow-xs flex flex-col gap-1.5">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <app-actor-avatar [avatar]="note.actorAvatar" containerClass="w-6 h-6 rounded-lg flex-shrink-0" />
+                        <span class="text-xs font-bold">{{ note.actorName }}</span>
+                        <span class="text-[10px] font-mono text-outline">{{ note.dateKey }} · {{ note.time }}</span>
+                        @if (note.weather; as w) {
+                          <span class="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-sky-500/15 text-sky-900 dark:text-sky-200 border border-sky-400/35">
+                            {{ w.icon }} {{ formatTemperatureC(w.temperatureC) }} · {{ w.locationName }}
+                          </span>
+                        }
+                        @if (note.worldMoment; as wm) {
+                          <span class="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-violet-500/15 text-violet-900 dark:text-violet-200 border border-violet-400/35">
+                            🛰️ {{ wm.icon }} {{ wm.title }}
+                          </span>
+                        }
+                      </div>
+                      <p class="text-xs text-on-surface">
+                        <app-hashtag-text [text]="note.text" [activeTag]="selectedTagFilter()" (hashtagClick)="toggleTagFilter($event)" />
+                      </p>
+                      @if (getDisplayTags(note); as displayTags) {
+                        @if (displayTags.length > 0) {
+                          <div class="flex flex-wrap gap-1">
+                            @for (tag of displayTags; track tag) {
+                              <button
+                                type="button"
+                                (click)="toggleTagFilter(tag)"
+                                class="text-[10px] font-mono px-1.5 py-0.2 rounded-full cursor-pointer transition-colors"
+                                [class]="selectedTagFilter() === tag ? 'bg-primary text-on-primary font-bold' : 'bg-primary/10 text-primary hover:bg-primary/20'"
+                              >
+                                #{{ tag }}
+                              </button>
+                            }
+                          </div>
+                        }
+                      }
+                    </div>
+                  </div>
+                } @empty {
+                  <p class="text-xs text-outline italic text-center py-8">Нет записей за выбранный период.</p>
+                }
+              </div>
+            </div>
+          } @else {
+            <div class="flex flex-col gap-3">
+              @for (note of visibleNotes(); track note.id) {
+                <article class="p-4 rounded-2xl bg-surface-container-low/70 border border-outline-variant/35 flex flex-col gap-2.5">
+                  <div class="flex items-start justify-between gap-3 flex-wrap">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <app-actor-avatar [avatar]="note.actorAvatar" containerClass="w-9 h-9 rounded-xl shadow-2xs flex-shrink-0" />
+                      <div class="flex flex-col min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <span class="text-sm font-bold text-on-surface">{{ note.actorName }}</span>
+                          @if (note.authorProfileName) {
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-surface-container-highest text-on-surface-variant font-mono">
+                              👤 {{ note.authorProfileName }}
+                            </span>
+                          }
+                          <span class="text-[11px] font-mono text-outline">
+                            {{ note.dateKey }} · {{ note.time }}
+                          </span>
+                          @if (note.weather; as w) {
+                            <span
+                              class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-900 dark:text-sky-200 border border-sky-400/35 font-bold"
+                              [title]="'Зафиксированная погода: ' + w.label + ', ' + formatTemperatureC(w.temperatureC) + ' (' + w.locationName + ')'"
+                            >
+                              {{ w.icon }} {{ formatTemperatureC(w.temperatureC) }} · {{ w.label }} · 📍 {{ w.locationName }}
+                            </span>
+                          }
+                          @if (note.worldMoment; as wm) {
+                            <span
+                              class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-900 dark:text-violet-200 border border-violet-400/35 font-bold"
+                              [title]="'Зафиксированный момент мира (Lemon Watchers): ' + wm.title + ' — ' + wm.summary"
+                            >
+                              🛰️ {{ wm.icon }} {{ wm.title }}
+                            </span>
+                          }
+                        </div>
+                        @if (note.title) {
+                          <h3 class="text-sm font-bold text-primary mt-0.5">{{ note.title }}</h3>
+                        }
+                      </div>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span class="text-xs px-2 py-0.5 rounded-full font-mono" [class]="getAccentPillClasses(note.actorAccent)">
+                        {{ note.moodEmoji || '💭' }} {{ note.type }}
+                      </span>
+
+                      @if (note.seasonsNoteId || note.seasonsSynced) {
+                        <span
+                          class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-mono font-bold inline-flex items-center gap-1"
+                          [title]="'Seasons Note ID: ' + (note.seasonsNoteId || 'synced')"
+                        >
+                          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          <span>Seasons OK</span>
+                        </span>
+                      } @else {
+                        <button
+                          type="button"
+                          (click)="timelines.retrySyncSeasons(note.id)"
+                          class="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-200 font-mono font-bold inline-flex items-center gap-1 cursor-pointer"
+                          title="Синхронизировать эту заметку в Lemon Seasons"
+                        >
+                          <span class="material-symbols-rounded text-xs">sync</span>
+                          <span>Sync Seasons</span>
+                        </button>
+                      }
+
+                      <button
+                        type="button"
+                        (click)="timelines.shareNoteWithGroup(note.id, !note.sharedWithGroup)"
+                        class="px-2 py-1 rounded-xl text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer border transition-colors"
+                        [class]="
+                          note.sharedWithGroup
+                            ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border-emerald-500/40'
+                            : 'bg-surface-container-highest/60 text-on-surface-variant border-outline-variant/30 hover:text-on-surface'
+                        "
+                        [title]="note.sharedWithGroup ? 'NoteShare включён для участников борда (нажмите чтобы отозвать)' : 'Расшарить Note & Media участникам борда через Lemon Seasons NoteShare'"
+                      >
+                        <span class="material-symbols-rounded text-sm">group_work</span>
+                        <span>{{ note.sharedWithGroup ? 'Shared' : 'NoteShare' }}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        (click)="openCrossLinkModal(note)"
+                        class="px-2.5 py-1 rounded-xl bg-violet-500/15 hover:bg-violet-500/25 text-violet-800 dark:text-violet-200 text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
+                        title="Прикрепить ссылку на сообщение из другого TimeLine"
+                      >
+                        <span class="material-symbols-rounded text-sm">add_link</span>
+                        <span>Ссылка</span>
+                      </button>
+
+                      @if (canManageActiveBoard()) {
+                        <button
+                          type="button"
+                          (click)="timelines.togglePinNote(note.id, !note.isPinned)"
+                          class="p-1.5 rounded-xl cursor-pointer transition-colors"
+                          [class]="note.isPinned
+                            ? 'text-primary bg-primary/15 hover:bg-primary/25'
+                            : 'text-outline hover:text-primary hover:bg-primary/10'"
+                          [title]="note.isPinned ? 'Открепить сообщение' : 'Закрепить сообщение в сайдбаре TimeLine'"
+                        >
+                          <span class="material-symbols-rounded text-base">push_pin</span>
+                        </button>
+                      } @else if (note.isPinned) {
+                        <span
+                          class="p-1.5 rounded-xl text-primary bg-primary/10 inline-flex items-center"
+                          title="Закреплено создателем доски"
+                        >
+                          <span class="material-symbols-rounded text-base">push_pin</span>
+                        </span>
+                      }
+
+                      <button
+                        type="button"
+                        (click)="startEditNote(note)"
+                        class="p-1.5 rounded-xl text-outline hover:text-primary hover:bg-primary/10 cursor-pointer"
+                        title="Редактировать запись"
+                      >
+                        <span class="material-symbols-rounded text-base">edit</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        (click)="timelines.deleteNote(note.id)"
+                        class="p-1.5 rounded-xl text-outline hover:text-rose-600 hover:bg-rose-500/10 cursor-pointer"
+                        title="Удалить запись"
+                      >
+                        <span class="material-symbols-rounded text-base">delete</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  @if (editingNoteId() === note.id) {
+                    <div class="p-3 rounded-2xl bg-surface-container-lowest border border-primary/40 flex flex-col gap-2">
+                      <input
+                        type="text"
+                        [(ngModel)]="editTitleDraft"
+                        placeholder="Заголовок (опционально)"
+                        class="w-full px-3 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs font-semibold text-on-surface"
+                      />
+                      <textarea
+                        [ngModel]="editTextDraft()"
+                        (ngModelChange)="editTextDraft.set($event)"
+                        rows="3"
+                        placeholder="Текст сообщения... (можно использовать #хештеги)"
+                        class="w-full px-3 py-2 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface resize-y"
+                      ></textarea>
+                      <app-hashtag-multiselect
+                        [options]="composerHashtagOptions()"
+                        [selectedTags]="editSelectedTags()"
+                        (selectedTagsChange)="editSelectedTags.set($event)"
+                        placeholder="Доп. #хештеги..."
+                        searchPlaceholder="Поиск или новый #хештег..."
+                        ariaLabel="Редактирование хештегов сообщения"
+                      />
+                      @if (editPreviewTags().length > 0) {
+                        <div class="flex flex-wrap items-center gap-1">
+                          <span class="text-[10px] font-mono text-outline">Хештеги:</span>
+                          @for (tag of editPreviewTags(); track tag) {
+                            <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-primary/15 text-primary font-semibold">
+                              #{{ tag }}
+                            </span>
+                          }
+                        </div>
+                      }
+                      <div class="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          (click)="cancelEditNote()"
+                          class="px-3 py-1 rounded-xl bg-surface-container-high text-xs font-bold text-on-surface cursor-pointer"
+                        >
+                          Отмена
+                        </button>
+                        <button
+                          type="button"
+                          (click)="saveEditedNote(note)"
+                          [disabled]="!editTextDraft().trim()"
+                          class="px-3 py-1 rounded-xl bg-primary text-on-primary text-xs font-bold disabled:opacity-50 cursor-pointer"
+                        >
+                          Сохранить
+                        </button>
+                      </div>
+                    </div>
+                  } @else {
+                    <p class="text-sm text-on-surface leading-relaxed whitespace-pre-line">
+                      <app-hashtag-text [text]="note.text" [activeTag]="selectedTagFilter()" (hashtagClick)="toggleTagFilter($event)" />
+                    </p>
+                  }
+
+                  <!-- Media Attachments -->
+                  @if (note.mediaAttachments && note.mediaAttachments.length > 0) {
+                    <div class="flex flex-wrap gap-2 pt-1">
+                      @for (m of note.mediaAttachments; track $index) {
+                        @if ((m.mimeType || 'image/').startsWith('image/')) {
+                          <a [href]="m.url" target="_blank" rel="noopener" class="block rounded-xl overflow-hidden border border-outline-variant/30">
+                            <img [src]="m.thumbnailUrl || m.url" [alt]="m.caption || m.filename || 'image'" class="max-h-44 object-cover" />
+                          </a>
+                        } @else {
+                          <a
+                            [href]="m.url"
+                            target="_blank"
+                            rel="noopener"
+                            class="px-3 py-1.5 rounded-xl bg-surface-container-lowest border border-outline-variant/40 text-xs font-mono inline-flex items-center gap-1.5 no-underline text-on-surface"
+                          >
+                            <span class="material-symbols-rounded text-sm text-primary">attachment</span>
+                            <span>{{ m.filename || m.url }}</span>
+                          </a>
+                        }
+                      }
+                    </div>
+                  }
+
+                  <!-- Tags -->
+                  @if (getDisplayTags(note); as displayTags) {
+                    @if (displayTags.length > 0) {
+                      <div class="flex flex-wrap gap-1.5">
+                        @for (tag of displayTags; track tag) {
+                          <button
+                            type="button"
+                            (click)="toggleTagFilter(tag)"
+                            class="text-[10px] font-mono px-2 py-0.5 rounded-full transition-colors cursor-pointer"
+                            [class]="
+                              selectedTagFilter() === tag
+                                ? 'bg-primary text-on-primary font-bold'
+                                : 'bg-surface-container-highest hover:bg-primary/15 text-on-surface-variant hover:text-primary'
+                            "
+                            [title]="'Фильтровать по хештегу #' + tag"
+                          >
+                            #{{ tag }}
+                          </button>
+                        }
+                      </div>
+                    }
+                  }
+
+                  <!-- Cross-Timeline References -->
+                  @if (note.crossRefs && note.crossRefs.length > 0) {
+                    <div class="flex flex-col gap-1.5 pt-1">
+                      @for (cref of note.crossRefs; track cref.targetNoteId) {
+                        <button
+                          type="button"
+                          (click)="jumpToCrossRef(cref)"
+                          class="p-2.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/35 text-left flex flex-col gap-1 cursor-pointer transition-colors"
+                        >
+                          <div class="flex items-center justify-between gap-2 text-[10px] font-mono">
+                            <span class="font-bold text-violet-700 dark:text-violet-300">
+                              🔗 {{ cref.relationLabel || cref.targetBoardTitle }}
+                            </span>
+                            <span class="text-outline">{{ cref.targetDateKey }} · {{ cref.targetTime }}</span>
+                          </div>
+                          <div class="flex items-center gap-1.5">
+                            <app-actor-avatar [avatar]="cref.targetActorAvatar" containerClass="w-4 h-4 rounded flex-shrink-0" />
+                            <span class="text-xs font-bold">{{ cref.targetActorName }}</span>
+                          </div>
+                          <p class="text-xs text-on-surface-variant line-clamp-2">{{ cref.targetSnippet }}</p>
+                        </button>
+                      }
+                    </div>
+                  }
+                </article>
+              } @empty {
+                <div class="p-8 text-center rounded-2xl bg-surface-container-low/50 border border-dashed border-outline-variant/40 text-xs text-outline">
+                  Пока нет записей за выбранный день. Выберите «Все даты» или добавьте новую запись выше.
+                </div>
+              }
+            </div>
+          }
+        </section>
+      }
+
+      <!-- RIGHT SLIDE-OUT PINNED MESSAGES SIDEBAR -->
+      @if (pinnedSidebarOpen()) {
+        <div
+          class="fixed inset-0 bg-black/25 backdrop-blur-[1px] z-30 transition-opacity"
+          (click)="pinnedSidebarOpen.set(false)"
+        ></div>
+      }
+      <aside
+        class="fixed top-0 right-0 h-full w-full sm:w-96 max-w-full bg-surface-container border-l border-outline-variant/30 shadow-2xl z-40 flex flex-col transition-transform duration-300 ease-out"
+        [class.translate-x-0]="pinnedSidebarOpen()"
+        [class.translate-x-full]="!pinnedSidebarOpen()"
+        [attr.aria-hidden]="!pinnedSidebarOpen()"
+      >
+        <div class="p-4 border-b border-outline-variant/20 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="material-symbols-rounded text-primary">push_pin</span>
+            <h3 class="text-sm font-black text-on-surface truncate">Закреплённые сообщения</h3>
+            <span class="px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[11px] font-black">
+              {{ pinnedBoardNotes().length }}
+            </span>
+          </div>
+          <button
+            type="button"
+            (click)="pinnedSidebarOpen.set(false)"
+            class="p-1.5 rounded-xl text-outline hover:text-on-surface hover:bg-surface-container-high cursor-pointer"
+            title="Закрыть панель"
+          >
+            <span class="material-symbols-rounded text-lg">close</span>
+          </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+          @if (pinnedBoardNotes().length === 0) {
+            <div class="p-6 rounded-2xl bg-surface-container-low border border-outline-variant/20 text-center text-xs text-on-surface-variant">
+              <span class="material-symbols-rounded text-3xl text-outline mb-2 block">push_pin</span>
+              <p class="font-bold text-on-surface mb-1">Пока нет закреплённых сообщений</p>
+              <p>Создатель доски может закрепить важные записи для всего TimeLine.</p>
+            </div>
+          } @else {
+            @for (pinned of pinnedBoardNotes(); track pinned.id) {
+              <div class="p-3.5 rounded-2xl bg-surface-container-low border border-outline-variant/25 hover:border-primary/40 transition-colors flex flex-col gap-2">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-base leading-none">{{ pinned.actorAvatar }}</span>
+                    <span class="text-xs font-bold text-on-surface truncate">{{ pinned.actorName }}</span>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      (click)="jumpToPinnedNote(pinned)"
+                      class="px-2 py-0.5 rounded-lg bg-surface-container-high hover:bg-primary/15 text-[11px] font-bold text-on-surface-variant hover:text-primary cursor-pointer"
+                      title="Перейти к дате сообщения"
+                    >
+                      {{ pinned.dateKey }} · {{ pinned.time }}
+                    </button>
+                    @if (canManageActiveBoard()) {
+                      <button
+                        type="button"
+                        (click)="timelines.togglePinNote(pinned.id, false)"
+                        class="p-1 rounded-lg text-outline hover:text-rose-600 hover:bg-rose-500/10 cursor-pointer"
+                        title="Открепить сообщение"
+                      >
+                        <span class="material-symbols-rounded text-sm">keep_off</span>
+                      </button>
+                    }
+                  </div>
+                </div>
+
+                @if (pinned.title) {
+                  <div class="text-xs font-black text-on-surface">{{ pinned.title }}</div>
+                }
+                <p class="text-xs text-on-surface-variant whitespace-pre-wrap break-words leading-relaxed">
+                  <app-hashtag-text [text]="pinned.text" [activeTag]="selectedTagFilter()" (hashtagClick)="toggleTagFilter($event); pinnedSidebarOpen.set(false)" />
+                </p>
+                @if (getDisplayTags(pinned); as pinnedTags) {
+                  @if (pinnedTags.length > 0) {
+                    <div class="flex flex-wrap gap-1">
+                      @for (tag of pinnedTags; track tag) {
+                        <button
+                          type="button"
+                          (click)="toggleTagFilter(tag); pinnedSidebarOpen.set(false)"
+                          class="text-[10px] font-mono px-1.5 py-0.2 rounded-full cursor-pointer transition-colors"
+                          [class]="selectedTagFilter() === tag ? 'bg-primary text-on-primary font-bold' : 'bg-primary/10 text-primary hover:bg-primary/20'"
+                        >
+                          #{{ tag }}
+                        </button>
+                      }
+                    </div>
+                  }
+                }
+              </div>
+            }
+          }
+        </div>
+      </aside>
+
+      <!-- BOTTOM-DOCKED CHAT COMPOSER ISLAND -->
+      @if (activeBoard(); as board) {
+        <div class="fixed bottom-0 inset-x-0 z-20 px-2 sm:px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pointer-events-none">
+          <div class="pointer-events-auto max-w-4xl mx-auto rounded-2xl sm:rounded-3xl bg-surface-container-lowest/95 backdrop-blur-md border border-outline-variant/50 shadow-lg p-2 sm:p-2.5 flex flex-col gap-2">
+            @if (canPostToActiveBoard()) {
+              @if (composerExpanded()) {
+                <div class="flex flex-col gap-2 pb-2 border-b border-outline-variant/30">
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <app-cloud-themed-select
+                        [options]="composerActorOptions()"
+                        [value]="selectedComposerActorId()"
+                        [searchable]="true"
+                        placement="up"
+                        prefixLabel="Персонаж:"
+                        panelWidthClass="w-64"
+                        (valueChange)="selectedComposerActorId.set($event)"
+                      />
+                      @if (activeProfile(); as prof) {
+                        <span class="px-2 py-1 rounded-lg bg-surface-container-high text-[11px] font-mono text-on-surface-variant inline-flex items-center gap-1">
+                          <span class="material-symbols-rounded text-xs text-primary">{{ prof.avatarIcon || 'person' }}</span>
+                          <span>{{ prof.displayName }}</span>
+                        </span>
+                      }
+                    </div>
+
+                    <div class="flex items-center gap-1 flex-wrap">
+                      @for (t of entryTypes; track t.value) {
+                        <button
+                          type="button"
+                          (click)="composerType.set(t.value)"
+                          class="px-2 py-1 rounded-lg text-[11px] font-bold border cursor-pointer transition-colors"
+                          [class]="
+                            composerType() === t.value
+                              ? 'bg-primary text-on-primary border-primary'
+                              : 'bg-surface-container-low text-on-surface-variant border-outline-variant/30'
+                          "
+                        >
+                          {{ t.emoji }} {{ t.label }}
+                        </button>
+                      }
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                    <input
+                      type="text"
+                      [(ngModel)]="composerTitle"
+                      placeholder="Заголовок (опционально)..."
+                      class="sm:col-span-2 px-2.5 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface"
+                    />
+                    <app-hashtag-multiselect
+                      [options]="composerHashtagOptions()"
+                      [selectedTags]="composerSelectedTags()"
+                      (selectedTagsChange)="composerSelectedTags.set($event)"
+                      placement="up"
+                      placeholder="Выбрать #хештеги..."
+                      searchPlaceholder="Поиск или новый #хештег..."
+                      ariaLabel="Выбор хештегов сообщения"
+                    />
+                  </div>
+
+                  <!-- Live detected hashtags + quick insert chips -->
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <div class="flex items-center gap-1 flex-wrap">
+                      @if (composerPreviewTags().length > 0) {
+                        <span class="text-[10px] font-mono text-outline mr-0.5">Хештеги:</span>
+                        @for (tag of composerPreviewTags(); track tag) {
+                          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[10px] font-mono font-bold">
+                            #{{ tag }}
+                          </span>
+                        }
+                      } @else {
+                        <span class="text-[10px] font-mono text-outline">Быстро добавить #:</span>
+                      }
+                    </div>
+
+                    <div class="flex items-center gap-1 flex-wrap">
+                      @for (sug of quickComposerHashtags(); track sug) {
+                        @if (!composerPreviewTags().includes(sug)) {
+                          <button
+                            type="button"
+                            (click)="insertComposerHashtag(sug)"
+                            class="px-2 py-0.5 rounded-full bg-surface-container-low hover:bg-primary/10 border border-outline-variant/35 hover:border-primary/40 text-[10px] font-mono text-on-surface-variant hover:text-primary cursor-pointer transition-colors"
+                            [title]="'Добавить #' + sug + ' в сообщение'"
+                          >
+                            +#{{ sug }}
+                          </button>
+                        }
+                      }
+                    </div>
+                  </div>
+
+                  <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <div class="inline-flex items-center gap-1">
+                      <app-time-picker-popover
+                        [time]="composerTime()"
+                        (timeChange)="composerTime.set($event)"
+                        placement="up"
+                        ariaLabel="Время записи"
+                      />
+                      <button
+                        type="button"
+                        (click)="setCurrentTime()"
+                        title="Установить текущее время"
+                        class="px-2 py-1 rounded-lg bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/40 text-[11px] font-bold text-on-surface-variant inline-flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <span class="material-symbols-rounded text-xs text-primary">schedule</span>
+                        <span>Сейчас</span>
+                      </button>
+                    </div>
+
+                    @if (board.privacy === 'PRIVATE') {
+                      <label
+                        class="px-2 py-1 rounded-lg bg-surface-container-low border border-outline-variant/40 text-[11px] inline-flex items-center gap-1.5 cursor-pointer"
+                        title="Выдать NoteShare участникам этого приватного борда"
+                      >
+                        <input type="checkbox" [(ngModel)]="composerShareWithGroup" />
+                        <span class="font-semibold text-on-surface-variant">NoteShare группе</span>
+                      </label>
+                    }
+                  </div>
+                </div>
+              }
+
+              @if (composerWeather(); as cw) {
+                <div
+                  data-test-id="composer-weather-chip"
+                  class="flex items-center justify-between gap-2 px-2.5 py-1 rounded-xl bg-sky-500/15 border border-sky-400/40 text-xs font-mono"
+                >
+                  <span class="font-bold text-sky-900 dark:text-sky-200 truncate">
+                    {{ cw.icon }} {{ formatTemperatureC(cw.temperatureC) }} · {{ cw.label }} · 📍 {{ cw.locationName }} (погода зафиксирована для записи)
+                  </span>
+                  <button
+                    type="button"
+                    (click)="composerWeather.set(null)"
+                    aria-label="Убрать зафиксированную погоду"
+                    title="Убрать зафиксированную погоду"
+                    class="p-0.5 rounded hover:bg-sky-500/20 text-sky-900 dark:text-sky-200 cursor-pointer flex-shrink-0"
+                  >
+                    <span class="material-symbols-rounded text-xs leading-none">close</span>
+                  </button>
+                </div>
+              }
+
+              @if (composerWorldMoment(); as cm) {
+                <div
+                  data-test-id="composer-moment-chip"
+                  class="flex items-center justify-between gap-2 px-2.5 py-1 rounded-xl bg-violet-500/15 border border-violet-400/40 text-xs font-mono"
+                >
+                  <span class="font-bold text-violet-900 dark:text-violet-200 truncate">
+                    🛰️ {{ cm.icon }} {{ cm.title }} (момент мира зафиксирован для записи)
+                  </span>
+                  <button
+                    type="button"
+                    (click)="composerWorldMoment.set(null)"
+                    aria-label="Убрать зафиксированный момент мира"
+                    title="Убрать зафиксированный момент мира"
+                    class="p-0.5 rounded hover:bg-violet-500/20 text-violet-900 dark:text-violet-200 cursor-pointer flex-shrink-0"
+                  >
+                    <span class="material-symbols-rounded text-xs leading-none">close</span>
+                  </button>
+                </div>
+              }
+
+              @if (pendingMedia().length > 0) {
+                <div class="flex flex-wrap gap-1.5">
+                  @for (media of pendingMedia(); track $index) {
+                    <div class="relative p-1 rounded-lg bg-surface-container-low border border-outline-variant/40 flex items-center gap-1.5">
+                      @if ((media.mimeType || '').startsWith('image/')) {
+                        <img [src]="media.thumbnailUrl || media.url" [alt]="media.filename || 'media'" class="w-8 h-8 rounded object-cover" />
+                      } @else {
+                        <span class="material-symbols-rounded text-lg text-primary">attachment</span>
+                      }
+                      <span class="text-[10px] font-mono max-w-24 truncate">{{ media.filename || 'media' }}</span>
+                      <button
+                        type="button"
+                        (click)="removePendingMedia($index)"
+                        class="p-0.5 rounded hover:bg-rose-500/20 text-rose-600 cursor-pointer"
+                        aria-label="Убрать файл"
+                      >
+                        <span class="material-symbols-rounded text-xs">close</span>
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+
+              <!-- Inline #hashtag autocomplete dropdown -->
+              @if (composerAutocompleteTags().length > 0) {
+                <div class="flex items-center gap-1.5 flex-wrap px-2.5 py-1 rounded-xl bg-surface-container-low border border-primary/35 text-xs">
+                  <span class="text-[10px] font-mono font-bold text-primary">Подсказка #:</span>
+                  @for (sug of composerAutocompleteTags(); track sug) {
+                    <button
+                      type="button"
+                      (click)="applyComposerAutocomplete(sug)"
+                      class="px-2 py-0.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-mono font-semibold cursor-pointer transition-colors"
+                    >
+                      #{{ sug }}
+                    </button>
+                  }
+                </div>
+              }
+
+              <div class="flex items-end gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  (click)="composerExpanded.set(!composerExpanded())"
+                  class="p-2 rounded-xl border text-on-surface-variant hover:text-on-surface cursor-pointer transition-colors flex-shrink-0"
+                  [class]="composerExpanded() ? 'bg-primary/15 border-primary/40 text-primary' : 'bg-surface-container-low border-outline-variant/30'"
+                  title="Параметры записи (персонаж, тип, теги, время)"
+                  aria-label="Параметры записи"
+                >
+                  <span class="material-symbols-rounded text-base leading-none">{{ composerExpanded() ? 'expand_more' : 'tune' }}</span>
+                </button>
+
+                <span class="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-container-low border border-outline-variant/30 text-[11px] font-bold text-on-surface-variant flex-shrink-0">
+                  {{ activeComposerActor()?.name || 'Персонаж' }}
+                </span>
+
+                <textarea
+                  #composerTextarea
+                  [ngModel]="composerText()"
+                  (ngModelChange)="composerText.set($event)"
+                  rows="1"
+                  (keydown)="onComposerKeydown($event)"
+                  [placeholder]="'Сообщение от «' + (activeComposerActor()?.name || 'Персонаж') + '»... Пишите #хештеги прямо в тексте (Enter)'"
+                  title="Enter — отправить, Shift+Enter — новая строка"
+                  class="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs text-on-surface resize-none max-h-44 overflow-y-auto focus:outline-none focus:border-primary/60"
+                ></textarea>
+
+                <button
+                  type="button"
+                  data-test-id="composer-capture-weather-btn"
+                  (click)="toggleComposerWeather()"
+                  class="px-2.5 py-2 rounded-xl border text-xs font-bold cursor-pointer transition-colors flex-shrink-0 inline-flex items-center gap-1"
+                  [class]="
+                    composerWeather()
+                      ? 'bg-sky-500/20 border-sky-400 text-sky-900 dark:text-sky-200'
+                      : 'bg-surface-container-low hover:bg-surface-container-high border-outline-variant/30 text-on-surface-variant hover:text-primary'
+                  "
+                  [title]="
+                    composerWeather()
+                      ? 'Погода зафиксирована в записи (нажмите, чтобы убрать)'
+                      : 'Зафиксировать текущую погоду (' + weatherService.selectedLocation().name + ', ' + weatherService.currentTemperatureLabel() + ') в записи'
+                  "
+                  aria-label="Зафиксировать погоду в записи"
+                >
+                  <span>{{ weatherService.currentConditionMeta().dayEmoji }}</span>
+                  <span class="hidden sm:inline font-mono text-[11px]">{{ weatherService.currentTemperatureLabel() }}</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-test-id="composer-capture-moment-btn"
+                  (click)="toggleComposerWorldMoment()"
+                  class="px-2.5 py-2 rounded-xl border text-xs font-bold cursor-pointer transition-colors flex-shrink-0 inline-flex items-center gap-1"
+                  [class]="
+                    composerWorldMoment()
+                      ? 'bg-violet-500/20 border-violet-400 text-violet-900 dark:text-violet-200'
+                      : 'bg-surface-container-low hover:bg-surface-container-high border-outline-variant/30 text-on-surface-variant hover:text-primary'
+                  "
+                  [title]="
+                    composerWorldMoment()
+                      ? 'Момент мира зафиксирован в записи (нажмите, чтобы убрать)'
+                      : 'Зафиксировать текущий момент мира (' + watchersService.activeMoment().title + ') в записи'
+                  "
+                  aria-label="Зафиксировать момент мира в записи"
+                >
+                  <span>🛰️</span>
+                  <span class="hidden sm:inline font-mono text-[11px]">#{{ watchersService.activeMoment().hashtags[0] || 'Мир' }}</span>
+                </button>
+
+                <label
+                  class="p-2 rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 text-on-surface-variant hover:text-primary cursor-pointer transition-colors flex-shrink-0"
+                  title="Прикрепить медиа (Media Hub)"
+                >
+                  <span class="material-symbols-rounded text-base leading-none">{{ isUploadingMedia() ? 'hourglass_top' : 'add_photo_alternate' }}</span>
+                  <input
+                    type="file"
+                    accept="image/*,audio/*,video/*"
+                    (change)="onMediaFileSelected($event)"
+                    class="hidden"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  (click)="submitEntry()"
+                  [disabled]="!composerText().trim() || isUploadingMedia()"
+                  class="px-3 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold shadow-xs hover:opacity-95 disabled:opacity-45 cursor-pointer inline-flex items-center gap-1 flex-shrink-0 active:scale-[0.98]"
+                >
+                  <span class="material-symbols-rounded text-base leading-none">send</span>
+                  <span class="hidden sm:inline">Записать</span>
+                </button>
+              </div>
+            } @else {
+              <div class="px-2 py-1 text-xs text-on-surface-variant italic text-center">
+                У текущего аккаунта режим только для чтения на этом борде.
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- MODALS -->
+      <app-timeline-board-modal
+        [isOpen]="isCreateBoardOpen()"
+        [editingBoard]="editingBoard()"
+        [actors]="allActors()"
+        [profiles]="allProfiles()"
+        [activeProfileId]="activeProfile()?.id || ''"
+        [hashtagOptions]="allBoardHashtags()"
+        (close)="closeBoardModal()"
+        (create)="handleCreateBoard($event)"
+        (save)="handleEditBoard($event)"
+      />
+
+      <app-timeline-members-modal
+        [isOpen]="isMembersModalOpen()"
+        [board]="activeBoard()"
+        [profiles]="allProfiles()"
+        [canManage]="canManageActiveBoard()"
+        (close)="isMembersModalOpen.set(false)"
+        (saveBoardSettings)="handleSaveBoardSettings($event)"
+        (addOrUpdateMember)="handleUpsertMember($event)"
+        (removeMember)="handleRemoveMember($event)"
+      />
+
+      <app-timeline-projectarium-modal
+        [isOpen]="isProjectariumModalOpen()"
+        [boards]="visibleBoards()"
+        [activeBoardId]="activeBoard()?.id || null"
+        [actorProfileId]="activeProfile()?.id || null"
+        (closed)="isProjectariumModalOpen.set(false)"
+      />
+
+      <app-timeline-crosslink-modal
+        [sourceBoard]="activeBoard()"
+        [sourceNote]="crossLinkSourceNote()"
+        [candidates]="crossLinkCandidates()"
+        [boards]="visibleBoards()"
+        (close)="crossLinkSourceNote.set(null)"
+        (attach)="handleAttachCrossLink($event)"
+      />
+
+      <app-timeline-agent-summary-modal
+        [isOpen]="isAgentSummaryOpen()"
+        [boards]="visibleBoards()"
+        [actors]="allActors()"
+        [profiles]="allProfiles()"
+        [hashtagOptions]="composerHashtagOptions()"
+        [errorMessage]="agentSummaryError()"
+        (close)="closeAgentSummaryModal()"
+        (submitSummary)="handleAgentSummary($event)"
+      />
+
+      <!-- Lemon Seasons Personal Feed Modal -->
+      <app-timeline-seasons-modal
+        [isOpen]="isPersonalFeedModalOpen()"
+        [personalFeedEntries]="personalFeedEntries()"
+        [remoteFeedNotes]="remoteFeedNotes()"
+        [remoteFeedAccount]="remoteFeedAccount()"
+        [streamInfo]="seasonsStreamInfo()"
+        [isEnsuringStream]="isEnsuringSeasonsStream()"
+        [streamSlug]="activeBoard()?.seasonsStreamSlug || 'lemon-universe'"
+        (close)="isPersonalFeedModalOpen.set(false)"
+        (refreshRemote)="refreshRemoteSeasonsFeed()"
+        (ensureStream)="handleEnsureSeasonsStream()"
+      />
+    </div>

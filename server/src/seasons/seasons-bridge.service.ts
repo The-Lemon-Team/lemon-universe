@@ -189,8 +189,13 @@ export class SeasonsBridgeService {
     }
   }
 
+  private normalizeStreamSlug(slug?: string): string {
+    const raw = (slug || 'lemon_universe').trim();
+    return raw.replace(/-/g, '_');
+  }
+
   async ensureBoardTopology(board: TimelineBoardSyncTarget): Promise<void> {
-    const streamSlug = board.seasonsStreamSlug || 'lemon-universe';
+    const streamSlug = this.normalizeStreamSlug(board.seasonsStreamSlug);
     const feedSlug = board.seasonsFeedSlug || `universe-${board.slug}`;
     const privacy = board.privacy === 'PUBLIC' ? 'public' : 'private';
     const ctx = await this.resolveAccountContext(board.ownerProfileId);
@@ -205,37 +210,175 @@ export class SeasonsBridgeService {
     );
 
     try {
-      if (!this.ensuredStreams.has(`${streamSlug}:${privacy}`)) {
-        await ctx.bridge.ensureTopology({
-          streamSlug,
-          streamTitle: '🌌 Lemon Universe',
-          feeds: [
-            {
-              slug: feedSlug,
-              title: board.title,
-              icon: board.icon || 'timeline',
-              privacy,
-              hashtags: boardHashtags,
-            },
-          ],
-        });
-        this.ensuredStreams.add(`${streamSlug}:${privacy}`);
-      } else {
-        await ctx.client.ensureFeed({
-          slug: feedSlug,
-          title: board.title,
-          description: board.description || undefined,
-          icon: board.icon || 'timeline',
-          privacy,
-          hashtags: boardHashtags,
-        });
-      }
+      const streamRes = await ctx.client.ensureStream({
+        slug: streamSlug,
+        title: '🌌 Lemon Universe',
+        description: 'Сводный поток всех досок и каналов TimeLines из Lemon Universe',
+        icon: '🌌',
+        color: '#8b5cf6',
+        privacy: 'public',
+        tags: ['lemon-universe', 'timelines'],
+      }).catch(() => undefined);
+
+      const feedRes = await ctx.client.ensureFeed({
+        slug: feedSlug,
+        title: board.title,
+        description: board.description || undefined,
+        icon: board.icon || 'timeline',
+        privacy,
+        hashtags: boardHashtags,
+      });
+
+      const streamId = streamRes?.id || streamSlug;
+      const feedId = feedRes?.id || feedSlug;
+      await ctx.client.attachFeedToStream(streamId, feedId).catch(() => undefined);
+
+      this.ensuredStreams.add(`${streamSlug}:${privacy}`);
     } catch (err) {
       this.logger.debug(
         `Seasons topology ensure skipped (${streamSlug}/${feedSlug}): ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
+    }
+  }
+
+  async ensureTimelinesStream(opts?: {
+    streamSlug?: string;
+    profileId?: string | null;
+  }): Promise<{
+    success: boolean;
+    stream?: any;
+    streamSlug: string;
+    attachedFeedsCount: number;
+    feeds: Array<{ slug: string; title: string; attached: boolean }>;
+    error?: string;
+  }> {
+    const streamSlug = this.normalizeStreamSlug(opts?.streamSlug);
+    const ctx = await this.resolveAccountContext(opts?.profileId);
+
+    try {
+      const streamRes = await ctx.client.ensureStream({
+        slug: streamSlug,
+        title: '🌌 Lemon Universe',
+        description: 'Сводный поток всех досок и каналов TimeLines из Lemon Universe',
+        icon: '🌌',
+        color: '#8b5cf6',
+        privacy: 'public',
+        tags: ['lemon-universe', 'timelines', 'universe'],
+      });
+
+      const streamId = streamRes?.id || streamSlug;
+
+      const { rows: boards } = await this.db
+        .query<any>(
+          `
+        SELECT
+          id, slug, title, description, hashtags, icon, privacy,
+          board_kind AS "boardKind",
+          board_mode AS "boardMode",
+          seasons_stream_slug AS "seasonsStreamSlug",
+          seasons_feed_slug AS "seasonsFeedSlug"
+        FROM timeline_boards
+        WHERE is_archived = FALSE
+        ORDER BY created_at ASC
+      `,
+        )
+        .catch(() => ({ rows: [] }));
+
+      const feedTargets: Array<{
+        slug: string;
+        title: string;
+        icon: string;
+        privacy: 'public' | 'private';
+        hashtags?: string[];
+      }> = [
+        {
+          slug: 'universe-personal-feed',
+          title: 'Личный фид Universe',
+          icon: '👤',
+          privacy: 'private',
+          hashtags: ['lemon-universe', 'personal-feed'],
+        },
+      ];
+
+      for (const b of boards) {
+        const feedSlug = b.seasonsFeedSlug || `universe-${b.slug}`;
+        if (!feedTargets.some((f) => f.slug === feedSlug)) {
+          feedTargets.push({
+            slug: feedSlug,
+            title: b.title || feedSlug,
+            icon: b.icon || 'timeline',
+            privacy: b.privacy === 'PUBLIC' ? 'public' : 'private',
+            hashtags: Array.isArray(b.hashtags) ? b.hashtags : [],
+          });
+        }
+      }
+
+      const results: Array<{ slug: string; title: string; attached: boolean }> = [];
+      let attachedCount = 0;
+
+      for (const f of feedTargets) {
+        try {
+          const feedRes = await ctx.client.ensureFeed({
+            slug: f.slug,
+            title: f.title,
+            icon: f.icon,
+            privacy: f.privacy,
+            hashtags: ['lemon-universe', ...(f.hashtags || [])],
+          });
+          const feedId = feedRes?.id || f.slug;
+          await ctx.client.attachFeedToStream(streamId, feedId).catch(() => undefined);
+          results.push({ slug: f.slug, title: f.title, attached: true });
+          attachedCount++;
+        } catch {
+          results.push({ slug: f.slug, title: f.title, attached: false });
+        }
+      }
+
+      this.ensuredStreams.add(`${streamSlug}:public`);
+      this.ensuredStreams.add(`${streamSlug}:private`);
+
+      return {
+        success: true,
+        stream: streamRes,
+        streamSlug,
+        attachedFeedsCount: attachedCount,
+        feeds: results,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        streamSlug,
+        attachedFeedsCount: 0,
+        feeds: [],
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  async fetchSeasonsStream(rawSlug?: string, profileId?: string) {
+    try {
+      const streamSlug = this.normalizeStreamSlug(rawSlug);
+      const ctx = await this.resolveAccountContext(profileId);
+      const stream = await ctx.client.ensureStream({
+        slug: streamSlug,
+        title: '🌌 Lemon Universe',
+        description: 'Сводный поток всех досок и каналов TimeLines из Lemon Universe',
+        icon: '🌌',
+        color: '#8b5cf6',
+        privacy: 'public',
+        tags: ['lemon-universe', 'timelines', 'universe'],
+      });
+      return {
+        connected: true,
+        stream,
+      };
+    } catch (err) {
+      return {
+        connected: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
     }
   }
 
@@ -318,7 +461,7 @@ export class SeasonsBridgeService {
     const externalId = `${origin.toLowerCase()}:${board.id}:${note.id}`;
     const privacy: 'public' | 'private' = board.privacy === 'PUBLIC' ? 'public' : 'private';
     const feedSlug = board.seasonsFeedSlug || `universe-${board.slug}`;
-    const streamSlug = board.seasonsStreamSlug || 'lemon-universe';
+    const streamSlug = this.normalizeStreamSlug(board.seasonsStreamSlug);
 
     const ctx = await this.resolveAccountContext(note.authorProfileId || board.ownerProfileId);
     const summaryText = note.text.replace(/\s+/g, ' ').trim();
@@ -548,7 +691,7 @@ export class SeasonsBridgeService {
 
   async ingestRawNotePayload(payload: IngestSeasonNoteInput & { metadata?: Record<string, any> }) {
     try {
-      const streamSlug = payload.streamSlug || 'lemon-universe';
+      const streamSlug = this.normalizeStreamSlug(payload.streamSlug);
       const feedSlug = payload.feedSlug || 'universe-personal-feed';
       const privacy = payload.privacy === 'public' ? 'public' : 'private';
       const profileId = payload.metadata?.authorProfileId as string | undefined;

@@ -169,4 +169,50 @@ describe('TimelinesWorkspaceComponent', () => {
     expect(component.composerTime()).toBe('15:30');
     expect(component.visibleNotes().some((n) => n.text.includes('Создано кликом по графику'))).toBeTrue();
   });
+
+  it('should capture weather snapshot in bottom composer and send it when creating a note', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const weatherBtn = el.querySelector('[data-test-id="composer-capture-weather-btn"]') as HTMLButtonElement;
+    expect(weatherBtn).toBeTruthy();
+
+    weatherBtn.click();
+    fixture.detectChanges();
+    expect(component.composerWeather()).toBeTruthy();
+    expect(el.querySelector('[data-test-id="composer-weather-chip"]')).toBeTruthy();
+
+    component.composerText.set('Заметка с зафиксированной погодой');
+    component.submitEntry();
+
+    const createReqs = httpMock.match((req) => req.method === 'POST' && req.url.includes('/timelines/notes'));
+    expect(createReqs.length).toBe(1);
+    expect(createReqs[0].request.body.weather).toBeTruthy();
+    expect(createReqs[0].request.body.weather.locationName).toBeTruthy();
+    createReqs[0].flush(createReqs[0].request.body);
+    fixture.detectChanges();
+
+    expect(component.composerWeather()).toBeNull();
+  });
+
+  it('should capture world moment snapshot in bottom composer and send it when creating a note', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const momentBtn = el.querySelector('[data-test-id="composer-capture-moment-btn"]') as HTMLButtonElement;
+    expect(momentBtn).toBeTruthy();
+
+    momentBtn.click();
+    fixture.detectChanges();
+    expect(component.composerWorldMoment()).toBeTruthy();
+    expect(el.querySelector('[data-test-id="composer-moment-chip"]')).toBeTruthy();
+
+    component.composerText.set('Заметка с зафиксированным моментом мира');
+    component.submitEntry();
+
+    const createReqs = httpMock.match((req) => req.method === 'POST' && req.url.includes('/timelines/notes'));
+    expect(createReqs.length).toBe(1);
+    expect(createReqs[0].request.body.worldMoment).toBeTruthy();
+    expect(createReqs[0].request.body.worldMoment.title).toBeTruthy();
+    createReqs[0].flush(createReqs[0].request.body);
+    fixture.detectChanges();
+
+    expect(component.composerWorldMoment()).toBeNull();
+  });
 });

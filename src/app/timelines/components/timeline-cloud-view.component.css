@@ -1,0 +1,326 @@
+@keyframes thoughtPopIn {
+        0% {
+          transform: scale(0.92) translateY(6px);
+          opacity: 0;
+        }
+        100% {
+          transform: scale(1) translateY(0);
+          opacity: 1;
+        }
+      }
+
+      @keyframes pulseGlowRing {
+        0%,
+        100% {
+          opacity: 0.55;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.95;
+          transform: scale(1.05);
+        }
+      }
+
+      @keyframes spinSlow {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @keyframes twinkleStar {
+        0%,
+        100% {
+          opacity: 0.45;
+          transform: scale(0.85);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1.15);
+        }
+      }
+
+      .thought-pop {
+        animation: thoughtPopIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+
+      .now-sun-glow {
+        animation: pulseGlowRing 2.8s ease-in-out infinite;
+        will-change: transform, opacity;
+      }
+
+      .orb-rays-spin {
+        transform-origin: 32px 32px;
+        animation: spinSlow 24s linear infinite;
+      }
+
+      .orb-star-twinkle {
+        animation: twinkleStar 2.4s ease-in-out infinite;
+      }
+
+      @keyframes orbCloudFloat {
+        0%,
+        100% {
+          transform: translate(0, 0);
+        }
+        50% {
+          transform: translate(1.4px, -1.2px);
+        }
+      }
+
+      @keyframes orbRainFall {
+        0% {
+          opacity: 0;
+          transform: translate(1px, -3px);
+        }
+        40% {
+          opacity: 0.95;
+        }
+        100% {
+          opacity: 0;
+          transform: translate(-2px, 5px);
+        }
+      }
+
+      @keyframes orbSnowDrift {
+        0% {
+          opacity: 0;
+          transform: translate(-1px, -3px) scale(0.8);
+        }
+        50% {
+          opacity: 1;
+          transform: translate(1.5px, 1.5px) scale(1.05);
+        }
+        100% {
+          opacity: 0;
+          transform: translate(-1px, 5px) scale(0.85);
+        }
+      }
+
+      @keyframes orbFogGlide {
+        0%,
+        100% {
+          opacity: 0.5;
+          transform: translateX(-2.5px);
+        }
+        50% {
+          opacity: 0.88;
+          transform: translateX(2.5px);
+        }
+      }
+
+      @keyframes orbLightningFlash {
+        0%,
+        70%,
+        100% {
+          opacity: 0.15;
+          transform: scale(0.92);
+        }
+        76%,
+        84% {
+          opacity: 1;
+          transform: scale(1.08);
+        }
+      }
+
+      @keyframes skyRainFall {
+        0% {
+          transform: translate3d(14px, -40px, 0) rotate(14deg);
+          opacity: 0;
+        }
+        20% {
+          opacity: 1;
+        }
+        90% {
+          opacity: 0.85;
+        }
+        100% {
+          transform: translate3d(-48px, 560px, 0) rotate(14deg);
+          opacity: 0;
+        }
+      }
+
+      @keyframes skySnowFall {
+        0% {
+          transform: translate3d(0, -24px, 0) rotate(0deg);
+          opacity: 0;
+        }
+        20% {
+          opacity: 0.9;
+        }
+        50% {
+          transform: translate3d(16px, 260px, 0) rotate(180deg);
+        }
+        100% {
+          transform: translate3d(-12px, 540px, 0) rotate(360deg);
+          opacity: 0;
+        }
+      }
+
+      @keyframes skyCloudDrift {
+        0%,
+        100% {
+          transform: translate3d(-14px, 0, 0);
+        }
+        50% {
+          transform: translate3d(18px, -4px, 0);
+        }
+      }
+
+      @keyframes skyFogWave {
+        0%,
+        100% {
+          transform: translate3d(-3%, 0, 0) scaleY(1);
+        }
+        50% {
+          transform: translate3d(3%, -4px, 0) scaleY(1.08);
+        }
+      }
+
+      @keyframes skyLightningSheet {
+        0%,
+        86%,
+        92%,
+        100% {
+          opacity: 0;
+        }
+        88%,
+        94% {
+          opacity: 0.28;
+        }
+      }
+
+      .orb-cloud-float {
+        animation: orbCloudFloat 3.6s ease-in-out infinite;
+      }
+
+      .orb-rain-drop {
+        animation: orbRainFall 1.05s linear infinite;
+      }
+
+      .orb-snow-flake {
+        animation: orbSnowDrift 1.8s ease-in-out infinite;
+      }
+
+      .orb-fog-band {
+        animation: orbFogGlide 3.2s ease-in-out infinite;
+      }
+
+      .orb-lightning-bolt {
+        transform-origin: 34px 52px;
+        animation: orbLightningFlash 2.6s ease-in-out infinite;
+      }
+
+      .sky-rain-streak {
+        animation-name: skyRainFall;
+        animation-timing-function: linear;
+        animation-iteration-count: infinite;
+      }
+
+      .sky-snow-particle {
+        animation-name: skySnowFall;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: infinite;
+      }
+
+      .sky-cloud-drift {
+        animation-name: skyCloudDrift;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: infinite;
+      }
+
+      .sky-fog-wave {
+        animation-name: skyFogWave;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: infinite;
+      }
+
+      .sky-lightning-sheet {
+        animation: skyLightningSheet 6.5s ease-in-out infinite;
+      }
+
+      .cloud-sky-canvas {
+        contain: layout style paint;
+      }
+
+      @keyframes hashtagCloudHoverFloat {
+        0%,
+        100% {
+          transform: translateY(0px);
+        }
+        50% {
+          transform: translateY(-4px);
+        }
+      }
+
+      .hashtag-satellite-float {
+        animation: hashtagCloudHoverFloat 4.6s ease-in-out infinite;
+      }
+
+
+/* Container Root Sizing */
+.cloud-root-standard {
+  min-width: 960px;
+  min-height: 640px;
+}
+.cloud-root-large {
+  min-width: 1450px;
+  min-height: 820px;
+}
+.cloud-root-ultra {
+  min-width: 2100px;
+  min-height: 940px;
+}
+
+/* Sky Canvas Sizing */
+.cloud-sky-standard {
+  min-width: 920px;
+  min-height: 520px;
+  height: 520px;
+}
+.cloud-sky-large {
+  min-width: 1400px;
+  min-height: 700px;
+  height: 700px;
+}
+.cloud-sky-ultra {
+  min-width: 2050px;
+  min-height: 820px;
+  height: 820px;
+}
+.cloud-sky-fullscreen {
+  min-width: 100%;
+  min-height: calc(100vh - 180px);
+  height: calc(100vh - 180px);
+}
+
+/* Card Density Sizing */
+.cloud-card-compact {
+  width: 155px;
+}
+@media (min-width: 640px) {
+  .cloud-card-compact {
+    width: 172px;
+  }
+}
+.cloud-card-normal {
+  width: 220px;
+}
+@media (min-width: 640px) {
+  .cloud-card-normal {
+    width: 250px;
+  }
+}
+
+/* Pixelart Urban Horizon & Sky Backdrop Styling */
+.pixelart-grid-backdrop {
+  background-image: radial-gradient(rgba(148, 163, 184, 0.22) 1.2px, transparent 1.2px);
+  background-size: 10px 10px;
+  image-rendering: pixelated;
+}
+
+:host-context(.dark) .pixelart-grid-backdrop {
+  background-image: radial-gradient(rgba(192, 132, 252, 0.25) 1.2px, transparent 1.2px);
+}

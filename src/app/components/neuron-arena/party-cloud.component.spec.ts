@@ -3,6 +3,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { CloudDayNote, FlowStatus } from '../../core/models/flow.models';
+import { SEED_HERO_CLOUD_NOTES } from '../../core/services/hero-notes.seeds';
 import { NeuronArenaService } from '../../core/services/neuron-arena.service';
 import { PartyRealtimeService } from '../../core/services/party-realtime.service';
 import { PartyCloudComponent } from './party-cloud.component';
@@ -14,6 +15,7 @@ describe('PartyCloudComponent', () => {
 
   beforeEach(async () => {
     localStorage.clear();
+    localStorage.setItem('lemon-universe:cloud-notes-v8', JSON.stringify(SEED_HERO_CLOUD_NOTES));
     await TestBed.configureTestingModule({
       imports: [PartyCloudComponent],
       providers: [
