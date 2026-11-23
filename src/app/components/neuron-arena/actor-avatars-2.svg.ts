@@ -596,6 +596,169 @@ export const ACTOR_AVATARS_PART_2: Record<string, string> = {
     <circle cx="26" cy="37" r="2.2" fill="#facc15" />
     <circle cx="74" cy="37" r="2.2" fill="#facc15" />
   `,
+
+  // 31. ИЗИ (Easy: стильная блондинка-программист в очках, умный взгляд, худи разработчика)
+  easy: `
+    <rect width="100" height="100" rx="22" fill="#0f172a" />
+    <text x="14" y="24" fill="#38bdf8" font-family="monospace" font-size="9" opacity="0.45" font-weight="bold">&lt;/&gt;</text>
+    <text x="76" y="24" fill="#facc15" font-family="monospace" font-size="9" opacity="0.45" font-weight="bold">{;}</text>
+    <circle cx="82" cy="78" r="1.5" fill="#38bdf8" opacity="0.6" />
+    <circle cx="18" cy="74" r="1.5" fill="#facc15" opacity="0.6" />
+    <path d="M22 42 C16 60, 18 84, 28 88 L34 88 C26 78, 24 58, 28 42 Z" fill="#eab308" />
+    <path d="M78 42 C84 60, 82 84, 72 88 L66 88 C74 78, 76 58, 72 42 Z" fill="#eab308" />
+    <path d="M24 40 C18 55, 20 80, 30 84" stroke="#fde047" stroke-width="4" stroke-linecap="round" />
+    <path d="M76 40 C82 55, 80 80, 70 84" stroke="#fde047" stroke-width="4" stroke-linecap="round" />
+    <path d="M16 100 C20 74, 80 74, 84 100 Z" fill="#1e293b" stroke="#0ea5e9" stroke-width="1.5" />
+    <path d="M38 78 L50 92 L62 78" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" />
+    <line x1="50" y1="92" x2="50" y2="100" stroke="#facc15" stroke-width="2" />
+    <circle cx="50" cy="90" r="2" fill="#facc15" />
+    <rect x="44" y="66" width="12" height="15" rx="3" fill="#fed7aa" />
+    <rect x="31" y="30" width="38" height="42" rx="17" fill="#fed7aa" />
+    <path d="M28 40 C28 20, 72 20, 72 40 C66 26, 52 25, 45 28 C38 27, 32 32, 28 40 Z" fill="#facc15" />
+    <path d="M30 36 C38 24, 62 23, 70 34 C64 27, 48 26, 38 31 Z" fill="#fef08a" />
+    <path d="M28 38 C28 50, 31 58, 33 60 C32 52, 31 44, 32 38 Z" fill="#eab308" />
+    <path d="M72 38 C72 50, 69 58, 67 60 C68 52, 69 44, 68 38 Z" fill="#eab308" />
+    <path d="M42 27 Q56 29 68 39" fill="none" stroke="#ca8a04" stroke-width="1.2" opacity="0.6" />
+    <path d="M36 43 Q41 40 46 42" fill="none" stroke="#ca8a04" stroke-width="1.8" stroke-linecap="round" />
+    <path d="M54 42 Q59 40 64 43" fill="none" stroke="#ca8a04" stroke-width="1.8" stroke-linecap="round" />
+    <rect x="33" y="44" width="15" height="12" rx="3.5" fill="#0284c7" fill-opacity="0.12" stroke="#0284c7" stroke-width="1.8" />
+    <rect x="52" y="44" width="15" height="12" rx="3.5" fill="#0284c7" fill-opacity="0.12" stroke="#0284c7" stroke-width="1.8" />
+    <path d="M48 48 Q50 46.5 52 48" fill="none" stroke="#0284c7" stroke-width="1.8" />
+    <line x1="33" y1="48" x2="29" y2="46" stroke="#0284c7" stroke-width="1.5" />
+    <line x1="67" y1="48" x2="71" y2="46" stroke="#0284c7" stroke-width="1.5" />
+    <line x1="35" y1="46" x2="40" y2="54" stroke="#ffffff" stroke-width="1" stroke-linecap="round" opacity="0.65" />
+    <line x1="54" y1="46" x2="59" y2="54" stroke="#ffffff" stroke-width="1" stroke-linecap="round" opacity="0.65" />
+    <circle cx="40.5" cy="50" r="3" fill="#0284c7" />
+    <circle cx="59.5" cy="50" r="3" fill="#0284c7" />
+    <circle cx="41.2" cy="49.3" r="1.1" fill="#ffffff" />
+    <circle cx="60.2" cy="49.3" r="1.1" fill="#ffffff" />
+    <circle cx="40.5" cy="50" r="1.3" fill="#0f172a" />
+    <circle cx="59.5" cy="50" r="1.3" fill="#0f172a" />
+    <path d="M49 53 Q50 56 51 55" fill="none" stroke="#ea580c" stroke-width="1.4" stroke-linecap="round" opacity="0.8" />
+    <path d="M43 62 Q50 67 57 62" fill="none" stroke="#e11d48" stroke-width="2.2" stroke-linecap="round" />
+    <circle cx="36" cy="58" r="3" fill="#fda4af" opacity="0.4" />
+    <circle cx="64" cy="58" r="3" fill="#fda4af" opacity="0.4" />
+  `,
+  'actor-easy': `
+    <rect width="100" height="100" rx="22" fill="#0f172a" />
+    <text x="14" y="24" fill="#38bdf8" font-family="monospace" font-size="9" opacity="0.45" font-weight="bold">&lt;/&gt;</text>
+    <text x="76" y="24" fill="#facc15" font-family="monospace" font-size="9" opacity="0.45" font-weight="bold">{;}</text>
+    <circle cx="82" cy="78" r="1.5" fill="#38bdf8" opacity="0.6" />
+    <circle cx="18" cy="74" r="1.5" fill="#facc15" opacity="0.6" />
+    <path d="M22 42 C16 60, 18 84, 28 88 L34 88 C26 78, 24 58, 28 42 Z" fill="#eab308" />
+    <path d="M78 42 C84 60, 82 84, 72 88 L66 88 C74 78, 76 58, 72 42 Z" fill="#eab308" />
+    <path d="M24 40 C18 55, 20 80, 30 84" stroke="#fde047" stroke-width="4" stroke-linecap="round" />
+    <path d="M76 40 C82 55, 80 80, 70 84" stroke="#fde047" stroke-width="4" stroke-linecap="round" />
+    <path d="M16 100 C20 74, 80 74, 84 100 Z" fill="#1e293b" stroke="#0ea5e9" stroke-width="1.5" />
+    <path d="M38 78 L50 92 L62 78" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" />
+    <line x1="50" y1="92" x2="50" y2="100" stroke="#facc15" stroke-width="2" />
+    <circle cx="50" cy="90" r="2" fill="#facc15" />
+    <rect x="44" y="66" width="12" height="15" rx="3" fill="#fed7aa" />
+    <rect x="31" y="30" width="38" height="42" rx="17" fill="#fed7aa" />
+    <path d="M28 40 C28 20, 72 20, 72 40 C66 26, 52 25, 45 28 C38 27, 32 32, 28 40 Z" fill="#facc15" />
+    <path d="M30 36 C38 24, 62 23, 70 34 C64 27, 48 26, 38 31 Z" fill="#fef08a" />
+    <path d="M28 38 C28 50, 31 58, 33 60 C32 52, 31 44, 32 38 Z" fill="#eab308" />
+    <path d="M72 38 C72 50, 69 58, 67 60 C68 52, 69 44, 68 38 Z" fill="#eab308" />
+    <path d="M42 27 Q56 29 68 39" fill="none" stroke="#ca8a04" stroke-width="1.2" opacity="0.6" />
+    <path d="M36 43 Q41 40 46 42" fill="none" stroke="#ca8a04" stroke-width="1.8" stroke-linecap="round" />
+    <path d="M54 42 Q59 40 64 43" fill="none" stroke="#ca8a04" stroke-width="1.8" stroke-linecap="round" />
+    <rect x="33" y="44" width="15" height="12" rx="3.5" fill="#0284c7" fill-opacity="0.12" stroke="#0284c7" stroke-width="1.8" />
+    <rect x="52" y="44" width="15" height="12" rx="3.5" fill="#0284c7" fill-opacity="0.12" stroke="#0284c7" stroke-width="1.8" />
+    <path d="M48 48 Q50 46.5 52 48" fill="none" stroke="#0284c7" stroke-width="1.8" />
+    <line x1="33" y1="48" x2="29" y2="46" stroke="#0284c7" stroke-width="1.5" />
+    <line x1="67" y1="48" x2="71" y2="46" stroke="#0284c7" stroke-width="1.5" />
+    <line x1="35" y1="46" x2="40" y2="54" stroke="#ffffff" stroke-width="1" stroke-linecap="round" opacity="0.65" />
+    <line x1="54" y1="46" x2="59" y2="54" stroke="#ffffff" stroke-width="1" stroke-linecap="round" opacity="0.65" />
+    <circle cx="40.5" cy="50" r="3" fill="#0284c7" />
+    <circle cx="59.5" cy="50" r="3" fill="#0284c7" />
+    <circle cx="41.2" cy="49.3" r="1.1" fill="#ffffff" />
+    <circle cx="60.2" cy="49.3" r="1.1" fill="#ffffff" />
+    <circle cx="40.5" cy="50" r="1.3" fill="#0f172a" />
+    <circle cx="59.5" cy="50" r="1.3" fill="#0f172a" />
+    <path d="M49 53 Q50 56 51 55" fill="none" stroke="#ea580c" stroke-width="1.4" stroke-linecap="round" opacity="0.8" />
+    <path d="M43 62 Q50 67 57 62" fill="none" stroke="#e11d48" stroke-width="2.2" stroke-linecap="round" />
+    <circle cx="36" cy="58" r="3" fill="#fda4af" opacity="0.4" />
+    <circle cx="64" cy="58" r="3" fill="#fda4af" opacity="0.4" />
+  `,
+
+  // 32. АНСИ (Ansy: бизнес-вуман, менеджер, любитель конфеток и уюта в команде, Башня Огня)
+  ansy: `
+    <rect width="100" height="100" rx="22" fill="#4c0519" />
+    <circle cx="50" cy="52" r="40" fill="#fb7185" opacity="0.14" />
+    <circle cx="20" cy="22" r="1.8" fill="#fde047" opacity="0.7" />
+    <circle cx="82" cy="76" r="1.5" fill="#fda4af" opacity="0.7" />
+    <!-- Уютная конфетка в обёртке -->
+    <g transform="translate(77 20) rotate(-25)">
+      <polygon points="-9,0 -4,-3 -4,3" fill="#fde047" />
+      <polygon points="9,0 4,-3 4,3" fill="#fde047" />
+      <rect x="-5" y="-4" width="10" height="8" rx="4" fill="#f43f5e" stroke="#fef08a" stroke-width="1" />
+      <line x1="-1.5" y1="-4" x2="1.5" y2="4" stroke="#fef08a" stroke-width="1.3" />
+    </g>
+    <!-- Пышные каштановые волосы (задний слой) -->
+    <circle cx="50" cy="48" r="27" fill="#7c2d12" />
+    <circle cx="26" cy="59" r="13" fill="#7c2d12" />
+    <circle cx="74" cy="59" r="13" fill="#7c2d12" />
+    <!-- Деловой пиджак, кремовая блуза и золотая брошь -->
+    <path d="M16 100 C20 74, 80 74, 84 100 Z" fill="#1e1b4b" stroke="#f59e0b" stroke-width="1.4" />
+    <polygon points="39,77 50,94 61,77" fill="#fef3c7" />
+    <path d="M34 76 L46 95 L38 100" fill="none" stroke="#312e81" stroke-width="3" />
+    <path d="M66 76 L54 95 L62 100" fill="none" stroke="#312e81" stroke-width="3" />
+    <circle cx="50" cy="91" r="2.8" fill="#fbbf24" stroke="#f43f5e" stroke-width="1" />
+    <!-- Лицо и серьги -->
+    <rect x="44" y="67" width="12" height="14" rx="3" fill="#ffedd5" />
+    <circle cx="29" cy="57" r="2.6" fill="#fbbf24" />
+    <circle cx="71" cy="57" r="2.6" fill="#fbbf24" />
+    <rect x="31" y="31" width="38" height="41" rx="17" fill="#ffedd5" />
+    <!-- Причёска -->
+    <path d="M28 42 C30 22, 70 22, 72 42 C62 30, 44 29, 28 42 Z" fill="#9a3412" />
+    <path d="M32 36 C42 26, 60 27, 68 37" fill="none" stroke="#c2410c" stroke-width="2" stroke-linecap="round" />
+    <!-- Брови и тёплый взгляд -->
+    <path d="M35 45 Q40 42 45 45" fill="none" stroke="#7c2d12" stroke-width="2" stroke-linecap="round" />
+    <path d="M55 45 Q60 42 65 45" fill="none" stroke="#7c2d12" stroke-width="2" stroke-linecap="round" />
+    <circle cx="40.5" cy="51" r="3.4" fill="#451a03" />
+    <circle cx="59.5" cy="51" r="3.4" fill="#451a03" />
+    <circle cx="41.5" cy="49.8" r="1.2" fill="#ffffff" />
+    <circle cx="60.5" cy="49.8" r="1.2" fill="#ffffff" />
+    <!-- Уютный румянец и тёплая улыбка -->
+    <circle cx="35" cy="57" r="3.2" fill="#fda4af" opacity="0.55" />
+    <circle cx="65" cy="57" r="3.2" fill="#fda4af" opacity="0.55" />
+    <path d="M42 62 Q50 68 58 62" fill="none" stroke="#e11d48" stroke-width="2.5" stroke-linecap="round" />
+  `,
+  'actor-ansy': `
+    <rect width="100" height="100" rx="22" fill="#4c0519" />
+    <circle cx="50" cy="52" r="40" fill="#fb7185" opacity="0.14" />
+    <circle cx="20" cy="22" r="1.8" fill="#fde047" opacity="0.7" />
+    <circle cx="82" cy="76" r="1.5" fill="#fda4af" opacity="0.7" />
+    <g transform="translate(77 20) rotate(-25)">
+      <polygon points="-9,0 -4,-3 -4,3" fill="#fde047" />
+      <polygon points="9,0 4,-3 4,3" fill="#fde047" />
+      <rect x="-5" y="-4" width="10" height="8" rx="4" fill="#f43f5e" stroke="#fef08a" stroke-width="1" />
+      <line x1="-1.5" y1="-4" x2="1.5" y2="4" stroke="#fef08a" stroke-width="1.3" />
+    </g>
+    <circle cx="50" cy="48" r="27" fill="#7c2d12" />
+    <circle cx="26" cy="59" r="13" fill="#7c2d12" />
+    <circle cx="74" cy="59" r="13" fill="#7c2d12" />
+    <path d="M16 100 C20 74, 80 74, 84 100 Z" fill="#1e1b4b" stroke="#f59e0b" stroke-width="1.4" />
+    <polygon points="39,77 50,94 61,77" fill="#fef3c7" />
+    <path d="M34 76 L46 95 L38 100" fill="none" stroke="#312e81" stroke-width="3" />
+    <path d="M66 76 L54 95 L62 100" fill="none" stroke="#312e81" stroke-width="3" />
+    <circle cx="50" cy="91" r="2.8" fill="#fbbf24" stroke="#f43f5e" stroke-width="1" />
+    <rect x="44" y="67" width="12" height="14" rx="3" fill="#ffedd5" />
+    <circle cx="29" cy="57" r="2.6" fill="#fbbf24" />
+    <circle cx="71" cy="57" r="2.6" fill="#fbbf24" />
+    <rect x="31" y="31" width="38" height="41" rx="17" fill="#ffedd5" />
+    <path d="M28 42 C30 22, 70 22, 72 42 C62 30, 44 29, 28 42 Z" fill="#9a3412" />
+    <path d="M32 36 C42 26, 60 27, 68 37" fill="none" stroke="#c2410c" stroke-width="2" stroke-linecap="round" />
+    <path d="M35 45 Q40 42 45 45" fill="none" stroke="#7c2d12" stroke-width="2" stroke-linecap="round" />
+    <path d="M55 45 Q60 42 65 45" fill="none" stroke="#7c2d12" stroke-width="2" stroke-linecap="round" />
+    <circle cx="40.5" cy="51" r="3.4" fill="#451a03" />
+    <circle cx="59.5" cy="51" r="3.4" fill="#451a03" />
+    <circle cx="41.5" cy="49.8" r="1.2" fill="#ffffff" />
+    <circle cx="60.5" cy="49.8" r="1.2" fill="#ffffff" />
+    <circle cx="35" cy="57" r="3.2" fill="#fda4af" opacity="0.55" />
+    <circle cx="65" cy="57" r="3.2" fill="#fda4af" opacity="0.55" />
+    <path d="M42 62 Q50 68 58 62" fill="none" stroke="#e11d48" stroke-width="2.5" stroke-linecap="round" />
+  `,
 };
 
 export const DEFAULT_ACTOR_AVATAR_SVG = `

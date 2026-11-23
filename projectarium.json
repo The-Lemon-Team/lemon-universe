@@ -1,0 +1,68 @@
+{
+  "$schema": "https://raw.githubusercontent.com/The-Lemon-Team/lemon-projectarium/master/schemas/projectarium.schema.json",
+  "projectId": "stand-lemon-universe-mwntkbeh",
+  "projectName": "Lemon Universe",
+  "projectSlug": "lemon-universe",
+  "neuronWorkspace": "workspace.lemon-universe",
+  "projectToken": "proj_lemon-universe_hj9137",
+  "ports": {
+    "web": 4210,
+    "api": 3010,
+    "db": 5442
+  },
+  "environment": "production",
+  "networkMode": "lan",
+  "cluster": {
+    "projectariumUrl": "http://192.168.1.100:3200",
+    "projectariumCockpit": "http://192.168.1.100:4205",
+    "portShieldStatus": "PROTECTED",
+    "collisionFreeVerified": true
+  },
+  "apps": [
+    {
+      "id": "app-lemon-universe-mwt5296s",
+      "appName": "Lemon Universe API (Timelines)",
+      "port": 3010,
+      "healthUrl": "http://192.168.1.100:3010/api/timelines/boards",
+      "devUrl": "http://localhost:3010/api",
+      "framework": "NestJS + PostgreSQL + ltree",
+      "role": "api",
+      "status": "ONLINE",
+      "description": "Multi-TimeLine API & Chrono Cloud Engine"
+    },
+    {
+      "id": "app-lemon-universe-mwt52ebn",
+      "appName": "Lemon Universe Web UI",
+      "port": 4210,
+      "healthUrl": "http://192.168.1.100:4210/",
+      "devUrl": "http://localhost:4210",
+      "framework": "Angular 18 Standalone + Tailwind CSS",
+      "role": "web",
+      "status": "ONLINE",
+      "description": "Chrono-Cloud, Party Rooms & Neuron Heroes Interactive Web Client"
+    },
+    {
+      "id": "app-lemon-universe-mwt52kle",
+      "appName": "Lemon Universe DB",
+      "port": 5442,
+      "healthUrl": "postgresql://192.168.1.100:5442/lemon_universe_db",
+      "framework": "PostgreSQL 16 + ltree",
+      "role": "db",
+      "status": "ONLINE",
+      "description": "Database for TimeLines, Flows and Arena profiles"
+    }
+  ],
+  "context": {
+    "domain": "Interactive TimeLines, Hero Flows & Party Games",
+    "stack": [
+      "Angular 18",
+      "NestJS",
+      "PostgreSQL 16 (ltree)",
+      "Tailwind CSS",
+      "@lemon/themes",
+      "Docker"
+    ],
+    "description": "Автономная интерактивная игровая платформа для ведения множественных TimeLine-досок дня, кодинг-сессий и турниров нейронных персонажей."
+  },
+  "registeredAt": "2026-11-23T10:44:33.923Z"
+}

@@ -1,0 +1,29 @@
+{
+  "name": "lemon-universe",
+  "version": "0.2.0",
+  "type": "timelines-platform",
+  "projectToken": "proj_lemon-universe_hj9137",
+  "standId": "stand-lemon-universe-mwntkbeh",
+  "ports": {
+    "web": 4210,
+    "api": 3010,
+    "postgres": 5442
+  },
+  "urls": {
+    "web": "http://192.168.1.100:4210",
+    "api": "http://192.168.1.100:3010/api",
+    "healthCheckApi": "http://192.168.1.100:3010/api/timelines/boards",
+    "healthCheckWeb": "http://192.168.1.100:4210/"
+  },
+  "projectarium": {
+    "server": "http://192.168.1.100:3200",
+    "endpoint": "/api/projectarium/register",
+    "cockpit": "http://192.168.1.100:4205"
+  },
+  "runtime": {
+    "frontend": "Angular 18 (Standalone)",
+    "backend": "NestJS",
+    "database": "PostgreSQL 16 (ltree)",
+    "themes": "@lemon/themes"
+  }
+}
