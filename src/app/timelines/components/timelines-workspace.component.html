@@ -433,6 +433,7 @@
               [activeTagFilter]="selectedTagFilter()"
               [hashtagOptions]="composerHashtagOptions()"
               [defaultActor]="activeComposerActor()"
+              [focusedNoteId]="highlightedNoteId()"
               (timeSelected)="composerTime.set($event)"
               (createNote)="handleCloudCreateNote($event)"
               (deleteNote)="timelines.deleteNote($event)"
@@ -440,6 +441,9 @@
               (crossLinkNote)="openCrossLinkModal($event)"
               (jumpToCrossRef)="jumpToCrossRef($event)"
               (tagClick)="toggleTagFilter($event)"
+              (noteInspected)="onCloudNoteInspected($event)"
+              (noteInspectClosed)="onCloudNoteInspectClosed()"
+              (copyNoteLink)="copyNoteDeepLink($event)"
             />
           } @else if (viewMode() === 'VISUAL_TIMELINE') {
             <div class="relative overflow-x-auto rounded-2xl bg-surface-container-low border border-outline-variant/30 p-4 min-h-[260px]">
@@ -449,11 +453,33 @@
                 </div>
                 @for (note of visibleNotes(); track note.id) {
                   <div class="relative flex items-center" [style.padding-left.%]="getTimelineOffset(note.timeMinutes)">
-                    <div class="max-w-md p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/40 shadow-xs flex flex-col gap-1.5">
+                    <div
+                      [attr.data-note-id]="note.id"
+                      class="max-w-md p-3 rounded-2xl bg-surface-container-lowest border border-outline-variant/40 shadow-xs flex flex-col gap-1.5 transition-all"
+                      [class.ring-2]="highlightedNoteId() === note.id"
+                      [class.ring-primary]="highlightedNoteId() === note.id"
+                      [class.shadow-md]="highlightedNoteId() === note.id"
+                    >
                       <div class="flex items-center gap-2 flex-wrap">
                         <app-actor-avatar [avatar]="note.actorAvatar" containerClass="w-6 h-6 rounded-lg flex-shrink-0" />
                         <span class="text-xs font-bold">{{ note.actorName }}</span>
-                        <span class="text-[10px] font-mono text-outline">{{ note.dateKey }} · {{ note.time }}</span>
+                        <button
+                          type="button"
+                          (click)="navigateToNote(note)"
+                          class="text-[10px] font-mono text-outline hover:text-primary hover:underline cursor-pointer"
+                          title="Открыть ссылку на сообщение"
+                        >
+                          {{ note.dateKey }} · {{ note.time }}
+                        </button>
+                        <button
+                          type="button"
+                          (click)="copyNoteDeepLink(note)"
+                          class="p-0.5 rounded-md text-outline hover:text-primary hover:bg-primary/10 cursor-pointer"
+                          title="Скопировать ссылку на сообщение"
+                          aria-label="Скопировать ссылку на сообщение"
+                        >
+                          <span class="material-symbols-rounded text-xs">link</span>
+                        </button>
                         @if (note.weather; as w) {
                           <span class="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-sky-500/15 text-sky-900 dark:text-sky-200 border border-sky-400/35">
                             {{ w.icon }} {{ formatTemperatureC(w.temperatureC) }} · {{ w.locationName }}
@@ -494,7 +520,13 @@
           } @else {
             <div class="flex flex-col gap-3">
               @for (note of visibleNotes(); track note.id) {
-                <article class="p-4 rounded-2xl bg-surface-container-low/70 border border-outline-variant/35 flex flex-col gap-2.5">
+                <article
+                  [attr.data-note-id]="note.id"
+                  class="p-4 rounded-2xl bg-surface-container-low/70 border border-outline-variant/35 flex flex-col gap-2.5 transition-all"
+                  [class.ring-2]="highlightedNoteId() === note.id"
+                  [class.ring-primary]="highlightedNoteId() === note.id"
+                  [class.shadow-md]="highlightedNoteId() === note.id"
+                >
                   <div class="flex items-start justify-between gap-3 flex-wrap">
                     <div class="flex items-center gap-2.5 min-w-0">
                       <app-actor-avatar [avatar]="note.actorAvatar" containerClass="w-9 h-9 rounded-xl shadow-2xs flex-shrink-0" />
@@ -506,9 +538,14 @@
                               👤 {{ note.authorProfileName }}
                             </span>
                           }
-                          <span class="text-[11px] font-mono text-outline">
+                          <button
+                            type="button"
+                            (click)="navigateToNote(note)"
+                            class="text-[11px] font-mono text-outline hover:text-primary hover:underline cursor-pointer"
+                            title="Выделить сообщение и обновить URL"
+                          >
                             {{ note.dateKey }} · {{ note.time }}
-                          </span>
+                          </button>
                           @if (note.weather; as w) {
                             <span
                               class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-900 dark:text-sky-200 border border-sky-400/35 font-bold"
@@ -574,6 +611,17 @@
 
                       <button
                         type="button"
+                        data-test-id="diary-copy-link-btn"
+                        (click)="navigateToNote(note); copyNoteDeepLink(note)"
+                        class="p-1.5 rounded-xl text-outline hover:text-primary hover:bg-primary/10 cursor-pointer"
+                        title="Скопировать прямую ссылку на сообщение"
+                        aria-label="Скопировать прямую ссылку на сообщение"
+                      >
+                        <span class="material-symbols-rounded text-base">link</span>
+                      </button>
+
+                      <button
+                        type="button"
                         (click)="openCrossLinkModal(note)"
                         class="px-2.5 py-1 rounded-xl bg-violet-500/15 hover:bg-violet-500/25 text-violet-800 dark:text-violet-200 text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
                         title="Прикрепить ссылку на сообщение из другого TimeLine"
@@ -622,6 +670,19 @@
                       </button>
                     </div>
                   </div>
+
+                  @if (note.replyToNoteId) {
+                    <button
+                      type="button"
+                      (click)="jumpToReplyParent(note)"
+                      class="self-start px-2.5 py-1 rounded-xl bg-surface-container-highest/70 hover:bg-primary/10 border border-outline-variant/30 text-[11px] text-on-surface-variant hover:text-primary inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                      title="Перейти к исходному сообщению"
+                    >
+                      <span class="material-symbols-rounded text-xs">reply</span>
+                      <span class="font-bold">{{ note.replyToAuthorName || 'Сообщение' }}:</span>
+                      <span class="truncate max-w-xs opacity-80">{{ note.replyToTextSnippet || note.replyToNoteId }}</span>
+                    </button>
+                  }
 
                   @if (editingNoteId() === note.id) {
                     <div class="p-3 rounded-2xl bg-surface-container-lowest border border-primary/40 flex flex-col gap-2">

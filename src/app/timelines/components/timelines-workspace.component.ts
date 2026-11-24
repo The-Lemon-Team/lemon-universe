@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, e
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { combineLatest } from 'rxjs';
 import { ActorAvatarComponent } from '../../components/neuron-arena/actor-avatar.component';
 import { getAccentPillClasses } from '../../components/neuron-arena/arena-ui.utils';
 import {
@@ -44,6 +45,13 @@ import { SeasonsTimelineBridgeService } from '../../core/services/seasons-timeli
 import { LemonWatchersService } from '../../core/watchers';
 import { WeatherService, formatTemperatureC } from '../../core/weather';
 import { TimelinesService } from '../services/timelines.service';
+import {
+  buildTimelineNoteCommands,
+  buildTimelineNoteUrl,
+  copyTextToClipboard,
+  planFilterClearForNote,
+  resolveNoteDeepLink,
+} from '../utils/timeline-note-routing.utils';
 import {
   CreateBoardSubmitPayload,
   EditBoardSubmitPayload,
@@ -122,6 +130,13 @@ export class TimelinesWorkspaceComponent {
   readonly seasonsStreamInfo = signal<any | null>(null);
   readonly isEnsuringSeasonsStream = signal<boolean>(false);
   readonly statusMessage = signal<string | null>(null);
+  readonly routeBoardSlug = signal<string | null>(null);
+  readonly routeNoteId = signal<string | null>(null);
+  readonly highlightedNoteId = signal<string | null>(null);
+  readonly boardsLoaded = signal<boolean>(false);
+  readonly notesLoaded = signal<boolean>(false);
+  private lastMissingLookupKey: string | null = null;
+  private lastScrolledNoteKey: string | null = null;
 
   readonly boardFilter = signal<BoardFilterTab>('ALL');
   readonly selectedBoardHashtag = signal<string | null>(null);
@@ -323,9 +338,67 @@ export class TimelinesWorkspaceComponent {
   });
 
   jumpToPinnedNote(note: CloudDayNote): void {
+    this.pinnedSidebarOpen.set(false);
+    this.navigateToNote(note);
+  }
+
+  navigateToNote(note: CloudDayNote): void {
     this.selectedDateKey.set(note.dateKey);
     this.showAllDates.set(false);
-    this.pinnedSidebarOpen.set(false);
+    this.highlightedNoteId.set(note.id);
+    const board =
+      this.visibleBoards().find((b) => b.id === (note.boardId || 'board-global-day')) ??
+      this.activeBoard();
+    const commands = board
+      ? buildTimelineNoteCommands(board.slug, note.id)
+      : ['/timelines', 'notes', note.id];
+    void this.router.navigate(commands).catch(() => {});
+  }
+
+  copyNoteDeepLink(note: CloudDayNote): void {
+    const board =
+      this.visibleBoards().find((b) => b.id === (note.boardId || 'board-global-day')) ??
+      this.activeBoard();
+    const url = buildTimelineNoteUrl(board?.slug, note.id);
+    void copyTextToClipboard(url).then((copied) => {
+      this.timelines.setStatus(
+        copied ? 'Ссылка на сообщение скопирована в буфер обмена.' : `Ссылка на сообщение: ${url}`,
+      );
+    });
+  }
+
+  onCloudNoteInspected(note: CloudDayNote): void {
+    const board = this.activeBoard();
+    if (!board || this.routeNoteId() === note.id) return;
+    this.highlightedNoteId.set(note.id);
+    void this.router.navigate(buildTimelineNoteCommands(board.slug, note.id)).catch(() => {});
+  }
+
+  onCloudNoteInspectClosed(): void {
+    this.highlightedNoteId.set(null);
+    const board = this.activeBoard();
+    if (this.routeNoteId() && board) {
+      void this.router.navigate(['/timelines', board.slug]).catch(() => {});
+    }
+  }
+
+  jumpToReplyParent(note: CloudDayNote): void {
+    if (!note.replyToNoteId) return;
+    const parent = this.allNotes().find((n) => n.id === note.replyToNoteId);
+    if (parent) {
+      this.navigateToNote(parent);
+      return;
+    }
+    void this.router.navigate(['/timelines', 'notes', note.replyToNoteId]).catch(() => {});
+  }
+
+  private scrollNoteIntoView(noteId: string): void {
+    if (typeof document === 'undefined') return;
+    setTimeout(() => {
+      const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(noteId) : noteId;
+      const el = document.querySelector(`[data-note-id="${escaped}"]`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 60);
   }
 
   readonly crossLinkCandidates = computed<CloudDayNote[]>(() => {
@@ -361,6 +434,14 @@ export class TimelinesWorkspaceComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((msg) => this.statusMessage.set(msg));
 
+    this.timelines.boardsLoaded$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((loaded) => this.boardsLoaded.set(loaded));
+
+    this.timelines.notesLoaded$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((loaded) => this.notesLoaded.set(loaded));
+
     this.profileService.profiles$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((profiles) => this.allProfiles.set(profiles));
@@ -394,18 +475,104 @@ export class TimelinesWorkspaceComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((val) => this.isEnsuringSeasonsStream.set(val));
 
-    this.route.paramMap
+    combineLatest([this.route.paramMap, this.route.queryParamMap])
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((params) => {
+      .subscribe(([params, queryParams]) => {
         const slug = params.get('boardSlug');
+        const noteId = params.get('noteId') || queryParams.get('noteId');
+        this.routeBoardSlug.set(slug);
+        this.routeNoteId.set(noteId);
         if (slug) this.timelines.selectBoard(slug);
+        if (!noteId) {
+          this.highlightedNoteId.set(null);
+          this.lastMissingLookupKey = null;
+          this.lastScrolledNoteKey = null;
+        }
       });
+
+    effect(
+      () => {
+        const noteId = this.routeNoteId();
+        if (!noteId) return;
+
+        const boards = this.visibleBoards();
+        const notes = this.allNotes();
+        const resolution = resolveNoteDeepLink({
+          noteId,
+          routeBoardSlug: this.routeBoardSlug(),
+          boards,
+          notes,
+        });
+
+        if (resolution.status === 'FOUND') {
+          this.lastMissingLookupKey = null;
+          const { note, board, needsCanonicalRedirect } = resolution;
+          if (this.activeBoard()?.id !== board.id) {
+            this.timelines.selectBoard(board.id);
+          }
+          if (needsCanonicalRedirect) {
+            void this.router
+              .navigate(buildTimelineNoteCommands(board.slug, note.id), { replaceUrl: true })
+              .catch(() => {});
+          }
+          if (this.selectedDateKey() !== note.dateKey) {
+            this.selectedDateKey.set(note.dateKey);
+          }
+          if (this.showAllDates()) {
+            this.showAllDates.set(false);
+          }
+
+          const filterPlan = planFilterClearForNote(note, {
+            actorFilter: this.selectedActorFilter(),
+            tagFilter: this.selectedTagFilter(),
+            searchQuery: this.searchQuery(),
+          });
+          if (filterPlan.clearActor) this.selectedActorFilter.set(null);
+          if (filterPlan.clearTag) this.selectedTagFilter.set(null);
+          if (filterPlan.clearSearch) this.searchQuery.set('');
+
+          this.highlightedNoteId.set(note.id);
+          const scrollKey = `${board.id}:${note.id}:${this.viewMode()}`;
+          if (this.lastScrolledNoteKey !== scrollKey) {
+            this.lastScrolledNoteKey = scrollKey;
+            this.scrollNoteIntoView(note.id);
+          }
+          return;
+        }
+
+        if (resolution.status === 'BOARD_NOT_ACCESSIBLE') {
+          if (this.boardsLoaded()) {
+            this.timelines.setStatus('Нет доступа к доске этого сообщения для текущего профиля.');
+          }
+          return;
+        }
+
+        if (!this.boardsLoaded() || !this.notesLoaded()) return;
+
+        const lookupKey = `${this.activeProfile()?.id || ''}:${noteId}`;
+        if (this.lastMissingLookupKey === lookupKey) return;
+        this.lastMissingLookupKey = lookupKey;
+
+        this.timelines.fetchNoteById(noteId).subscribe({
+          error: (err) => {
+            const status = (err as { status?: number } | null)?.status;
+            this.timelines.setStatus(
+              status === 403
+                ? 'Нет доступа к сообщению приватного TimeLine.'
+                : 'Сообщение не найдено или было удалено.',
+            );
+          },
+        });
+      },
+      { allowSignalWrites: true },
+    );
   }
 
   selectBoard(board: TimelineBoard): void {
     this.selectedTagFilter.set(null);
+    this.highlightedNoteId.set(null);
     this.timelines.selectBoard(board.id);
-    void this.router.navigate(['/timelines', board.slug]);
+    void this.router.navigate(['/timelines', board.slug]).catch(() => {});
   }
 
   toggleTagFilter(tag: string): void {
@@ -752,7 +919,11 @@ export class TimelinesWorkspaceComponent {
     }
     this.timelines.selectBoard(targetBoard.id);
     this.selectedDateKey.set(cref.targetDateKey);
-    void this.router.navigate(['/timelines', targetBoard.slug]);
+    this.showAllDates.set(false);
+    this.highlightedNoteId.set(cref.targetNoteId);
+    void this.router
+      .navigate(buildTimelineNoteCommands(targetBoard.slug, cref.targetNoteId))
+      .catch(() => {});
   }
 
   openAgentSummaryModal(): void {

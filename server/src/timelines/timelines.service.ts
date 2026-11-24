@@ -634,63 +634,96 @@ export class TimelinesService {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const { rows } = await this.db.query(
-      `
-        SELECT
-          n.id,
-          n.board_id AS "boardId",
-          n.date_key AS "dateKey",
-          n.time,
-          n.time_minutes AS "timeMinutes",
-          n.type,
-          n.visibility,
-          n.actor_id AS "actorId",
-          n.actor_name AS "actorName",
-          n.actor_avatar AS "actorAvatar",
-          n.actor_accent AS "actorAccent",
-          n.actor_title AS "actorTitle",
-          n.sub_actor_id AS "subActorId",
-          n.sub_actor_name AS "subActorName",
-          n.sub_actor_avatar AS "subActorAvatar",
-          n.sub_actor_accent AS "subActorAccent",
-          n.author_profile_id::text AS "authorProfileId",
-          n.author_profile_name AS "authorProfileName",
-          n.title,
-          n.text,
-          n.mood_emoji AS "moodEmoji",
-          n.tags,
-          n.media_attachments AS "mediaAttachments",
-          n.party_actor_ids AS "partyActorIds",
-          n.supporters,
-          n.votes_count AS "votesCount",
-          n.liked_by_actors AS "likedByActors",
-          n.reply_to_note_id AS "replyToNoteId",
-          n.reply_to_author_name AS "replyToAuthorName",
-          n.reply_to_text_snippet AS "replyToTextSnippet",
-          n.is_pinned_to_hero AS "isPinnedToHero",
-          n.is_pinned_to_cloud AS "isPinnedToCloud",
-          n.is_pinned AS "isPinned",
-          n.pinned_at AS "pinnedAt",
-          n.seasons_note_id AS "seasonsNoteId",
-          n.seasons_external_id AS "seasonsExternalId",
-          n.seasons_account_id AS "seasonsAccountId",
-          n.seasons_synced_at AS "seasonsSyncedAt",
-          n.shared_with_group AS "sharedWithGroup",
-          n.active_flow_session_ids AS "activeFlowSessionIds",
-          n.weather AS weather,
-          n.world_moment AS "worldMoment",
-          n.created_at AS "createdAt",
-          COALESCE(
-            (SELECT json_agg(cl.preview_cache) FROM timeline_cross_links cl WHERE cl.source_note_id = n.id),
-            '[]'::json
-          ) AS "crossRefs"
-        FROM timeline_notes n
-        ${whereClause}
-        ORDER BY n.date_key DESC, n.time_minutes ASC
-      `,
+      this.buildNoteSelectSql(whereClause, 'ORDER BY n.date_key DESC, n.time_minutes ASC'),
       params,
     );
 
     return rows;
+  }
+
+  async getNoteById(noteId: string, actorProfileId?: string) {
+    const cleanId = (noteId || '').trim();
+    if (!cleanId) {
+      throw new BadRequestException('Идентификатор сообщения (noteId) обязателен.');
+    }
+    const profileId = this.resolveProfileId(actorProfileId);
+    const { rows } = await this.db.query(this.buildNoteSelectSql('WHERE n.id = $1', 'LIMIT 1'), [
+      cleanId,
+    ]);
+    const note = rows[0];
+    if (!note) {
+      throw new NotFoundException(`Сообщение '${cleanId}' не найдено.`);
+    }
+
+    const board = await this.fetchBoardRow(note.boardId);
+    if (!board) {
+      throw new NotFoundException(`TimeLine board '${note.boardId}' not found`);
+    }
+    const members = await this.fetchAllMembers();
+    if (!canViewBoard(board, profileId, members)) {
+      throw new ForbiddenException('Нет доступа к сообщению приватного TimeLine.');
+    }
+
+    return {
+      ...note,
+      boardSlug: board.slug,
+    };
+  }
+
+  private buildNoteSelectSql(whereClause: string, tailClause = ''): string {
+    return `
+      SELECT
+        n.id,
+        n.board_id AS "boardId",
+        n.date_key AS "dateKey",
+        n.time,
+        n.time_minutes AS "timeMinutes",
+        n.type,
+        n.visibility,
+        n.actor_id AS "actorId",
+        n.actor_name AS "actorName",
+        n.actor_avatar AS "actorAvatar",
+        n.actor_accent AS "actorAccent",
+        n.actor_title AS "actorTitle",
+        n.sub_actor_id AS "subActorId",
+        n.sub_actor_name AS "subActorName",
+        n.sub_actor_avatar AS "subActorAvatar",
+        n.sub_actor_accent AS "subActorAccent",
+        n.author_profile_id::text AS "authorProfileId",
+        n.author_profile_name AS "authorProfileName",
+        n.title,
+        n.text,
+        n.mood_emoji AS "moodEmoji",
+        n.tags,
+        n.media_attachments AS "mediaAttachments",
+        n.party_actor_ids AS "partyActorIds",
+        n.supporters,
+        n.votes_count AS "votesCount",
+        n.liked_by_actors AS "likedByActors",
+        n.reply_to_note_id AS "replyToNoteId",
+        n.reply_to_author_name AS "replyToAuthorName",
+        n.reply_to_text_snippet AS "replyToTextSnippet",
+        n.is_pinned_to_hero AS "isPinnedToHero",
+        n.is_pinned_to_cloud AS "isPinnedToCloud",
+        n.is_pinned AS "isPinned",
+        n.pinned_at AS "pinnedAt",
+        n.seasons_note_id AS "seasonsNoteId",
+        n.seasons_external_id AS "seasonsExternalId",
+        n.seasons_account_id AS "seasonsAccountId",
+        n.seasons_synced_at AS "seasonsSyncedAt",
+        n.shared_with_group AS "sharedWithGroup",
+        n.active_flow_session_ids AS "activeFlowSessionIds",
+        n.weather AS weather,
+        n.world_moment AS "worldMoment",
+        n.created_at AS "createdAt",
+        COALESCE(
+          (SELECT json_agg(cl.preview_cache) FROM timeline_cross_links cl WHERE cl.source_note_id = n.id),
+          '[]'::json
+        ) AS "crossRefs"
+      FROM timeline_notes n
+      ${whereClause}
+      ${tailClause}
+    `;
   }
 
   async createNote(note: any, actorProfileId?: string) {

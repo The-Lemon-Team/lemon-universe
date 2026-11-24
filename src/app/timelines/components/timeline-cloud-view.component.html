@@ -891,8 +891,12 @@
 
                   <div
                     (click)="openInspectModal(note, $event)"
+                    [attr.data-note-id]="note.id"
                     class="relative bg-white dark:bg-slate-800 shadow-md group-hover:shadow-lg group-hover:-translate-y-0.5 group-hover:scale-[1.03] transition-transform duration-150 ease-out will-change-transform border-2 w-full cursor-pointer"
                     [class]="getNoteBorderClass(note.actorAccent)"
+                    [class.ring-2]="focusedNoteId() === note.id"
+                    [class.ring-primary]="focusedNoteId() === note.id"
+                    [class.ring-offset-2]="focusedNoteId() === note.id"
                     [class.p-2]="cardDensity() === 'compact'"
                     [class.sm:p-2.5]="cardDensity() === 'compact'"
                     [class.rounded-xl]="cardDensity() === 'compact'"
@@ -2858,7 +2862,17 @@
 
           <!-- Compact Footer -->
           <div class="px-4 py-2 border-t border-outline-variant/20 bg-surface-container-low/60 flex items-center justify-between gap-2 flex-wrap">
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                data-test-id="inspect-copy-link-btn"
+                (click)="copyNoteLink.emit(note)"
+                class="px-2.5 py-1 rounded-lg bg-surface-container-high hover:bg-primary/15 text-on-surface hover:text-primary text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                title="Скопировать прямую ссылку на это сообщение"
+              >
+                <span class="material-symbols-rounded text-sm leading-none">link</span>
+                <span>Ссылка</span>
+              </button>
               @if (canPost()) {
                 <button
                   type="button"

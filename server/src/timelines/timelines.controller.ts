@@ -111,6 +111,18 @@ export class TimelinesController {
     });
   }
 
+  @Get('notes/:noteId')
+  getNoteById(
+    @Param('noteId') noteId: string,
+    @Headers('x-profile-id') headerProfileId?: string,
+    @Query('profileId') queryProfileId?: string,
+  ) {
+    return this.timelinesService.getNoteById(
+      noteId,
+      this.timelinesService.resolveProfileId(headerProfileId, queryProfileId),
+    );
+  }
+
   @Post('notes')
   createNote(
     @Body() body: any,

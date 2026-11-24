@@ -13,6 +13,16 @@ export const timelinesRoutes: Routes = [
         title: 'TimeLines & Дневники | Lemon Universe',
       },
       {
+        path: 'notes/:noteId',
+        component: TimelinesWorkspaceComponent,
+        title: 'Сообщение TimeLine | Lemon Universe',
+      },
+      {
+        path: ':boardSlug/notes/:noteId',
+        component: TimelinesWorkspaceComponent,
+        title: 'Сообщение TimeLine | Lemon Universe',
+      },
+      {
         path: ':boardSlug',
         component: TimelinesWorkspaceComponent,
         title: 'TimeLine Board | Lemon Universe',

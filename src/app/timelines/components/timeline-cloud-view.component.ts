@@ -228,6 +228,7 @@ export class TimelineCloudViewComponent {
   readonly activeTagFilter = input<string | null>(null);
   readonly hashtagOptions = input<HashtagSelectOption[]>([]);
   readonly defaultActor = input<ArenaActorCard | null>(null);
+  readonly focusedNoteId = input<string | null>(null);
 
   readonly timeSelected = output<string>();
   readonly createNote = output<{
@@ -251,6 +252,9 @@ export class TimelineCloudViewComponent {
   readonly crossLinkNote = output<CloudDayNote>();
   readonly jumpToCrossRef = output<TimelineNodeCrossRef>();
   readonly tagClick = output<string>();
+  readonly noteInspected = output<CloudDayNote>();
+  readonly noteInspectClosed = output<void>();
+  readonly copyNoteLink = output<CloudDayNote>();
 
   protected readonly weatherService = inject(WeatherService);
   protected readonly watchersService = inject(LemonWatchersService);
@@ -353,6 +357,7 @@ export class TimelineCloudViewComponent {
   });
 
   private readonly destroyRef = inject(DestroyRef);
+  private lastFocusedNoteId: string | null = null;
   private static readonly NOW_MODE_STORAGE_KEY = 'lemon.timeline.nowIndicatorMode';
   private static readonly LANDSCAPE_STORAGE_KEY = 'lemon.timeline.cloudLandscape';
   private static readonly LANDSCAPE_LIGHTS_STORAGE_KEY = 'lemon.timeline.cloudLandscapeLights';
@@ -439,6 +444,45 @@ export class TimelineCloudViewComponent {
         const postAllowed = this.canPost();
         if (!postAllowed || untracked(() => this.draftTime() !== null)) {
           this.cancelDraftNote();
+        }
+      },
+      { allowSignalWrites: true },
+    );
+
+    effect(
+      () => {
+        const focusId = this.focusedNoteId();
+        const currentNotes = this.notes();
+        if (!focusId) {
+          if (this.lastFocusedNoteId !== null) {
+            this.lastFocusedNoteId = null;
+            this.cancelEditInspectedNote();
+            this.inspectedNote.set(null);
+          }
+          return;
+        }
+
+        const targetNote = currentNotes.find((n) => n.id === focusId);
+        if (!targetNote) return;
+
+        const targetCluster = untracked(() => this.clusters()).find((c) =>
+          c.notes.some((n) => n.id === focusId),
+        );
+        if (targetCluster) {
+          const idx = targetCluster.notes.findIndex((n) => n.id === focusId);
+          if (idx >= 0) {
+            untracked(() => {
+              this.clusterActiveIndices.update((map) => ({ ...map, [targetCluster.id]: idx }));
+            });
+          }
+        }
+
+        if (this.lastFocusedNoteId !== focusId) {
+          this.lastFocusedNoteId = focusId;
+          if (untracked(() => this.inspectedNote()?.id) !== targetNote.id) {
+            this.cancelEditInspectedNote();
+            this.inspectedNote.set(targetNote);
+          }
         }
       },
       { allowSignalWrites: true },
@@ -719,11 +763,16 @@ export class TimelineCloudViewComponent {
     }
     this.cancelEditInspectedNote();
     this.inspectedNote.set(note);
+    this.noteInspected.emit(note);
   }
 
   closeInspectModal(): void {
+    const wasOpen = this.inspectedNote() !== null;
     this.cancelEditInspectedNote();
     this.inspectedNote.set(null);
+    if (wasOpen) {
+      this.noteInspectClosed.emit();
+    }
   }
 
   startEditInspectedNote(note: CloudDayNote): void {

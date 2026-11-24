@@ -6,6 +6,7 @@ import {
   distinctUntilChanged,
   map,
   shareReplay,
+  tap,
 } from 'rxjs';
 import {
   ArenaAccentColor,
@@ -72,12 +73,16 @@ export class TimelinesService {
 
   private readonly boardsSubject = new BehaviorSubject<TimelineBoard[]>([]);
   private readonly notesSubject = new BehaviorSubject<CloudDayNote[]>([]);
+  private readonly boardsLoadedSubject = new BehaviorSubject<boolean>(false);
+  private readonly notesLoadedSubject = new BehaviorSubject<boolean>(false);
   private readonly activeBoardIdSubject = new BehaviorSubject<string>('board-global-day');
   private readonly statusMessageSubject = new BehaviorSubject<string | null>(null);
   private pendingBoardIdOrSlug: string | null = null;
 
   readonly allBoards$: Observable<TimelineBoard[]> = this.boardsSubject.asObservable();
   readonly allNotes$: Observable<CloudDayNote[]> = this.notesSubject.asObservable();
+  readonly boardsLoaded$: Observable<boolean> = this.boardsLoadedSubject.asObservable();
+  readonly notesLoaded$: Observable<boolean> = this.notesLoadedSubject.asObservable();
   readonly activeBoardId$: Observable<string> = this.activeBoardIdSubject.asObservable();
   readonly statusMessage$: Observable<string | null> = this.statusMessageSubject.asObservable();
   readonly actors$: Observable<ArenaActorCard[]> = this.arena.actors$;
@@ -124,10 +129,14 @@ export class TimelinesService {
   }
 
   refreshFromBackend(profileId = this.profileService.currentProfileId): void {
+    this.boardsLoadedSubject.next(false);
+    this.notesLoadedSubject.next(false);
+
     this.api.getTimelineBoards(profileId).subscribe({
       next: (remoteBoards) => {
         const boards = Array.isArray(remoteBoards) ? remoteBoards : [];
         this.boardsSubject.next(boards);
+        this.boardsLoadedSubject.next(true);
 
         const visible = boards.filter((b) => !b.isArchived && canViewBoard(b, profileId));
         if (this.pendingBoardIdOrSlug) {
@@ -146,6 +155,7 @@ export class TimelinesService {
         }
       },
       error: (err) => {
+        this.boardsLoadedSubject.next(true);
         this.setStatus(this.formatApiError(err, 'Не удалось загрузить доски TimeLines с сервера.'));
       },
     });
@@ -153,11 +163,33 @@ export class TimelinesService {
     this.api.getTimelineNotes({ profileId }).subscribe({
       next: (remoteNotes) => {
         this.notesSubject.next(Array.isArray(remoteNotes) ? remoteNotes : []);
+        this.notesLoadedSubject.next(true);
       },
       error: (err) => {
+        this.notesLoadedSubject.next(true);
         this.setStatus(this.formatApiError(err, 'Не удалось загрузить заметки TimeLines с сервера.'));
       },
     });
+  }
+
+  fetchNoteById(noteId: string): Observable<CloudDayNote & { boardSlug?: string }> {
+    return this.api.getTimelineNoteById(noteId, this.profileService.currentProfileId).pipe(
+      tap((note) => this.upsertLoadedNote(note)),
+    );
+  }
+
+  upsertLoadedNote(note: CloudDayNote): void {
+    const existing = this.notesSubject.value;
+    const idx = existing.findIndex((n) => n.id === note.id);
+    if (idx >= 0) {
+      this.notesSubject.next([
+        ...existing.slice(0, idx),
+        { ...existing[idx], ...note },
+        ...existing.slice(idx + 1),
+      ]);
+      return;
+    }
+    this.notesSubject.next([note, ...existing]);
   }
 
   selectBoard(boardIdOrSlug: string): void {

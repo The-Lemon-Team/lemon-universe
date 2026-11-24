@@ -683,4 +683,39 @@ describe('TimelineCloudViewComponent', () => {
     expect(component.getCardStemHeight(5)).toBe(380);
     expect(component.getCardStemHeight(6)).toBe(55); // cycles back to tier 0
   });
+
+  it('should focus cluster note from focusedNoteId input, emit inspect/close events, and emit copyNoteLink', () => {
+    const inspected: CloudDayNote[] = [];
+    const copied: CloudDayNote[] = [];
+    let closedCount = 0;
+
+    component.noteInspected.subscribe((n) => inspected.push(n));
+    component.copyNoteLink.subscribe((n) => copied.push(n));
+    component.noteInspectClosed.subscribe(() => {
+      closedCount += 1;
+    });
+
+    // Deep-link focuses n2 (the second note in the 10:00-10:15 cluster)
+    fixture.componentRef.setInput('focusedNoteId', 'n2');
+    fixture.detectChanges();
+
+    expect(component.inspectedNote()?.id).toBe('n2');
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('2/2');
+
+    const copyBtn = el.querySelector('[data-test-id="inspect-copy-link-btn"]') as HTMLButtonElement;
+    expect(copyBtn).toBeTruthy();
+    copyBtn.click();
+    expect(copied.map((n) => n.id)).toEqual(['n2']);
+
+    component.closeInspectModal();
+    fixture.detectChanges();
+    expect(component.inspectedNote()).toBeNull();
+    expect(closedCount).toBe(1);
+
+    // Direct user click on a bubble emits noteInspected
+    const n3 = component.notes()[2];
+    component.openInspectModal(n3);
+    expect(inspected.map((n) => n.id)).toEqual(['n3']);
+  });
 });

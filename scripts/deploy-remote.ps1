@@ -1,21 +1,55 @@
 ﻿param(
-  [string]$DockerHost = "tcp://192.168.1.100:2375"
+  [string]$DockerContext = "lemon-remote",
+  [string]$DockerHost = "",
+  [string]$TargetHost = ""
 )
 
 $ErrorActionPreference = "Stop"
 
-$hostIp = ($DockerHost -replace '^tcp://', '' -replace ':\d+$', '')
-$noProxyItems = @($env:NO_PROXY -split ',' | Where-Object { $_ -and $_.Trim() -ne '' })
-if ($noProxyItems -notcontains $hostIp) {
-  $noProxyItems += $hostIp
+function Resolve-TargetHost {
+  param(
+    [string]$ExplicitHost,
+    [string]$Endpoint
+  )
+  if ($ExplicitHost) { return $ExplicitHost }
+  if (-not $Endpoint) { return "192.168.1.100" }
+  $cleaned = $Endpoint -replace '^(?:tcp|ssh)://', ''
+  $cleaned = $cleaned -replace '^[^@]+@', ''
+  $cleaned = $cleaned -replace ':\d+$', ''
+  $cleaned = $cleaned -replace '/.*$', ''
+  if ($cleaned) { return $cleaned }
+  return "192.168.1.100"
 }
-$env:NO_PROXY = ($noProxyItems -join ',')
-$env:no_proxy = $env:NO_PROXY
+
 $env:HTTP_PROXY = $null
 $env:HTTPS_PROXY = $null
 $env:http_proxy = $null
 $env:https_proxy = $null
-$env:DOCKER_HOST = $DockerHost
+
+$dockerArgs = @()
+if ($DockerHost) {
+  $env:DOCKER_HOST = $DockerHost
+  $endpoint = $DockerHost
+  $dockerTargetLabel = $DockerHost
+} else {
+  $env:DOCKER_HOST = $null
+  $dockerArgs = @("--context", $DockerContext)
+  $endpoint = (& docker context inspect $DockerContext --format "{{.Endpoints.docker.Host}}" 2>$null)
+  if ($LASTEXITCODE -ne 0 -or -not $endpoint) {
+    throw "Docker context '$DockerContext' is not configured. Run: docker context create $DockerContext --docker `"host=ssh://Ilege@192.168.1.100`""
+  }
+  $dockerTargetLabel = "context '$DockerContext' ($endpoint)"
+}
+
+$hostIp = Resolve-TargetHost -ExplicitHost $TargetHost -Endpoint $endpoint
+$noProxyItems = @($env:NO_PROXY -split ',' | Where-Object { $_ -and $_.Trim() -ne '' })
+foreach ($item in @("localhost", "127.0.0.1", $hostIp)) {
+  if ($noProxyItems -notcontains $item) {
+    $noProxyItems += $item
+  }
+}
+$env:NO_PROXY = ($noProxyItems -join ',')
+$env:no_proxy = $env:NO_PROXY
 
 Write-Host "🏗️ Building Angular production bundle (dist/lemon-universe)..." -ForegroundColor Cyan
 npm run build
@@ -47,16 +81,17 @@ if ($LASTEXITCODE -ne 0) {
   throw "NestJS server build failed with exit code $LASTEXITCODE"
 }
 
-Write-Host "🚀 Building & starting Lemon Universe stack on $DockerHost ..." -ForegroundColor Cyan
-docker compose -p lemon-universe -f docker-compose.remote.yml build postgres api web
+Write-Host "🚀 Building & starting Lemon Universe stack on $dockerTargetLabel ..." -ForegroundColor Cyan
+docker @dockerArgs compose -p lemon-universe -f docker-compose.remote.yml build postgres api web
+$buildExit = $LASTEXITCODE
 if (Test-Path $depsDir) { Remove-Item -Recurse -Force $depsDir }
-if ($LASTEXITCODE -ne 0) { throw "docker compose build failed" }
+if ($buildExit -ne 0) { throw "docker compose build failed (exit code $buildExit)" }
 
-docker compose -p lemon-universe -f docker-compose.remote.yml up -d --remove-orphans
+docker @dockerArgs compose -p lemon-universe -f docker-compose.remote.yml up -d --remove-orphans
 if ($LASTEXITCODE -ne 0) { throw "docker compose up failed" }
 
-Write-Host "✅ Active containers on ${DockerHost}:" -ForegroundColor Green
-docker compose -p lemon-universe -f docker-compose.remote.yml ps
+Write-Host "✅ Active containers on ${dockerTargetLabel}:" -ForegroundColor Green
+docker @dockerArgs compose -p lemon-universe -f docker-compose.remote.yml ps
 
 Write-Host "==> Verifying Lemon Universe endpoints on $hostIp ..." -ForegroundColor Cyan
 Start-Sleep -Seconds 3

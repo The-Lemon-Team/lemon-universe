@@ -62,7 +62,7 @@ export interface MediaUploadInputDto {
 }
 
 interface ResolvedAccountContext {
-  seasonsUserId: string;
+  seasonsUserId?: string;
   client: SeasonsApiClient;
   bridge: SeasonsCombinatorBridge;
   mediaAxon: SeasonsMediaAxon;
@@ -121,16 +121,16 @@ export class SeasonsBridgeService {
         `SELECT seasons_user_id AS "seasonsUserId" FROM profiles WHERE id = $1::uuid LIMIT 1`,
         [profileId],
       );
-      return rows[0]?.seasonsUserId || profileId;
+      return rows[0]?.seasonsUserId?.trim() || undefined;
     } catch {
-      return profileId;
+      return undefined;
     }
   }
 
   private async resolveAccountContext(profileId?: string | null): Promise<ResolvedAccountContext> {
     if (!profileId) {
       return {
-        seasonsUserId: 'usr-admin-master',
+        seasonsUserId: undefined,
         client: this.defaultClient,
         bridge: this.defaultBridge,
         mediaAxon: this.defaultSeasonsMediaAxon,
@@ -146,7 +146,7 @@ export class SeasonsBridgeService {
         [profileId],
       );
       const row = rows[0];
-      const seasonsUserId = row?.seasonsUserId || profileId;
+      const seasonsUserId = row?.seasonsUserId?.trim() || undefined;
       const customKey = row?.seasonsUserKey?.trim();
       if (!customKey) {
         return {
@@ -172,7 +172,7 @@ export class SeasonsBridgeService {
       return { seasonsUserId, client, bridge, mediaAxon };
     } catch {
       return {
-        seasonsUserId: profileId,
+        seasonsUserId: undefined,
         client: this.defaultClient,
         bridge: this.defaultBridge,
         mediaAxon: this.defaultSeasonsMediaAxon,
@@ -197,26 +197,21 @@ export class SeasonsBridgeService {
   async ensureBoardTopology(board: TimelineBoardSyncTarget): Promise<void> {
     const streamSlug = this.normalizeStreamSlug(board.seasonsStreamSlug);
     const feedSlug = board.seasonsFeedSlug || `universe-${board.slug}`;
-    const privacy = board.privacy === 'PUBLIC' ? 'public' : 'private';
+    const privacy: 'private' = 'private';
     const ctx = await this.resolveAccountContext(board.ownerProfileId);
 
-    const boardHashtags = Array.from(
-      new Set([
-        'lemon-universe',
-        `board:${board.slug}`,
-        `mode:${board.boardMode.toLowerCase()}`,
-        ...(Array.isArray(board.hashtags) ? board.hashtags : []),
-      ]),
-    );
+    // Keep Feed.hashtags scoped to the board identifier so Lemon Seasons' OR-based feed filter
+    // never pulls unrelated news/notes sharing generic tags like #economy or #design.
+    const boardHashtags = [`board:${board.slug}`];
 
     try {
       const streamRes = await ctx.client.ensureStream({
         slug: streamSlug,
         title: '🌌 Lemon Universe',
-        description: 'Сводный поток всех досок и каналов TimeLines из Lemon Universe',
+        description: 'Приватный поток всех досок и каналов TimeLines из Lemon Universe',
         icon: '🌌',
         color: '#8b5cf6',
-        privacy: 'public',
+        privacy: 'private',
         tags: ['lemon-universe', 'timelines'],
       }).catch(() => undefined);
 
@@ -261,10 +256,10 @@ export class SeasonsBridgeService {
       const streamRes = await ctx.client.ensureStream({
         slug: streamSlug,
         title: '🌌 Lemon Universe',
-        description: 'Сводный поток всех досок и каналов TimeLines из Lemon Universe',
+        description: 'Приватный поток всех досок и каналов TimeLines из Lemon Universe',
         icon: '🌌',
         color: '#8b5cf6',
-        privacy: 'public',
+        privacy: 'private',
         tags: ['lemon-universe', 'timelines', 'universe'],
       });
 
@@ -298,7 +293,7 @@ export class SeasonsBridgeService {
           title: 'Личный фид Universe',
           icon: '👤',
           privacy: 'private',
-          hashtags: ['lemon-universe', 'personal-feed'],
+          hashtags: ['board:global-day'],
         },
       ];
 
@@ -309,8 +304,8 @@ export class SeasonsBridgeService {
             slug: feedSlug,
             title: b.title || feedSlug,
             icon: b.icon || 'timeline',
-            privacy: b.privacy === 'PUBLIC' ? 'public' : 'private',
-            hashtags: Array.isArray(b.hashtags) ? b.hashtags : [],
+            privacy: 'private',
+            hashtags: [`board:${b.slug}`],
           });
         }
       }
@@ -325,7 +320,7 @@ export class SeasonsBridgeService {
             title: f.title,
             icon: f.icon,
             privacy: f.privacy,
-            hashtags: ['lemon-universe', ...(f.hashtags || [])],
+            hashtags: f.hashtags || [],
           });
           const feedId = feedRes?.id || f.slug;
           await ctx.client.attachFeedToStream(streamId, feedId).catch(() => undefined);
@@ -459,32 +454,51 @@ export class SeasonsBridgeService {
       note.type === 'action' ? 'DONE' : note.type === 'proposal' ? 'EVENT' : 'SINGLE';
 
     const externalId = `${origin.toLowerCase()}:${board.id}:${note.id}`;
-    const privacy: 'public' | 'private' = board.privacy === 'PUBLIC' ? 'public' : 'private';
+    // Sync timeline notes into Lemon Seasons' private `lemon_universe` contour so they stay isolated from public `all`.
+    const privacy: 'public' | 'private' = 'private';
     const feedSlug = board.seasonsFeedSlug || `universe-${board.slug}`;
     const streamSlug = this.normalizeStreamSlug(board.seasonsStreamSlug);
 
     const ctx = await this.resolveAccountContext(note.authorProfileId || board.ownerProfileId);
     const summaryText = note.text.replace(/\s+/g, ' ').trim();
-    const title = note.title?.trim() || `${note.actorName}: ${summaryText.slice(0, 64)}`;
+    const sliceCodePoints = (str: string, max: number) => Array.from(str).slice(0, max).join('');
+    const title = note.title?.trim() || `${note.actorName}: ${sliceCodePoints(summaryText, 64)}`;
 
     const mediaList = Array.isArray(note.mediaAttachments) ? note.mediaAttachments : [];
     const existingAssetIds = mediaList
       .map((m) => m.mediaAssetId)
       .filter((id): id is string => Boolean(id));
 
+    let parentNoteId: string | undefined = undefined;
+    if (note.replyToNoteId) {
+      try {
+        const parentRes = await this.db.query<{ seasons_note_id: string | null }>(
+          `SELECT seasons_note_id FROM timeline_notes WHERE id = $1 LIMIT 1`,
+          [note.replyToNoteId],
+        );
+        if (parentRes.rows[0]?.seasons_note_id) {
+          parentNoteId = parentRes.rows[0].seasons_note_id;
+        } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(note.replyToNoteId)) {
+          parentNoteId = note.replyToNoteId;
+        }
+      } catch (err) {
+        this.logger.warn(`Could not resolve parent seasons_note_id for replyToNoteId=${note.replyToNoteId}: ${err}`);
+      }
+    }
+
     const ingestInput: IngestSeasonNoteInput = {
       externalId,
       title,
       content: note.text,
-      summary: summaryText.slice(0, 180),
+      summary: sliceCodePoints(summaryText, 180),
       type: noteType,
       privacy,
-      ownerUserId: ctx.seasonsUserId,
+      ...(ctx.seasonsUserId ? { ownerUserId: ctx.seasonsUserId } : {}),
       status: 'PUBLISHED',
       feedSlug,
       streamSlug,
       author: note.actorId,
-      parentNoteId: note.replyToNoteId || undefined,
+      parentNoteId,
       startDate: `${note.dateKey}T${note.time.length === 5 ? `${note.time}:00` : note.time}Z`,
       icon: note.moodEmoji || '🍋',
       tags: Array.from(
@@ -516,7 +530,7 @@ export class SeasonsBridgeService {
         subActorId: note.subActorId ?? null,
         authorProfileId: note.authorProfileId ?? null,
         authorProfileName: note.authorProfileName ?? null,
-        seasonsAccountId: ctx.seasonsUserId,
+        seasonsAccountId: ctx.seasonsUserId ?? null,
         crossRefs: note.crossRefs || [],
         activeFlowSessionIds: note.activeFlowSessionIds || [],
       },
@@ -541,7 +555,7 @@ export class SeasonsBridgeService {
                  seasons_account_id = $3,
                  seasons_synced_at = NOW()
              WHERE id = $4`,
-            [res.noteId, externalId, ctx.seasonsUserId, note.id],
+            [res.noteId, externalId, ctx.seasonsUserId ?? null, note.id],
           )
           .catch(() => undefined);
       }
@@ -693,7 +707,7 @@ export class SeasonsBridgeService {
     try {
       const streamSlug = this.normalizeStreamSlug(payload.streamSlug);
       const feedSlug = payload.feedSlug || 'universe-personal-feed';
-      const privacy = payload.privacy === 'public' ? 'public' : 'private';
+      const privacy: 'private' = 'private';
       const profileId = payload.metadata?.authorProfileId as string | undefined;
       const ctx = await this.resolveAccountContext(profileId);
 
@@ -712,10 +726,11 @@ export class SeasonsBridgeService {
         })
         .catch(() => undefined);
 
+      const resolvedOwnerUserId = payload.ownerUserId?.trim() || ctx.seasonsUserId;
       const res = await ctx.mediaAxon.ingestNoteWithMedia({
         note: {
           ...payload,
-          ownerUserId: payload.ownerUserId || ctx.seasonsUserId,
+          ...(resolvedOwnerUserId ? { ownerUserId: resolvedOwnerUserId } : {}),
         },
         existingAssetIds: payload.mediaAssetIds,
       });
@@ -729,7 +744,7 @@ export class SeasonsBridgeService {
                  seasons_account_id = $3,
                  seasons_synced_at = NOW()
              WHERE id = $4`,
-            [res.noteId, payload.externalId || null, ctx.seasonsUserId, payload.metadata.partyNoteId],
+            [res.noteId, payload.externalId || null, resolvedOwnerUserId ?? null, payload.metadata.partyNoteId],
           )
           .catch(() => undefined);
       }

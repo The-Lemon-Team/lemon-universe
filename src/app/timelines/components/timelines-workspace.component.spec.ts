@@ -1,21 +1,40 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
 import { TimelinesWorkspaceComponent } from './timelines-workspace.component';
 
 describe('TimelinesWorkspaceComponent', () => {
   let fixture: ComponentFixture<TimelinesWorkspaceComponent>;
   let component: TimelinesWorkspaceComponent;
   let httpMock: HttpTestingController;
+  let paramMap$: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let queryParamMap$: BehaviorSubject<ReturnType<typeof convertToParamMap>>;
+  let router: Router;
 
   beforeEach(async () => {
+    paramMap$ = new BehaviorSubject(convertToParamMap({}));
+    queryParamMap$ = new BehaviorSubject(convertToParamMap({}));
+
     await TestBed.configureTestingModule({
       imports: [TimelinesWorkspaceComponent],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            paramMap: paramMap$.asObservable(),
+            queryParamMap: queryParamMap$.asObservable(),
+          },
+        },
+      ],
     }).compileComponents();
 
     httpMock = TestBed.inject(HttpTestingController);
+    router = TestBed.inject(Router);
     fixture = TestBed.createComponent(TimelinesWorkspaceComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
@@ -214,5 +233,110 @@ describe('TimelinesWorkspaceComponent', () => {
     fixture.detectChanges();
 
     expect(component.composerWorldMoment()).toBeNull();
+  });
+
+  it('should resolve a deep-linked note route, switch dateKey, clear conflicting tag filter, and highlight the note', () => {
+    const navigateSpy = spyOn(router, 'navigate').and.returnValue(Promise.resolve(true));
+
+    component.composerText.set('Сообщение для диплинка #релиз');
+    component.selectedDateKey.set('2026-11-10');
+    component.submitEntry();
+
+    const createReqs = httpMock.match((req) => req.method === 'POST' && req.url.includes('/timelines/notes'));
+    expect(createReqs.length).toBe(1);
+    const createdNote = { ...createReqs[0].request.body, id: 'note-deep-1', boardId: 'board-personal-diary' };
+    createReqs[0].flush(createdNote);
+    fixture.detectChanges();
+
+    // Switch to another date and conflicting tag filter
+    component.selectedDateKey.set('2026-11-23');
+    component.selectedTagFilter.set('другой-тег');
+    component.viewMode.set('DIARY_FEED');
+    fixture.detectChanges();
+
+    // Trigger deep-link via /timelines/notes/:noteId (no boardSlug)
+    paramMap$.next(convertToParamMap({ noteId: 'note-deep-1' }));
+    fixture.detectChanges();
+
+    expect(component.selectedDateKey()).toBe('2026-11-10');
+    expect(component.selectedTagFilter()).toBeNull();
+    expect(component.highlightedNoteId()).toBe('note-deep-1');
+    expect(navigateSpy).toHaveBeenCalledWith(
+      ['/timelines', 'personal-diary', 'notes', 'note-deep-1'],
+      { replaceUrl: true },
+    );
+
+    const el = fixture.nativeElement as HTMLElement;
+    const article = el.querySelector('[data-note-id="note-deep-1"]');
+    expect(article).toBeTruthy();
+    expect(article?.classList.contains('ring-2')).toBeTrue();
+  });
+
+  it('should navigate to target note route when jumping to cross-ref or pinned note', () => {
+    const navigateSpy = spyOn(router, 'navigate').and.returnValue(Promise.resolve(true));
+
+    component.jumpToCrossRef({
+      id: 'xref-1',
+      targetBoardId: 'board-personal-diary',
+      targetBoardTitle: 'Личный Дневник',
+      targetBoardIcon: 'menu_book',
+      targetNoteId: 'note-target-99',
+      targetDateKey: '2026-11-18',
+      targetTime: '14:00',
+      targetActorId: 'actor-easy',
+      targetActorName: 'Easy (Изи)',
+      targetActorAvatar: 'easy',
+      targetSnippet: 'Тест',
+      relationLabel: 'Ссылка',
+    });
+
+    expect(component.selectedDateKey()).toBe('2026-11-18');
+    expect(component.highlightedNoteId()).toBe('note-target-99');
+    expect(navigateSpy).toHaveBeenCalledWith([
+      '/timelines',
+      'personal-diary',
+      'notes',
+      'note-target-99',
+    ]);
+
+    component.pinnedSidebarOpen.set(true);
+    component.jumpToPinnedNote({
+      id: 'note-pinned-7',
+      boardId: 'board-personal-diary',
+      dateKey: '2026-11-19',
+      time: '09:30',
+      timeMinutes: 570,
+      actorId: 'actor-easy',
+      actorName: 'Easy (Изи)',
+      actorAvatar: 'easy',
+      actorAccent: 'cyan',
+      type: 'thought',
+      text: 'Закреплено',
+      votesCount: 1,
+      supporters: [],
+      createdAt: '2026-11-19T09:30:00.000Z',
+    });
+
+    expect(component.pinnedSidebarOpen()).toBeFalse();
+    expect(navigateSpy).toHaveBeenCalledWith([
+      '/timelines',
+      'personal-diary',
+      'notes',
+      'note-pinned-7',
+    ]);
+  });
+
+  it('should fallback to GET /timelines/notes/:noteId and report error when deep-linked note is missing', () => {
+    paramMap$.next(convertToParamMap({ boardSlug: 'personal-diary', noteId: 'missing-note-404' }));
+    fixture.detectChanges();
+
+    const lookupReqs = httpMock.match(
+      (req) => req.method === 'GET' && req.url.includes('/timelines/notes/missing-note-404'),
+    );
+    expect(lookupReqs.length).toBe(1);
+    lookupReqs[0].flush({ message: 'Not found' }, { status: 404, statusText: 'Not Found' });
+    fixture.detectChanges();
+
+    expect(component.statusMessage()).toContain('Сообщение не найдено');
   });
 });

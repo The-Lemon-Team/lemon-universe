@@ -271,6 +271,16 @@ export class ApiService {
     });
   }
 
+  getTimelineNoteById(
+    noteId: string,
+    profileId?: string | null,
+  ): Observable<CloudDayNote & { boardSlug?: string }> {
+    return this.http.get<CloudDayNote & { boardSlug?: string }>(
+      `${this.base}/timelines/notes/${encodeURIComponent(noteId)}`,
+      { headers: this.profileHeaders(profileId) },
+    );
+  }
+
   createTimelineNote(note: CloudDayNote, profileId?: string | null): Observable<CloudDayNote> {
     return this.http.post<CloudDayNote>(`${this.base}/timelines/notes`, note, {
       headers: this.profileHeaders(profileId),
