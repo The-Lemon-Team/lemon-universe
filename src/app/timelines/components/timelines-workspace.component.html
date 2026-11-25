@@ -14,120 +14,27 @@
         </div>
       }
 
-      <!-- 1. COMPACT TIMELINE BOARDS ISLAND -->
-      <section class="bg-surface-container-lowest rounded-2xl p-2.5 sm:p-3 shadow-xs border border-outline-variant/30 flex flex-col gap-2">
-        <div class="flex items-center justify-between gap-2 flex-wrap">
-          <div class="flex items-center gap-1 flex-wrap">
-            @for (tab of boardFilterTabs; track tab.id) {
-              <button
-                type="button"
-                (click)="boardFilter.set(tab.id)"
-                class="px-2.5 py-1 rounded-lg text-[11px] font-label-ui font-bold transition-colors cursor-pointer border active:scale-[0.98]"
-                [class]="
-                  boardFilter() === tab.id
-                    ? 'bg-primary text-on-primary border-primary shadow-2xs'
-                    : 'bg-surface-container-low text-on-surface-variant border-outline-variant/30 hover:text-on-surface'
-                "
-              >
-                {{ tab.label }}
-              </button>
-            }
-          </div>
-
-          <div class="flex items-center gap-1.5 flex-wrap">
-            <button
-              type="button"
-              (click)="openAgentSummaryModal()"
-              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-500/12 hover:bg-violet-500/20 text-violet-800 dark:text-violet-200 border border-violet-500/30 text-[11px] font-bold cursor-pointer transition-colors active:scale-[0.98]"
-            >
-              <span class="material-symbols-rounded text-sm">smart_toy</span>
-              <span class="hidden sm:inline">Сводка Агента</span>
-            </button>
-
-            <button
-              type="button"
-              (click)="openPersonalFeedModal()"
-              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/12 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 text-[11px] font-bold cursor-pointer transition-colors active:scale-[0.98]"
-            >
-              <span>🌿</span>
-              <span class="hidden sm:inline">Seasons</span>
-              <span class="font-mono">({{ personalFeedEntries().length }})</span>
-            </button>
-
-            <button
-              type="button"
-              (click)="openCreateBoardModal()"
-              class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-on-primary text-[11px] font-bold shadow-2xs hover:opacity-95 cursor-pointer active:scale-[0.98]"
-            >
-              <span class="material-symbols-rounded text-sm">add</span>
-              <span>Новый TimeLine</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-1.5 overflow-x-auto py-0.5">
-          @for (board of filteredBoards(); track board.id) {
-            <button
-              type="button"
-              (click)="selectBoard(board)"
-              class="px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 border flex-shrink-0 cursor-pointer active:scale-[0.98]"
-              [class]="
-                activeBoard()?.id === board.id
-                  ? 'bg-primary text-on-primary border-primary shadow-xs'
-                  : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface border-outline-variant/30 hover:bg-surface-container-high'
-              "
-            >
-              <span class="material-symbols-rounded text-sm">{{ board.icon || 'timeline' }}</span>
-              <span>{{ board.title }}</span>
-              @if (getBoardHashtags(board); as bTags) {
-                @if (bTags.length > 0) {
-                  <span class="text-[10px] font-mono opacity-80 hidden sm:inline">
-                    #{{ bTags[0] }}@if (bTags.length > 1) { +{{ bTags.length - 1 }} }
-                  </span>
-                }
-              }
-              <span class="text-[10px] px-1 py-0.5 rounded-md bg-black/10 font-mono leading-none">
-                {{ board.privacy === 'PRIVATE' ? '🔒' : '🌐' }} {{ getBoardTotalCount(board.id) }}
-              </span>
-            </button>
-          } @empty {
-            <span class="text-xs text-outline italic py-2">
-              Нет TimeLine-бордов по выбранному фильтру для текущего профиля.
-            </span>
-          }
-        </div>
-
-        @if (allBoardHashtags().length > 0 || selectedBoardHashtag()) {
-          <div class="flex items-center gap-1.5 flex-wrap pt-1 border-t border-outline-variant/15">
-            <span class="text-[10px] font-mono font-bold text-outline mr-1"># Доски:</span>
-            @for (item of allBoardHashtags(); track item.tag) {
-              <button
-                type="button"
-                (click)="toggleBoardHashtagFilter(item.tag)"
-                class="px-2 py-0.5 rounded-full text-[10px] font-mono border transition-colors cursor-pointer inline-flex items-center gap-1"
-                [class]="
-                  selectedBoardHashtag() === item.tag
-                    ? 'bg-primary text-on-primary border-primary font-bold'
-                    : 'bg-surface-container-low hover:bg-primary/10 text-on-surface-variant hover:text-primary border-outline-variant/30'
-                "
-              >
-                <span>#{{ item.tag }}</span>
-                <span class="opacity-75">{{ item.count }}</span>
-              </button>
-            }
-            @if (selectedBoardHashtag()) {
-              <button
-                type="button"
-                (click)="selectedBoardHashtag.set(null)"
-                class="ml-auto px-2 py-0.5 rounded-full bg-surface-container-high text-[10px] font-bold text-on-surface-variant cursor-pointer inline-flex items-center gap-0.5"
-              >
-                <span class="material-symbols-rounded text-xs">close</span>
-                <span>Сбросить #{{ selectedBoardHashtag() }}</span>
-              </button>
-            }
-          </div>
-        }
-      </section>
+      <!-- 1. COMPACT TIMELINE BOARDS NAVIGATOR -->
+      <app-timeline-board-nav
+        [filterTabs]="boardFilterTabs"
+        [boardFilter]="boardFilter()"
+        [filteredBoards]="filteredBoards()"
+        [activeBoard]="activeBoard()"
+        [selectedBoardHashtag]="selectedBoardHashtag()"
+        [allBoardHashtags]="allBoardHashtags()"
+        [boardCounts]="boardNoteCounts()"
+        [personalFeedCount]="personalFeedEntries().length"
+        [boardSearchQuery]="boardSearchQuery()"
+        [boardsLoaded]="boardsLoaded()"
+        (filterChange)="boardFilter.set($event)"
+        (searchChange)="boardSearchQuery.set($event)"
+        (boardSelect)="selectBoard($event)"
+        (hashtagToggle)="toggleBoardHashtagFilter($event)"
+        (hashtagClear)="selectedBoardHashtag.set(null)"
+        (openAgentSummary)="openAgentSummaryModal()"
+        (openPersonalFeed)="openPersonalFeedModal()"
+        (openCreateBoard)="openCreateBoardModal()"
+      />
 
       <!-- 2. ACTIVE BOARD WORKSPACE -->
       @if (activeBoard(); as board) {

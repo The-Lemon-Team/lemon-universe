@@ -66,8 +66,8 @@ import {
 } from './timeline-agent-summary-modal.component';
 import { TimelineCloudViewComponent } from './timeline-cloud-view.component';
 import { TimelineSeasonsModalComponent } from './timeline-seasons-modal.component';
+import { BoardFilterTab, TimelineBoardNavComponent } from './timeline-board-nav.component';
 
-type BoardFilterTab = 'ALL' | 'DIARY' | 'AGENT_SUMMARY' | 'PRIVATE' | 'PUBLIC';
 type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
 
 @Component({
@@ -85,6 +85,7 @@ type TimelineViewMode = 'CLOUD_TIMELINE' | 'DIARY_FEED' | 'VISUAL_TIMELINE';
     TimelineAgentSummaryModalComponent,
     TimelineCloudViewComponent,
     TimelineSeasonsModalComponent,
+    TimelineBoardNavComponent,
     HashtagMultiselectComponent,
     HashtagTextComponent,
     TimePickerPopoverComponent,
@@ -106,6 +107,7 @@ export class TimelinesWorkspaceComponent {
 
   readonly boardFilterTabs: Array<{ id: BoardFilterTab; label: string }> = [
     { id: 'ALL', label: 'Все доступные' },
+    { id: 'TOWERS', label: '🏛️ Эмитент и Башни' },
     { id: 'DIARY', label: '📓 Дневники' },
     { id: 'AGENT_SUMMARY', label: '🤖 Сводки Агентов' },
     { id: 'PRIVATE', label: '🔒 Приватные' },
@@ -139,6 +141,7 @@ export class TimelinesWorkspaceComponent {
   private lastScrolledNoteKey: string | null = null;
 
   readonly boardFilter = signal<BoardFilterTab>('ALL');
+  readonly boardSearchQuery = signal<string>('');
   readonly selectedBoardHashtag = signal<string | null>(null);
   readonly viewMode = signal<TimelineViewMode>('CLOUD_TIMELINE');
   readonly selectedDateKey = signal<string>(new Date().toISOString().slice(0, 10));
@@ -197,11 +200,29 @@ export class TimelinesWorkspaceComponent {
     ),
   );
 
+  readonly boardNoteCounts = computed<Record<string, number>>(() => {
+    const counts: Record<string, number> = {};
+    for (const n of this.allNotes()) {
+      const id = n.boardId || 'board-global-day';
+      counts[id] = (counts[id] ?? 0) + 1;
+    }
+    return counts;
+  });
+
   readonly filteredBoards = computed<TimelineBoard[]>(() => {
     const f = this.boardFilter();
     const tagFilter = this.selectedBoardHashtag();
+    const q = this.boardSearchQuery().trim().toLowerCase();
     let list = this.visibleBoards();
-    if (f === 'DIARY') list = list.filter((b) => b.boardMode === 'DIARY');
+    if (f === 'TOWERS') {
+      list = list.filter(
+        (b) =>
+          b.id === 'board-lemon-space' ||
+          b.slug === 'lemon-space' ||
+          b.id.startsWith('board-tower-') ||
+          b.slug.startsWith('tower-'),
+      );
+    } else if (f === 'DIARY') list = list.filter((b) => b.boardMode === 'DIARY');
     else if (f === 'AGENT_SUMMARY') list = list.filter((b) => b.boardMode === 'AGENT_SUMMARY');
     else if (f === 'PRIVATE') list = list.filter((b) => b.privacy === 'PRIVATE');
     else if (f === 'PUBLIC') list = list.filter((b) => b.privacy === 'PUBLIC');
@@ -210,6 +231,13 @@ export class TimelinesWorkspaceComponent {
       list = list.filter((b) =>
         noteHasTag({ text: b.description || '', tags: b.hashtags || [] }, tagFilter),
       );
+    }
+
+    if (q) {
+      list = list.filter((b) => {
+        const hashtags = (b.hashtags || []).join(' ');
+        return `${b.title} ${b.slug} ${b.description || ''} ${hashtags}`.toLowerCase().includes(q);
+      });
     }
     return list;
   });
@@ -571,8 +599,12 @@ export class TimelinesWorkspaceComponent {
   selectBoard(board: TimelineBoard): void {
     this.selectedTagFilter.set(null);
     this.highlightedNoteId.set(null);
+    this.editingNoteId.set(null);
+    this.crossLinkSourceNote.set(null);
+    this.timelines.clearStatus();
     this.timelines.selectBoard(board.id);
-    void this.router.navigate(['/timelines', board.slug]).catch(() => {});
+    const targetSlug = board.slug || board.id;
+    void this.router.navigate(['/timelines', targetSlug]).catch(() => {});
   }
 
   toggleTagFilter(tag: string): void {

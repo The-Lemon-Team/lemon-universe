@@ -718,4 +718,22 @@ describe('TimelineCloudViewComponent', () => {
     component.openInspectModal(n3);
     expect(inspected.map((n) => n.id)).toEqual(['n3']);
   });
+
+  it('should render horizontal scroll quick-nav controls and scroll the cloud container', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const controls = el.querySelector('[data-test-id="cloud-scroll-controls"]');
+    expect(controls).toBeTruthy();
+
+    const scroller = component.cloudScrollContainer()?.nativeElement as HTMLElement;
+    expect(scroller).toBeTruthy();
+    const scrollBySpy = spyOn(scroller, 'scrollBy').and.callThrough();
+    const scrollToSpy = spyOn(scroller, 'scrollTo').and.callThrough();
+
+    (el.querySelector('[data-test-id="cloud-scroll-right"]') as HTMLButtonElement).click();
+    expect(scrollBySpy).toHaveBeenCalled();
+    expect((scrollBySpy.calls.mostRecent().args[0] as unknown as ScrollToOptions).left).toBe(360);
+
+    (el.querySelector('[data-test-id="cloud-scroll-now"]') as HTMLButtonElement).click();
+    expect(scrollToSpy).toHaveBeenCalled();
+  });
 });

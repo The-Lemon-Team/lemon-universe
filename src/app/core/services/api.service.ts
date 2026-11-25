@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  ArenaActorCard,
   BoardMemberRole,
   BoardPrivacy,
   CloudDayNote,
@@ -37,6 +38,19 @@ export class ApiService {
 
   getProfiles(): Observable<Profile[]> {
     return this.http.get<Profile[]>(`${this.base}/profiles`);
+  }
+
+  getActors(opts?: { category?: string; search?: string; tower?: string; isLead?: boolean }): Observable<ArenaActorCard[]> {
+    let params = new HttpParams();
+    if (opts?.category) params = params.set('category', opts.category);
+    if (opts?.search) params = params.set('search', opts.search);
+    if (opts?.tower) params = params.set('tower', opts.tower);
+    if (opts?.isLead !== undefined) params = params.set('isLead', String(opts.isLead));
+    return this.http.get<ArenaActorCard[]>(`${this.base}/actors`, { params });
+  }
+
+  getActorById(idOrHandle: string): Observable<ArenaActorCard> {
+    return this.http.get<ArenaActorCard>(`${this.base}/actors/${encodeURIComponent(idOrHandle)}`);
   }
 
   registerProfile(dto: {

@@ -25,3 +25,9 @@ All modal dialogs in this repository must comply with the rule defined in [`.age
 - **Accessibility**: Include `role="dialog"`, `aria-modal="true"`, and `aria-labelledby`.
 - **Reusable Directive**: Apply `ModalOverlayDirective` (`appModalOverlay` from `src/app/core/directives/modal-overlay.directive.ts`).
 
+## Bounty Verification & Points Rule
+All bounty tasks and economy rewards must comply with [`.agents/rules/bounty-verification.md`](./.agents/rules/bounty-verification.md):
+- **No Premature Done / No Premature Points**: Never transition a bounty task to `COMPLETED` / `Done` or award `AP` / `GAP` / `FP` points before verification and acceptance are completed.
+- **Verification Gate**: Keep the task `IN_PROGRESS` with a pending verification step until tests, build, and functional/UI checks pass and are accepted.
+
+

@@ -17,3 +17,7 @@ All modal dialog components must implement:
 3. Clean state and form reset on dismiss/cancel.
 4. Proper accessibility attributes (`role="dialog"`, `aria-modal="true"`, `aria-labelledby`).
 5. The `ModalOverlayDirective` (`appModalOverlay`).
+
+### Bounty Verification & Points
+All bounty tasks must follow [`.agents/rules/bounty-verification.md`](./.agents/rules/bounty-verification.md):
+- Keep tasks `IN_PROGRESS` and do **not** award `AP`/`GAP`/`FP` points until implementation is verified (tests/build + UI/stand verification or user acceptance).

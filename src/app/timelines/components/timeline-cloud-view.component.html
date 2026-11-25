@@ -1,7 +1,16 @@
-<div class="overflow-x-auto pb-1" [class.overflow-hidden]="isFullscreen()">
+<div
+  #cloudScrollContainer
+  #cloudScrollUx="appHorizontalScrollUx"
+  appHorizontalScrollUx
+  [appHorizontalScrollDrag]="true"
+  class="overflow-x-auto pb-1 scroll-smooth"
+  [class.overflow-hidden]="isFullscreen()"
+>
       <div
         #cloudRoot
         id="cloudRoot"
+        appHorizontalScrollUx
+        [appHorizontalScrollDrag]="isFullscreen()"
         class="relative bg-surface-container-lowest dark:bg-[#1b1e2a] rounded-3xl border-2 shadow-sm p-4 sm:p-5 flex flex-col justify-between transition-all duration-200"
         [class]="currentVibe().stageBorderClass + ' ' + rootScreenSizeClass()"
         [class.fixed]="isFullscreen()"
@@ -222,6 +231,80 @@
               <span>{{ notes().length }} {{ getNotesWord(notes().length) }}</span>
             </span>
           </div>
+        </div>
+
+        <!-- Horizontal Scroll Quick-Nav Strip -->
+        <div
+          data-test-id="cloud-scroll-controls"
+          data-no-drag-scroll
+          class="relative z-10 mt-2 flex items-center justify-between gap-2 flex-wrap px-2.5 py-1.5 rounded-2xl bg-surface-container-low/85 border border-outline-variant/25 text-[11px]"
+        >
+          <div class="flex items-center gap-1 flex-wrap">
+            <button
+              type="button"
+              data-test-id="cloud-scroll-left"
+              (click)="scrollCloudBy(-360)"
+              class="px-2 py-0.5 rounded-lg bg-surface-container-lowest hover:bg-surface-container-high border border-outline-variant/30 font-bold text-on-surface-variant hover:text-on-surface cursor-pointer inline-flex items-center gap-0.5"
+              title="Прокрутить таймлайн влево"
+            >
+              <span class="material-symbols-rounded text-sm leading-none">chevron_left</span>
+              <span>Влево</span>
+            </button>
+            <button
+              type="button"
+              (click)="scrollCloudToPercent(0)"
+              class="px-2 py-0.5 rounded-lg bg-surface-container-lowest hover:bg-amber-500/15 border border-outline-variant/25 font-semibold text-on-surface-variant hover:text-on-surface cursor-pointer"
+              title="Перейти к утру (08:00)"
+            >
+              🌅 Утро
+            </button>
+            <button
+              type="button"
+              (click)="scrollCloudToPercent(35)"
+              class="px-2 py-0.5 rounded-lg bg-surface-container-lowest hover:bg-sky-500/15 border border-outline-variant/25 font-semibold text-on-surface-variant hover:text-on-surface cursor-pointer"
+              title="Перейти ко дню (13:00)"
+            >
+              ☀️ День
+            </button>
+            <button
+              type="button"
+              (click)="scrollCloudToPercent(68)"
+              class="px-2 py-0.5 rounded-lg bg-surface-container-lowest hover:bg-purple-500/15 border border-outline-variant/25 font-semibold text-on-surface-variant hover:text-on-surface cursor-pointer"
+              title="Перейти к вечеру (18:00)"
+            >
+              🌆 Вечер
+            </button>
+            <button
+              type="button"
+              (click)="scrollCloudToPercent(100)"
+              class="px-2 py-0.5 rounded-lg bg-surface-container-lowest hover:bg-indigo-500/15 border border-outline-variant/25 font-semibold text-on-surface-variant hover:text-on-surface cursor-pointer"
+              title="Перейти к ночи (24:00)"
+            >
+              🌙 Конец дня
+            </button>
+            <button
+              type="button"
+              data-test-id="cloud-scroll-now"
+              (click)="scrollCloudToPercent(nowTimePercent())"
+              class="px-2 py-0.5 rounded-lg bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 font-bold text-amber-900 dark:text-amber-200 cursor-pointer"
+              title="Прокрутить к текущему времени"
+            >
+              📍 Сейчас
+            </button>
+            <button
+              type="button"
+              data-test-id="cloud-scroll-right"
+              (click)="scrollCloudBy(360)"
+              class="px-2 py-0.5 rounded-lg bg-surface-container-lowest hover:bg-surface-container-high border border-outline-variant/30 font-bold text-on-surface-variant hover:text-on-surface cursor-pointer inline-flex items-center gap-0.5"
+              title="Прокрутить таймлайн вправо"
+            >
+              <span>Вправо</span>
+              <span class="material-symbols-rounded text-sm leading-none">chevron_right</span>
+            </button>
+          </div>
+          <span class="text-[10px] font-mono text-outline hidden md:inline">
+            🖱️ Колесо мыши или перетаскивание фона — горизонтальный скролл
+          </span>
         </div>
 
         <!-- CENTRAL IN-CLOUD TIMELINE SKY -->

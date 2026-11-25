@@ -118,6 +118,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     `);
 
     await this.pool.query(`
+      ALTER TABLE arena_actors
+        ADD COLUMN IF NOT EXISTS voice_pitch DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+        ADD COLUMN IF NOT EXISTS voice_rate DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+        ADD COLUMN IF NOT EXISTS voices_count INTEGER NOT NULL DEFAULT 0;
+    `);
+
+    await this.pool.query(`
       ALTER TABLE timeline_notes
         ADD COLUMN IF NOT EXISTS media_attachments JSONB NOT NULL DEFAULT '[]'::jsonb,
         ADD COLUMN IF NOT EXISTS seasons_synced_at TIMESTAMPTZ,

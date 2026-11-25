@@ -339,4 +339,36 @@ describe('TimelinesWorkspaceComponent', () => {
 
     expect(component.statusMessage()).toContain('Сообщение не найдено');
   });
+
+  it('should filter boards by TOWERS tab and search query via board navigator', () => {
+    component.handleCreateBoard({
+      title: '🜃 Башня Земли: TimeLine',
+      description: 'Дизайн и CLAY',
+      hashtags: ['tower-earth'],
+      boardMode: 'TIMELINE',
+      privacy: 'PUBLIC',
+      defaultActorId: 'actor-yuka',
+      seasonsFeedSlug: 'universe-tower-earth',
+      memberProfileIds: [],
+    });
+
+    const createReq = httpMock.match((req) => req.method === 'POST' && req.url.includes('/timelines/boards'));
+    expect(createReq.length).toBe(1);
+    createReq[0].flush({ ...createReq[0].request.body, id: 'board-tower-earth', slug: 'tower-earth' });
+    fixture.detectChanges();
+
+    component.boardFilter.set('TOWERS');
+    expect(component.filteredBoards().map((b) => b.id)).toEqual(['board-tower-earth']);
+
+    component.boardFilter.set('ALL');
+    component.boardSearchQuery.set('земли');
+    expect(component.filteredBoards().map((b) => b.id)).toEqual(['board-tower-earth']);
+
+    const navSpy = spyOn(router, 'navigate').and.returnValue(Promise.resolve(true));
+    component.editingNoteId.set('note-stale');
+    component.selectBoard(component.filteredBoards()[0]);
+    expect(component.activeBoard()?.id).toBe('board-tower-earth');
+    expect(component.editingNoteId()).toBeNull();
+    expect(navSpy).toHaveBeenCalledWith(['/timelines', 'tower-earth']);
+  });
 });

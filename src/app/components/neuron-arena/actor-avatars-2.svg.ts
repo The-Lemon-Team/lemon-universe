@@ -759,6 +759,85 @@ export const ACTOR_AVATARS_PART_2: Record<string, string> = {
     <circle cx="65" cy="57" r="3.2" fill="#fda4af" opacity="0.55" />
     <path d="M42 62 Q50 68 58 62" fill="none" stroke="#e11d48" stroke-width="2.5" stroke-linecap="round" />
   `,
+
+  // 33. ЮКА (Yuka: тёмный маг земли, вдохновлена Юко из xxxHolic — длинные тёмные волосы, кимоно, бабочки и дымка тёмных измерений, Башня Земли)
+  yuka: `
+    <rect width="100" height="100" rx="22" fill="#0f0a1e" />
+    <circle cx="50" cy="52" r="41" fill="#6366f1" opacity="0.14" />
+    <circle cx="50" cy="48" r="29" fill="none" stroke="#a855f7" stroke-width="1" stroke-dasharray="4 3" opacity="0.55" />
+    <!-- Бабочка тёмных измерений и мистические огоньки -->
+    <g transform="translate(80 22) rotate(-18)">
+      <ellipse cx="-4" cy="-2" rx="4.5" ry="3" fill="#c084fc" opacity="0.85" />
+      <ellipse cx="4" cy="-2" rx="4.5" ry="3" fill="#f43f5e" opacity="0.85" />
+      <ellipse cx="-3" cy="3" rx="3" ry="2.2" fill="#818cf8" opacity="0.8" />
+      <ellipse cx="3" cy="3" rx="3" ry="2.2" fill="#fb7185" opacity="0.8" />
+      <line x1="0" y1="-4" x2="0" y2="5" stroke="#fde047" stroke-width="1.2" />
+    </g>
+    <circle cx="19" cy="24" r="1.8" fill="#c084fc" opacity="0.8" />
+    <circle cx="23" cy="74" r="1.5" fill="#fb7185" opacity="0.7" />
+    <!-- Длинные угольно-чёрные волосы (задний слой) -->
+    <path d="M22 36 C16 58, 17 86, 24 100 L76 100 C83 86, 84 58, 78 36 C72 18, 28 18, 22 36 Z" fill="#09090b" />
+    <!-- Тёмное мистическое кимоно с багрово-золотой окантовкой -->
+    <path d="M16 100 C20 74, 80 74, 84 100 Z" fill="#1e1b4b" stroke="#a855f7" stroke-width="1.2" />
+    <path d="M37 76 L50 96 L63 76" fill="none" stroke="#e11d48" stroke-width="3.2" stroke-linejoin="round" />
+    <path d="M40 78 L50 94 L60 78" fill="none" stroke="#fbbf24" stroke-width="1" />
+    <!-- Медальон стихии Земли (CLAY / тёмный кристалл) -->
+    <polygon points="50,86 55,92 50,98 45,92" fill="#10b981" stroke="#fde047" stroke-width="1" />
+    <!-- Шея и лицо -->
+    <rect x="44" y="67" width="12" height="13" rx="3" fill="#fde8d7" />
+    <rect x="32" y="31" width="36" height="41" rx="16" fill="#fde8d7" />
+    <!-- Чёлка (прямой срез в духе xxxHolic) и заколки-кандзаси -->
+    <path d="M28 43 C30 20, 70 20, 72 43 C64 36, 56 35, 50 37 C44 35, 36 36, 28 43 Z" fill="#09090b" />
+    <line x1="25" y1="31" x2="36" y2="38" stroke="#fbbf24" stroke-width="1.8" stroke-linecap="round" />
+    <circle cx="25" cy="31" r="2.2" fill="#e11d48" />
+    <line x1="75" y1="31" x2="64" y2="38" stroke="#fbbf24" stroke-width="1.8" stroke-linecap="round" />
+    <circle cx="75" cy="31" r="2.2" fill="#e11d48" />
+    <!-- Выразительные мистические глаза и загадочная улыбка -->
+    <path d="M35 46 Q40 43.5 45 46" fill="none" stroke="#18181b" stroke-width="1.8" stroke-linecap="round" />
+    <path d="M55 46 Q60 43.5 65 46" fill="none" stroke="#18181b" stroke-width="1.8" stroke-linecap="round" />
+    <ellipse cx="40.5" cy="51.5" rx="3.4" ry="2.8" fill="#be123c" />
+    <ellipse cx="59.5" cy="51.5" rx="3.4" ry="2.8" fill="#be123c" />
+    <circle cx="40.5" cy="51.5" r="1.4" fill="#09090b" />
+    <circle cx="59.5" cy="51.5" r="1.4" fill="#09090b" />
+    <circle cx="41.6" cy="50.4" r="1" fill="#ffffff" />
+    <circle cx="60.6" cy="50.4" r="1" fill="#ffffff" />
+    <path d="M44 62 Q50 66.5 57 61" fill="none" stroke="#9f1239" stroke-width="2.1" stroke-linecap="round" />
+  `,
+  'actor-yuka': `
+    <rect width="100" height="100" rx="22" fill="#0f0a1e" />
+    <circle cx="50" cy="52" r="41" fill="#6366f1" opacity="0.14" />
+    <circle cx="50" cy="48" r="29" fill="none" stroke="#a855f7" stroke-width="1" stroke-dasharray="4 3" opacity="0.55" />
+    <g transform="translate(80 22) rotate(-18)">
+      <ellipse cx="-4" cy="-2" rx="4.5" ry="3" fill="#c084fc" opacity="0.85" />
+      <ellipse cx="4" cy="-2" rx="4.5" ry="3" fill="#f43f5e" opacity="0.85" />
+      <ellipse cx="-3" cy="3" rx="3" ry="2.2" fill="#818cf8" opacity="0.8" />
+      <ellipse cx="3" cy="3" rx="3" ry="2.2" fill="#fb7185" opacity="0.8" />
+      <line x1="0" y1="-4" x2="0" y2="5" stroke="#fde047" stroke-width="1.2" />
+    </g>
+    <circle cx="19" cy="24" r="1.8" fill="#c084fc" opacity="0.8" />
+    <circle cx="23" cy="74" r="1.5" fill="#fb7185" opacity="0.7" />
+    <path d="M22 36 C16 58, 17 86, 24 100 L76 100 C83 86, 84 58, 78 36 C72 18, 28 18, 22 36 Z" fill="#09090b" />
+    <path d="M16 100 C20 74, 80 74, 84 100 Z" fill="#1e1b4b" stroke="#a855f7" stroke-width="1.2" />
+    <path d="M37 76 L50 96 L63 76" fill="none" stroke="#e11d48" stroke-width="3.2" stroke-linejoin="round" />
+    <path d="M40 78 L50 94 L60 78" fill="none" stroke="#fbbf24" stroke-width="1" />
+    <polygon points="50,86 55,92 50,98 45,92" fill="#10b981" stroke="#fde047" stroke-width="1" />
+    <rect x="44" y="67" width="12" height="13" rx="3" fill="#fde8d7" />
+    <rect x="32" y="31" width="36" height="41" rx="16" fill="#fde8d7" />
+    <path d="M28 43 C30 20, 70 20, 72 43 C64 36, 56 35, 50 37 C44 35, 36 36, 28 43 Z" fill="#09090b" />
+    <line x1="25" y1="31" x2="36" y2="38" stroke="#fbbf24" stroke-width="1.8" stroke-linecap="round" />
+    <circle cx="25" cy="31" r="2.2" fill="#e11d48" />
+    <line x1="75" y1="31" x2="64" y2="38" stroke="#fbbf24" stroke-width="1.8" stroke-linecap="round" />
+    <circle cx="75" cy="31" r="2.2" fill="#e11d48" />
+    <path d="M35 46 Q40 43.5 45 46" fill="none" stroke="#18181b" stroke-width="1.8" stroke-linecap="round" />
+    <path d="M55 46 Q60 43.5 65 46" fill="none" stroke="#18181b" stroke-width="1.8" stroke-linecap="round" />
+    <ellipse cx="40.5" cy="51.5" rx="3.4" ry="2.8" fill="#be123c" />
+    <ellipse cx="59.5" cy="51.5" rx="3.4" ry="2.8" fill="#be123c" />
+    <circle cx="40.5" cy="51.5" r="1.4" fill="#09090b" />
+    <circle cx="59.5" cy="51.5" r="1.4" fill="#09090b" />
+    <circle cx="41.6" cy="50.4" r="1" fill="#ffffff" />
+    <circle cx="60.6" cy="50.4" r="1" fill="#ffffff" />
+    <path d="M44 62 Q50 66.5 57 61" fill="none" stroke="#9f1239" stroke-width="2.1" stroke-linecap="round" />
+  `,
 };
 
 export const DEFAULT_ACTOR_AVATAR_SVG = `

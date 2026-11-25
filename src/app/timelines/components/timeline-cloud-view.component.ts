@@ -35,6 +35,7 @@ import {
 } from '../../core/components/hashtag-multiselect.component';
 import { HashtagTextComponent } from '../../core/components/hashtag-text.component';
 import { TimePickerPopoverComponent } from '../../core/components/time-picker-popover.component';
+import { HorizontalScrollUxDirective } from '../directives/horizontal-scroll-ux.directive';
 import {
   ArenaActorCard,
   CloudDayNote,
@@ -81,6 +82,7 @@ export type CloudCardDensity = 'compact' | 'normal';
     HashtagMultiselectComponent,
     HashtagTextComponent,
     TimePickerPopoverComponent,
+    HorizontalScrollUxDirective,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './timeline-cloud-view.component.html',
@@ -94,6 +96,26 @@ export class TimelineCloudViewComponent {
   readonly cardDensity = signal<CloudCardDensity>(this.loadCardDensityPreference());
   readonly isFullscreen = signal<boolean>(false);
   readonly cloudRoot = viewChild<ElementRef<HTMLElement>>('cloudRoot');
+  readonly cloudScrollContainer = viewChild<ElementRef<HTMLElement>>('cloudScrollContainer');
+  readonly cloudScrollUx = viewChild<HorizontalScrollUxDirective>('cloudScrollUx');
+
+  scrollCloudBy(deltaPx: number): void {
+    const el = this.getActiveHorizontalContainer();
+    if (!el) return;
+    el.scrollBy({ left: deltaPx, behavior: 'smooth' });
+  }
+
+  scrollCloudToPercent(percent: number): void {
+    const el = this.getActiveHorizontalContainer();
+    if (!el) return;
+    const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
+    const clamped = Math.max(0, Math.min(100, percent));
+    el.scrollTo({ left: Math.round((clamped / 100) * maxScroll), behavior: 'smooth' });
+  }
+
+  private getActiveHorizontalContainer(): HTMLElement | null {
+    return this.isFullscreen() ? (this.cloudRoot()?.nativeElement ?? null) : (this.cloudScrollContainer()?.nativeElement ?? null);
+  }
 
   readonly rootScreenSizeClass = computed(() => {
     if (this.isFullscreen()) return '';
@@ -655,6 +677,7 @@ export class TimelineCloudViewComponent {
   }
 
   onSkyCanvasClick(event: MouseEvent): void {
+    if (this.cloudScrollUx()?.consumeSuppressedClick()) return;
     const rawTarget = event.target as HTMLElement | null;
     if (rawTarget?.closest('[data-cloud-interactive="true"]')) return;
     const container = event.currentTarget as HTMLElement | null;

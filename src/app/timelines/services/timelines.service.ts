@@ -193,12 +193,25 @@ export class TimelinesService {
   }
 
   selectBoard(boardIdOrSlug: string): void {
-    this.pendingBoardIdOrSlug = boardIdOrSlug;
-    const found = this.boardsSubject.value.find(
-      (b) => b.id === boardIdOrSlug || b.slug === boardIdOrSlug,
-    );
+    const raw = (boardIdOrSlug || '').trim();
+    if (!raw) return;
+    let decoded = raw;
+    try {
+      decoded = decodeURIComponent(raw);
+    } catch {
+      decoded = raw;
+    }
+
+    this.pendingBoardIdOrSlug = decoded;
+    const boards = this.boardsSubject.value;
+    const found =
+      boards.find((b) => b.id === raw || b.id === decoded) ??
+      boards.find((b) => b.slug === raw || b.slug === decoded);
+
     if (found && canViewBoard(found, this.profileService.currentProfileId)) {
-      this.activeBoardIdSubject.next(found.id);
+      if (this.activeBoardIdSubject.value !== found.id) {
+        this.activeBoardIdSubject.next(found.id);
+      }
     }
   }
 

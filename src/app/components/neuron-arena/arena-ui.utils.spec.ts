@@ -201,6 +201,28 @@ describe('detectMentionedActors', () => {
       isLead: false,
       voicesCount: 18,
     },
+    {
+      id: 'actor-yuka',
+      handle: 'yuka_earth_mage',
+      flowId: 'flow-actor-yuka',
+      name: 'Юка',
+      title: 'Тёмный Маг Земли & Проводник в Тёмные Измерения · Башня Земли (EARTH)',
+      avatarIcon: 'yuka',
+      accentColor: 'indigo',
+      category: 'MYTHIC',
+      categoryLabel: 'Земля (EARTH)',
+      rankLabel: 'Хранительница Башни Земли',
+      quote: 'Случайностей не бывает',
+      paradoxPhilosophy: 'Инкапсуляция и замыкания',
+      favoriteDesire: 'Корутины и генераторы',
+      affinities: ['земля', 'башня земли', 'корутины'],
+      traits: { charisma: 96, analytical: 97, rebelVersus: 84 },
+      voicePitch: 0.96,
+      voiceRate: 0.98,
+      sampleVoices: { support: 'Присмотрю за башней!', counter: 'В замыкание!', paradox: 'Баланс!' },
+      isLead: false,
+      voicesCount: 10,
+    },
   ];
 
   it('should detect both Akin and Lemon Coder in "Кодин сессия с Акином + Программист из Lemon Team"', () => {
@@ -277,6 +299,14 @@ describe('detectMentionedActors', () => {
 
     const ids = detected.map((a) => a.id);
     expect(ids).toContain('actor-antigravity-agent');
+  });
+
+  it('should detect Yuka in "Юка присматривает за Башней Земли"', () => {
+    const text = 'Юка присматривает за Башней Земли';
+    const detected = detectMentionedActors(text, mockActors);
+
+    const ids = detected.map((a) => a.id);
+    expect(ids).toContain('actor-yuka');
   });
 
   it('should return empty array for text with no mentions', () => {
