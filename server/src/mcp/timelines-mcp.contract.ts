@@ -214,7 +214,11 @@ export const TIMELINES_MCP_TOOLS: McpToolDefinition[] = [
           },
           description: 'Optional cross-links to attach immediately.',
         },
-        profileId: { type: 'string', description: 'Author profile UUID (defaults to agent profile if omitted in agent tools or human profile).' },
+        profileId: {
+          type: 'string',
+          description:
+            'Author profile UUID (defaults to agent profile for coding-sessions / actor-antigravity-agent, otherwise human profile).',
+        },
       },
       required: ['boardId', 'text'],
     },

@@ -154,6 +154,20 @@ test('McpService handles JSON-RPC initialize, tools/list, and tools/call for tim
   assert.equal((okPost?.result as any)?.isError, undefined);
   assert.match(calls[1].arg.dto.dateKey, /^\d{4}-\d{2}-\d{2}$/);
   assert.match(calls[1].arg.dto.time, /^\d{2}:\d{2}$/);
+  assert.equal(calls[1].arg.profileId, undefined);
+
+  // post_note on coding-sessions or by actor-antigravity-agent defaults profileId to AI Guild agent profile
+  const agentPost = await mcp.handleJsonRpc({
+    jsonrpc: '2.0',
+    id: 6,
+    method: 'tools/call',
+    params: {
+      name: 'post_note',
+      arguments: { boardId: 'coding-sessions', text: 'Agent session note' },
+    },
+  });
+  assert.equal((agentPost?.result as any)?.isError, undefined);
+  assert.equal(calls[2].arg.profileId, 'a7e49c10-9100-4b22-a811-9000a6e17001');
 });
 
 test('Stdio MCP handler routes tools/list and get_timeline_notes cleanly', async () => {

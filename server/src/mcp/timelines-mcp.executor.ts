@@ -26,6 +26,8 @@ export interface TimelinesMcpBackend {
   upsertProfile(dto: Record<string, any>): Promise<any>;
 }
 
+const DEFAULT_AGENT_PROFILE_ID = 'a7e49c10-9100-4b22-a811-9000a6e17001';
+
 function requireNonEmptyString(value: unknown, fieldName: string): string {
   const str = typeof value === 'string' ? value.trim() : '';
   if (!str) {
@@ -142,6 +144,14 @@ export async function executeTimelinesMcpTool(
       const nowMsk = getMoscowNowFormatted();
       const dateKey = assertOptionalDateKey(args.dateKey, 'dateKey') ?? nowMsk.dateKey;
       const time = assertOptionalTimeHm(args.time, 'time') ?? nowMsk.time;
+      const normalizedBoard = boardId.toLowerCase();
+      const isAgentContext =
+        args.actorId === 'actor-antigravity-agent' ||
+        normalizedBoard === 'board-coding-sessions' ||
+        normalizedBoard === 'coding-sessions';
+      const effectiveProfileId =
+        (typeof args.profileId === 'string' && args.profileId.trim()) ||
+        (isAgentContext ? DEFAULT_AGENT_PROFILE_ID : undefined);
 
       return backend.createNote(
         {
@@ -160,7 +170,7 @@ export async function executeTimelinesMcpTool(
           sharedWithGroup: Boolean(args.sharedWithGroup),
           crossRefs: Array.isArray(args.crossRefs) ? args.crossRefs : undefined,
         },
-        args.profileId,
+        effectiveProfileId,
       );
     }
 
