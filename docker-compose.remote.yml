@@ -52,6 +52,30 @@ services:
       retries: 5
       start_period: 10s
 
+  mcp:
+    image: lemon-universe-api:latest
+    container_name: lemon-universe-mcp
+    restart: unless-stopped
+    ports:
+      - "${REMOTE_MCP_PORT:-4320}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      MCP_PORT: 3000
+      TIMELINES_API_URL: http://api:3000/api
+      NO_PROXY: "localhost,127.0.0.1,api,postgres,192.168.1.100"
+      no_proxy: "localhost,127.0.0.1,api,postgres,192.168.1.100"
+    command: ["node", "dist/mcp/timelines-mcp.http.js"]
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   web:
     build:
       context: .

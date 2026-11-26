@@ -1,7 +1,9 @@
 import { Body, Controller, Get, Headers, Post, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { IngestSeasonNoteInput } from '@lemon/seasons-neurons';
 import { MediaUploadInputDto, SeasonsBridgeService } from './seasons-bridge.service';
 
+@ApiTags('seasons')
 @Controller('seasons-bridge')
 export class SeasonsBridgeController {
   constructor(private readonly seasonsBridge: SeasonsBridgeService) {}

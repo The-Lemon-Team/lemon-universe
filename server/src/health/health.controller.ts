@@ -1,7 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DatabaseService } from '../database/database.service';
 import { SeasonsBridgeService } from '../seasons/seasons-bridge.service';
 
+@ApiTags('health')
 @Controller('health')
 export class HealthController {
   constructor(

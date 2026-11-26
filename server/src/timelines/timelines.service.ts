@@ -4,7 +4,9 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { ActorsService } from '../actors/actors.service';
 import { DatabaseService } from '../database/database.service';
 import { SeasonsBridgeService, TimelineBoardSyncTarget } from '../seasons/seasons-bridge.service';
 import {
@@ -18,9 +20,66 @@ import {
   validateCrossLinkAccess,
 } from './timelines.privacy';
 import { mergeNoteTags, normalizeTag, syncTagsOnTextEdit } from './hashtag.utils';
+import {
+  AgentSummaryDto,
+  CreateBoardDto,
+  CreateCrossLinkDto,
+  CreateNoteDto,
+  PinNoteDto,
+  ShareNoteGroupDto,
+  UpdateBoardDto,
+  UpdateNoteDto,
+  UpsertBoardMemberDto,
+} from './timelines.dto';
+
+export {
+  AgentSummaryDto,
+  CreateBoardDto,
+  CreateCrossLinkDto,
+  CreateNoteDto,
+  PinNoteDto,
+  ShareNoteGroupDto,
+  UpdateBoardDto,
+  UpdateNoteDto,
+  UpsertBoardMemberDto,
+};
 
 export const DEFAULT_HUMAN_PROFILE_ID = '1f3e6a64-721c-4d1d-8d52-6c3f4e30d30b';
 export const DEFAULT_AGENT_PROFILE_ID = 'a7e49c10-9100-4b22-a811-9000a6e17001';
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_HM_RE = /^\d{2}:\d{2}$/;
+
+/** Returns current dateKey (YYYY-MM-DD) and time (HH:mm) in Europe/Moscow (+03:00). */
+export function getMoscowDateAndTime(now: Date = new Date()): { dateKey: string; time: string } {
+  const dateKey = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+  const time = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Moscow',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(now);
+  return { dateKey, time };
+}
+
+export interface GetNotesOptions {
+  profileId?: string;
+  boardId?: string;
+  dateKey?: string;
+  fromDate?: string;
+  toDate?: string;
+  actorId?: string;
+  search?: string;
+  tag?: string;
+  limit?: number | string;
+  offset?: number | string;
+  order?: 'latest' | 'chronological';
+  compact?: boolean | string;
+}
 
 const CYRILLIC_TO_LATIN: Record<string, string> = {
   а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'yo', ж: 'zh',
@@ -45,102 +104,49 @@ function toAsciiSlug(value: string, fallback: string): string {
   );
 }
 
-export interface CreateBoardDto {
-  id?: string;
-  slug?: string;
-  title: string;
-  description?: string;
-  hashtags?: string[];
-  icon?: string;
-  colorTheme?: string;
-  vibeId?: string;
-  boardKind?: string;
-  boardMode?: TimelineBoardMode;
-  privacy?: BoardPrivacy;
-  ownerProfileId?: string;
-  defaultActorId?: string;
-  flowType?: string;
-  seasonsStreamSlug?: string;
-  seasonsFeedSlug?: string;
-  memberProfileIds?: string[];
-}
-
-export interface UpdateBoardDto {
-  title?: string;
-  description?: string;
-  hashtags?: string[];
-  icon?: string;
-  colorTheme?: string;
-  vibeId?: string;
-  boardMode?: TimelineBoardMode;
-  privacy?: BoardPrivacy;
-  defaultActorId?: string | null;
-  seasonsFeedSlug?: string;
-  isArchived?: boolean;
-}
-
-export interface UpsertBoardMemberDto {
-  profileId: string;
-  role?: BoardMemberRole;
-  canPost?: boolean;
-  canCrossLink?: boolean;
-}
-
-export interface UpdateNoteDto {
-  title?: string;
-  text?: string;
-  type?: 'thought' | 'action' | 'proposal';
-  moodEmoji?: string;
-  tags?: string[];
-  mediaAttachments?: any[];
-  weather?: Record<string, any> | null;
-  worldMoment?: Record<string, any> | null;
-}
-
-export interface ShareNoteGroupDto {
-  shared?: boolean;
-  granteeProfileIds?: string[];
-}
-
-export interface CreateCrossLinkDto {
-  sourceBoardId?: string;
-  sourceNoteId: string;
-  targetBoardId: string;
-  targetNoteId: string;
-  relationType?: string;
-  relationLabel?: string;
-  previewCache?: Record<string, any>;
-}
-
-export interface AgentSummaryDto {
-  agentProfileId?: string;
-  sourceBoardId?: string;
-  targetBoardId?: string;
-  targetNoteId?: string;
-  actorId?: string;
-  actorName?: string;
-  actorAvatar?: string;
-  actorAccent?: string;
-  title?: string;
-  text: string;
-  dateKey?: string;
-  time?: string;
-  tags?: string[];
-  mediaAttachments?: any[];
-  relationLabel?: string;
-  createAnchorOnTarget?: boolean;
-}
-
 @Injectable()
 export class TimelinesService {
   constructor(
     private readonly db: DatabaseService,
     private readonly seasonsBridge: SeasonsBridgeService,
+    @Optional() private readonly actorsService?: ActorsService,
   ) {}
 
   resolveProfileId(headerProfileId?: string, queryProfileId?: string): string {
     const raw = (headerProfileId || queryProfileId || '').trim();
     return raw || DEFAULT_HUMAN_PROFILE_ID;
+  }
+
+  private async resolveActorMetadata(
+    actorId: string,
+    explicit: {
+      actorName?: string;
+      actorAvatar?: string;
+      actorAccent?: string;
+      actorTitle?: string;
+    },
+  ): Promise<{
+    actorId: string;
+    actorName: string;
+    actorAvatar: string;
+    actorAccent: string;
+    actorTitle: string;
+  }> {
+    let canonical: any = null;
+    if (this.actorsService && actorId) {
+      try {
+        canonical = await this.actorsService.findOne(actorId);
+      } catch {
+        canonical = null;
+      }
+    }
+    return {
+      actorId: canonical?.id || actorId || 'actor-antigravity-agent',
+      actorName: explicit.actorName?.trim() || canonical?.name || 'Antigravity Agent',
+      actorAvatar: explicit.actorAvatar?.trim() || canonical?.avatarIcon || 'antigravity-agent',
+      actorAccent: explicit.actorAccent?.trim() || canonical?.accentColor || 'violet',
+      actorTitle: explicit.actorTitle?.trim() ?? canonical?.title ?? '',
+    };
   }
 
   async fetchAllMembers(): Promise<BoardMemberPermission[]> {
@@ -565,42 +571,124 @@ export class TimelinesService {
     }
   }
 
-  async getNotes(opts: {
-    profileId?: string;
-    boardId?: string;
-    dateKey?: string;
-    actorId?: string;
-    search?: string;
-    tag?: string;
-  }) {
-    const profileId = this.resolveProfileId(opts.profileId);
-    const visibleBoards = await this.getBoards(profileId, true);
-    const visibleBoardIds = new Set(visibleBoards.map((b) => b.id));
+  private async resolveBoardForRead(
+    boardIdOrSlug: string,
+    profileId: string,
+    includeArchived = true,
+  ) {
+    const cleanRef = (boardIdOrSlug || '').trim();
+    if (!cleanRef) {
+      throw new BadRequestException('Идентификатор или slug доски обязателен.');
+    }
+    const visibleBoards = await this.getBoards(profileId, includeArchived);
+    const visibleMatch = visibleBoards.find((b) => b.id === cleanRef || b.slug === cleanRef);
+    if (visibleMatch) {
+      return { board: visibleMatch, visibleBoards };
+    }
+    const rawBoard = await this.fetchBoardRow(cleanRef);
+    if (!rawBoard) {
+      throw new NotFoundException(`TimeLine board '${cleanRef}' not found`);
+    }
+    throw new ForbiddenException('Нет доступа к заметкам этого приватного TimeLine.');
+  }
 
-    if (opts.boardId && !visibleBoardIds.has(opts.boardId)) {
-      throw new ForbiddenException('Нет доступа к заметкам этого приватного TimeLine.');
+  async getBoard(boardIdOrSlug: string, profileId?: string) {
+    const activeProfileId = this.resolveProfileId(profileId);
+    const { board } = await this.resolveBoardForRead(boardIdOrSlug, activeProfileId, true);
+    return board;
+  }
+
+  async getActorStats(opts: { profileId?: string; boardId?: string } = {}) {
+    const profileId = this.resolveProfileId(opts.profileId);
+    let scopedBoardIds: string[] = [];
+    let resolvedBoardId: string | null = null;
+
+    if (opts.boardId?.trim()) {
+      const { board } = await this.resolveBoardForRead(opts.boardId, profileId, true);
+      resolvedBoardId = board.id;
+      scopedBoardIds = [board.id];
+    } else {
+      const visibleBoards = await this.getBoards(profileId, true);
+      scopedBoardIds = visibleBoards.map((b) => b.id);
     }
 
+    if (scopedBoardIds.length === 0) {
+      return { boardId: resolvedBoardId, totalNotes: 0, actors: [] };
+    }
+
+    const { rows } = await this.db.query<any>(
+      `
+        SELECT
+          n.actor_id AS "actorId",
+          MAX(n.actor_name) AS "actorName",
+          COUNT(*)::int AS "notesCount",
+          MAX(n.date_key) AS "lastDateKey"
+        FROM timeline_notes n
+        WHERE n.board_id = ANY($1::text[])
+        GROUP BY n.actor_id
+        ORDER BY COUNT(*) DESC, n.actor_id ASC
+      `,
+      [scopedBoardIds],
+    );
+
+    const totalNotes = rows.reduce((sum: number, row: any) => sum + Number(row.notesCount || 0), 0);
+    return {
+      boardId: resolvedBoardId,
+      totalNotes,
+      actors: rows.map((row: any) => ({
+        actorId: row.actorId,
+        actorName: row.actorName,
+        notesCount: Number(row.notesCount || 0),
+        lastDateKey: row.lastDateKey ?? null,
+      })),
+    };
+  }
+
+  async getNotes(opts: GetNotesOptions) {
+    const profileId = this.resolveProfileId(opts.profileId);
     const params: unknown[] = [];
     const conditions: string[] = [];
 
-    if (opts.boardId) {
-      params.push(opts.boardId);
+    if (opts.boardId?.trim()) {
+      const { board } = await this.resolveBoardForRead(opts.boardId, profileId, true);
+      params.push(board.id);
       conditions.push(`n.board_id = $${params.length}`);
-    } else if (visibleBoardIds.size > 0) {
-      params.push(Array.from(visibleBoardIds));
-      conditions.push(`n.board_id = ANY($${params.length}::text[])`);
     } else {
-      return [];
+      const visibleBoards = await this.getBoards(profileId, true);
+      if (visibleBoards.length === 0) return [];
+      params.push(visibleBoards.map((b) => b.id));
+      conditions.push(`n.board_id = ANY($${params.length}::text[])`);
     }
 
-    if (opts.dateKey) {
-      params.push(opts.dateKey);
+    if (opts.dateKey?.trim()) {
+      const dateKey = opts.dateKey.trim();
+      if (!DATE_KEY_RE.test(dateKey)) {
+        throw new BadRequestException('Некорректный формат dateKey (ожидается YYYY-MM-DD).');
+      }
+      params.push(dateKey);
       conditions.push(`n.date_key = $${params.length}`);
     }
 
-    if (opts.actorId) {
-      params.push(opts.actorId);
+    if (opts.fromDate?.trim()) {
+      const fromDate = opts.fromDate.trim();
+      if (!DATE_KEY_RE.test(fromDate)) {
+        throw new BadRequestException('Некорректный формат fromDate (ожидается YYYY-MM-DD).');
+      }
+      params.push(fromDate);
+      conditions.push(`n.date_key >= $${params.length}`);
+    }
+
+    if (opts.toDate?.trim()) {
+      const toDate = opts.toDate.trim();
+      if (!DATE_KEY_RE.test(toDate)) {
+        throw new BadRequestException('Некорректный формат toDate (ожидается YYYY-MM-DD).');
+      }
+      params.push(toDate);
+      conditions.push(`n.date_key <= $${params.length}`);
+    }
+
+    if (opts.actorId?.trim()) {
+      params.push(opts.actorId.trim());
       conditions.push(`(n.actor_id = $${params.length} OR n.sub_actor_id = $${params.length})`);
     }
 
@@ -632,13 +720,91 @@ export class TimelinesService {
       }
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const { rows } = await this.db.query(
-      this.buildNoteSelectSql(whereClause, 'ORDER BY n.date_key DESC, n.time_minutes ASC'),
-      params,
-    );
+    const orderClause =
+      opts.order === 'latest'
+        ? 'ORDER BY n.date_key DESC, n.time_minutes DESC, n.created_at DESC'
+        : 'ORDER BY n.date_key DESC, n.time_minutes ASC';
 
-    return rows;
+    const tailParts: string[] = [orderClause];
+    if (opts.limit !== undefined && opts.limit !== null && String(opts.limit).trim() !== '') {
+      const parsedLimit = Number(opts.limit);
+      if (!Number.isFinite(parsedLimit) || parsedLimit < 1) {
+        throw new BadRequestException('Параметр limit должен быть положительным числом.');
+      }
+      const clampedLimit = Math.min(Math.floor(parsedLimit), 200);
+      params.push(clampedLimit);
+      tailParts.push(`LIMIT $${params.length}`);
+    }
+
+    if (opts.offset !== undefined && opts.offset !== null && String(opts.offset).trim() !== '') {
+      const parsedOffset = Number(opts.offset);
+      if (!Number.isFinite(parsedOffset) || parsedOffset < 0) {
+        throw new BadRequestException('Параметр offset должен быть неотрицательным числом.');
+      }
+      params.push(Math.floor(parsedOffset));
+      tailParts.push(`OFFSET $${params.length}`);
+    }
+
+    const isCompact = opts.compact === true || opts.compact === 'true';
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const sql = isCompact
+      ? this.buildCompactNoteSelectSql(whereClause, tailParts.join(' '))
+      : this.buildNoteSelectSql(whereClause, tailParts.join(' '));
+    const { rows } = await this.db.query(sql, params);
+
+    return isCompact ? rows.map((row) => this.stripCompactNoteRow(row)) : rows;
+  }
+
+  private stripCompactNoteRow(row: any): Record<string, any> {
+    const compact: Record<string, any> = {
+      id: row.id,
+      boardId: row.boardId,
+      dateKey: row.dateKey,
+      time: row.time,
+      type: row.type,
+      actorId: row.actorId,
+      actorName: row.actorName,
+      text: row.text,
+    };
+    if (row.subActorId) compact.subActorId = row.subActorId;
+    if (row.title) compact.title = row.title;
+    if (Array.isArray(row.tags) && row.tags.length > 0) compact.tags = row.tags;
+    if (row.isPinned) compact.isPinned = true;
+    if (row.replyToNoteId) compact.replyToNoteId = row.replyToNoteId;
+    if (Array.isArray(row.crossRefs) && row.crossRefs.length > 0) {
+      compact.crossRefs = row.crossRefs.map((ref: any) => ({
+        targetBoardId: ref.targetBoardId,
+        targetNoteId: ref.targetNoteId,
+        ...(ref.relationLabel ? { relationLabel: ref.relationLabel } : {}),
+      }));
+    }
+    return compact;
+  }
+
+  private buildCompactNoteSelectSql(whereClause: string, tailClause = ''): string {
+    return `
+      SELECT
+        n.id,
+        n.board_id AS "boardId",
+        n.date_key AS "dateKey",
+        n.time,
+        n.type,
+        n.actor_id AS "actorId",
+        n.actor_name AS "actorName",
+        n.sub_actor_id AS "subActorId",
+        n.title,
+        n.text,
+        n.tags,
+        n.is_pinned AS "isPinned",
+        n.reply_to_note_id AS "replyToNoteId",
+        COALESCE(
+          (SELECT json_agg(cl.preview_cache) FROM timeline_cross_links cl WHERE cl.source_note_id = n.id),
+          '[]'::json
+        ) AS "crossRefs"
+      FROM timeline_notes n
+      ${whereClause}
+      ${tailClause}
+    `;
   }
 
   async getNoteById(noteId: string, actorProfileId?: string) {
@@ -738,10 +904,34 @@ export class TimelinesService {
     }
 
     const id = note.id || `note-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const dateKey = note.dateKey || new Date().toISOString().slice(0, 10);
-    const time = note.time || new Date().toISOString().slice(11, 16);
+    const nowMsk = getMoscowDateAndTime();
+    const dateKey = note.dateKey?.trim() || nowMsk.dateKey;
+    if (!DATE_KEY_RE.test(dateKey)) {
+      throw new BadRequestException('Некорректный формат dateKey (ожидается YYYY-MM-DD).');
+    }
+    const time = note.time?.trim() || nowMsk.time;
+    if (!TIME_HM_RE.test(time)) {
+      throw new BadRequestException('Некорректный формат time (ожидается HH:mm).');
+    }
     const [hh, mm] = String(time).split(':').map(Number);
     const timeMinutes = Number(note.timeMinutes ?? ((hh || 0) * 60 + (mm || 0)));
+
+    const resolvedActor = await this.resolveActorMetadata(
+      note.actorId || board.defaultActorId || 'actor-antigravity-agent',
+      {
+        actorName: note.actorName,
+        actorAvatar: note.actorAvatar,
+        actorAccent: note.actorAccent,
+        actorTitle: note.actorTitle,
+      },
+    );
+    const resolvedSubActor = note.subActorId
+      ? await this.resolveActorMetadata(note.subActorId, {
+          actorName: note.subActorName,
+          actorAvatar: note.subActorAvatar,
+          actorAccent: note.subActorAccent,
+        })
+      : null;
 
     // Resolve profile display name from DB if not provided
     let resolvedProfileName = note.authorProfileName;
@@ -796,15 +986,15 @@ export class TimelinesService {
         timeMinutes,
         note.type || 'thought',
         noteVisibility,
-        note.actorId || board.defaultActorId || 'actor-antigravity-agent',
-        note.actorName || 'Antigravity Agent',
-        note.actorAvatar || 'antigravity-agent',
-        note.actorAccent || 'violet',
-        note.actorTitle || '',
-        note.subActorId || null,
-        note.subActorName || null,
-        note.subActorAvatar || null,
-        note.subActorAccent || null,
+        resolvedActor.actorId,
+        resolvedActor.actorName,
+        resolvedActor.actorAvatar,
+        resolvedActor.actorAccent,
+        resolvedActor.actorTitle,
+        resolvedSubActor?.actorId ?? null,
+        resolvedSubActor?.actorName ?? null,
+        resolvedSubActor?.actorAvatar ?? null,
+        resolvedSubActor?.actorAccent ?? null,
         profileId,
         resolvedProfileName,
         note.title || null,
@@ -850,10 +1040,10 @@ export class TimelinesService {
         dateKey,
         time,
         type: note.type || 'thought',
-        actorId: note.actorId || board.defaultActorId || 'actor-antigravity-agent',
-        actorName: note.actorName || 'Antigravity Agent',
-        actorAvatar: note.actorAvatar || 'antigravity-agent',
-        subActorId: note.subActorId,
+        actorId: resolvedActor.actorId,
+        actorName: resolvedActor.actorName,
+        actorAvatar: resolvedActor.actorAvatar,
+        subActorId: resolvedSubActor?.actorId ?? note.subActorId,
         authorProfileId: profileId,
         authorProfileName: resolvedProfileName,
         title: note.title,
@@ -891,6 +1081,15 @@ export class TimelinesService {
       time,
       timeMinutes,
       visibility: noteVisibility,
+      actorId: resolvedActor.actorId,
+      actorName: resolvedActor.actorName,
+      actorAvatar: resolvedActor.actorAvatar,
+      actorAccent: resolvedActor.actorAccent,
+      actorTitle: resolvedActor.actorTitle,
+      subActorId: resolvedSubActor?.actorId ?? note.subActorId ?? null,
+      subActorName: resolvedSubActor?.actorName ?? note.subActorName ?? null,
+      subActorAvatar: resolvedSubActor?.actorAvatar ?? note.subActorAvatar ?? null,
+      subActorAccent: resolvedSubActor?.actorAccent ?? note.subActorAccent ?? null,
       authorProfileId: profileId,
       authorProfileName: resolvedProfileName,
       tags: mergedTags,
@@ -1347,17 +1546,17 @@ export class TimelinesService {
       throw new NotFoundException(`Agent source board '${sourceBoardId}' not found`);
     }
 
+    const nowMsk = getMoscowDateAndTime();
     const summaryNote = await this.createNote(
       {
         boardId: sourceBoard.id,
-        dateKey: dto.dateKey || new Date().toISOString().slice(0, 10),
-        time: dto.time || new Date().toISOString().slice(11, 16),
+        dateKey: dto.dateKey || nowMsk.dateKey,
+        time: dto.time || nowMsk.time,
         type: 'action',
         actorId: dto.actorId || 'actor-antigravity-agent',
-        actorName: dto.actorName || 'Antigravity Agent',
-        actorAvatar: dto.actorAvatar || 'antigravity-agent',
-        actorAccent: dto.actorAccent || 'violet',
-        actorTitle: 'Автономный AI-Архитектор & Кодинг-Агент',
+        actorName: dto.actorName,
+        actorAvatar: dto.actorAvatar,
+        actorAccent: dto.actorAccent,
         title: dto.title || 'Сводка Агента',
         text: dto.text,
         moodEmoji: '🤖',

@@ -7,12 +7,16 @@
   "ports": {
     "web": 4210,
     "api": 3010,
+    "mcp": 4320,
     "postgres": 5442
   },
   "urls": {
     "web": "http://192.168.1.100:4210",
     "api": "http://192.168.1.100:3010/api",
+    "swagger": "http://192.168.1.100:3010/api/docs",
+    "mcp": "http://192.168.1.100:4320/mcp",
     "healthCheckApi": "http://192.168.1.100:3010/api/timelines/boards",
+    "healthCheckMcp": "http://192.168.1.100:4320/health",
     "healthCheckWeb": "http://192.168.1.100:4210/"
   },
   "projectarium": {

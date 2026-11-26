@@ -8,6 +8,7 @@
   "ports": {
     "web": 4210,
     "api": 3010,
+    "mcp": 4320,
     "db": 5442
   },
   "environment": "production",
@@ -29,6 +30,17 @@
       "role": "api",
       "status": "ONLINE",
       "description": "Multi-TimeLine API & Chrono Cloud Engine"
+    },
+    {
+      "id": "app-lemon-universe-mwxmzub5",
+      "appName": "Lemon Universe TimeLines MCP",
+      "port": 4320,
+      "healthUrl": "http://192.168.1.100:4320/health",
+      "devUrl": "http://localhost:4320/mcp",
+      "framework": "Node.js Streamable HTTP MCP + OpenAPI Sync",
+      "role": "mcp",
+      "status": "ONLINE",
+      "description": "TimeLines Model Context Protocol (MCP) Server (18 tools, Swagger-synced)"
     },
     {
       "id": "app-lemon-universe-mwt52ebn",

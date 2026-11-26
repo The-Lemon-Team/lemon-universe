@@ -8,7 +8,11 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
-    "test": "tsx --test test/*.test.ts"
+    "mcp:stdio": "node dist/mcp/timelines-mcp.stdio.js",
+    "mcp:http": "node dist/mcp/timelines-mcp.http.js",
+    "mcp:dev": "tsx src/mcp/timelines-mcp.stdio.ts",
+    "mcp:inspect": "npx -y @modelcontextprotocol/inspector node dist/mcp/timelines-mcp.stdio.js",
+    "test": "nest build && tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@lemon/media-hub-neurons": "file:../../lemon-actions/packages/lemon-media-hub-neurons",
@@ -16,15 +20,18 @@
     "@nestjs/common": "^10.4.0",
     "@nestjs/core": "^10.4.0",
     "@nestjs/platform-express": "^10.4.0",
+    "@nestjs/swagger": "^7.4.2",
     "pg": "^8.13.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.0",
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.0",
     "@types/pg": "^8.11.10",
+    "@types/swagger-ui-express": "^4.1.8",
     "tsx": "^4.19.2",
     "typescript": "^5.5.2"
   }

@@ -1,14 +1,36 @@
 import crypto from 'node:crypto';
 import { Injectable } from '@nestjs/common';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DatabaseService } from '../database/database.service';
 
-export interface RegisterProfileDto {
-  handle: string;
-  displayName: string;
+export class RegisterProfileDto {
+  @ApiProperty({ description: 'Unique handle', example: 'hades_underworld' })
+  handle!: string;
+
+  @ApiProperty({ description: 'Human-readable display name', example: 'Аид' })
+  displayName!: string;
+
+  @ApiPropertyOptional({ description: 'Material icon key or avatar', example: 'smart_toy' })
   avatarIcon?: string;
+
+  @ApiPropertyOptional({ description: 'Player type', enum: ['HUMAN', 'AGENT', 'GM'], default: 'HUMAN' })
   playerType?: 'HUMAN' | 'AGENT' | 'GM';
+
+  @ApiPropertyOptional({ description: 'Default Seasons feed slug' })
   defaultFeedSlug?: string;
+
+  @ApiPropertyOptional({ description: 'Optional Lemon Seasons user ID' })
   seasonsUserId?: string;
+
+  @ApiPropertyOptional({ description: 'Optional Lemon Seasons user key' })
+  seasonsUserKey?: string;
+}
+
+export class UpdateProfileSeasonsDto {
+  @ApiPropertyOptional({ description: 'Lemon Seasons user ID' })
+  seasonsUserId?: string;
+
+  @ApiPropertyOptional({ description: 'Lemon Seasons user key' })
   seasonsUserKey?: string;
 }
 

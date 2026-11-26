@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   CreateProjectariumLinkDto,
   ProjectariumLinksService,
@@ -6,6 +7,7 @@ import {
 } from './projectarium-links.service';
 
 /** Owner-facing management of Projectarium ↔ TimeLines links (tokens issued manually). */
+@ApiTags('projectarium')
 @Controller('timelines/projectarium/links')
 export class ProjectariumLinksController {
   constructor(private readonly links: ProjectariumLinksService) {}

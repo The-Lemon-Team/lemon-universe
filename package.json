@@ -14,7 +14,9 @@
     "api:build": "npm --prefix server run build",
     "api:start": "npm --prefix server run start:prod",
     "api:dev": "npm --prefix server run start:dev",
-    "api:test": "npm --prefix server test"
+    "api:test": "npm --prefix server test",
+    "mcp:stdio": "npm --prefix server run mcp:stdio",
+    "mcp:inspect": "npm --prefix server run mcp:inspect"
   },
   "private": true,
   "dependencies": {

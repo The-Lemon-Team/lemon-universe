@@ -98,5 +98,11 @@ Start-Sleep -Seconds 3
 $health = Invoke-RestMethod -Uri "http://$($hostIp):3010/api/health" -TimeoutSec 10
 Write-Host "    API /api/health: $($health | ConvertTo-Json -Compress)" -ForegroundColor Green
 
+$swagger = Invoke-RestMethod -Uri "http://$($hostIp):3010/api/docs-json" -TimeoutSec 10
+Write-Host "    Swagger /api/docs-json paths: $($swagger.paths.PSObject.Properties.Count)" -ForegroundColor Green
+
+$mcpHealth = Invoke-RestMethod -Uri "http://$($hostIp):4320/mcp" -TimeoutSec 10
+Write-Host "    MCP :4320/mcp: $($mcpHealth | ConvertTo-Json -Compress)" -ForegroundColor Green
+
 $webResp = Invoke-WebRequest -Uri "http://$($hostIp):4210/" -UseBasicParsing -TimeoutSec 10
 Write-Host "    Web :4210/ status: $($webResp.StatusCode)" -ForegroundColor Green
